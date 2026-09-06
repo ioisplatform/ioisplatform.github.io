@@ -1,0 +1,6 @@
+{
+  "name": "IOIS Platform",
+  "description": "Indian Online Income Supporting System - Smart Digital Portal with RTPS Citizen Services, Jamin Sudhar & Dakhil Kharij, Aadhaar-PAN Guide, Govt Free Welfare & Pension Schemes, Scholarships, 7 Master Plans, Live Weather & Rain Alert, 24x7 News TV & E-Papers, Panchang & 12 Rashifal, Mandi Bhav & Gold Rates, Govt Websites Directory, Job Alerts, Digital ID Card & AI Assistant",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

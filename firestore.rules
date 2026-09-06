@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users Collection (Registrations, Passwords, Payment Proofs)
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Helpdesk Tickets Collection
+    match /tickets/{ticketId} {
+      allow read, write: if true;
+    }
+
+    // AI Bot Learned Knowledge Base (Admin Taught Q&A)
+    match /ai_knowledge/{knowledgeId} {
+      allow read, write: if true;
+    }
+
+    // Unanswered Questions for Admin review
+    match /ai_unanswered/{unansweredId} {
+      allow read, write: if true;
+    }
+
+    // 15-Question Skill Interviews Collection
+    match /interviews/{interviewId} {
+      allow read, write: if true;
+    }
+
+    // Application Settings (Telegram config, global notices)
+    match /app_settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Community Real-time Chat Messages & Media
+    match /community_messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // Entertainment Playlists & Shared Video Queues
+    match /playlists/{playlistId} {
+      allow read, write: if true;
+    }
+  }
+}
+

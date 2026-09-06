@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="hi">
+  <head>
+    <meta charset="utf-8">
+    <title>IOIS Platform - Redirecting...</title>
+    <script>
+      // Single Page Apps for GitHub Pages
+      // Redirects 404 routes back to root index.html with query parameter
+      var pathSegmentsToKeep = 1;
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
+    </script>
+  </head>
+  <body style="background-color: #020617; color: #f8fafc; font-family: sans-serif; text-align: center; padding-top: 50px;">
+    <h2>IOIS Platform लोड हो रहा है...</h2>
+    <p>कृपया प्रतीक्षा करें...</p>
+    <a href="./" style="color: #fbbf24;">होम पेज पर जाएं</a>
+  </body>
+</html>

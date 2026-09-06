@@ -1,0 +1,55 @@
+# Automated GitHub Pages Deployment for IOIS Platform
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Install Dependencies
+        run: npm ci || npm install --legacy-peer-deps
+
+      - name: 4. Build Vite Static App for GitHub Pages
+        run: npm run build:gh-pages
+
+      - name: 5. Ensure .nojekyll in build output
+        run: touch ./dist/.nojekyll
+
+      - name: 6. Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: 7. Upload Build Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: 8. Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

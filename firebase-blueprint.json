@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User registration and verification record in IOIS system",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique IOIS User ID (e.g. IOIS10RK01)" },
+        "fullName": { "type": "string", "description": "Full name of the user" },
+        "mobileNumber": { "type": "string", "description": "Mobile number with country code" },
+        "email": { "type": "string", "description": "Email address of the user" },
+        "selectedPlanId": { "type": "number", "description": "Selected plan ID (1 to 7)" },
+        "role": { "type": "string", "description": "Plan title or role designation" },
+        "password": { "type": "string", "description": "Hashed or plain password for login" },
+        "photoUrl": { "type": "string", "description": "Profile picture URL" },
+        "paymentScreenshotUrl": { "type": "string", "description": "Screenshot proof of payment" },
+        "paymentUtr": { "type": "string", "description": "UTR transaction number" },
+        "paymentStatus": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Admin verification status" },
+        "createdAt": { "type": "string", "description": "Registration ISO timestamp" },
+        "verifiedAt": { "type": "string", "description": "Approval ISO timestamp" },
+        "rejectionReason": { "type": "string", "description": "Rejection note if rejected" },
+        "address": { "type": "string", "description": "City / State address" },
+        "payoutUpi": { "type": "string", "description": "UPI ID for payouts" }
+      },
+      "required": ["userId", "fullName", "mobileNumber", "selectedPlanId", "paymentStatus"]
+    },
+    "HelpTicket": {
+      "title": "HelpTicket",
+      "description": "Helpdesk support ticket submitted by user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Ticket ID" },
+        "userId": { "type": "string", "description": "User ID" },
+        "userName": { "type": "string", "description": "User name" },
+        "userMobile": { "type": "string", "description": "User mobile" },
+        "subject": { "type": "string", "description": "Ticket subject" },
+        "message": { "type": "string", "description": "Ticket issue message" },
+        "status": { "type": "string", "enum": ["open", "resolved"], "description": "Status" },
+        "createdAt": { "type": "string", "description": "Created timestamp" },
+        "reply": { "type": "string", "description": "Admin reply text" }
+      },
+      "required": ["id", "userId", "status", "createdAt"]
+    },
+    "AiKnowledgeItem": {
+      "title": "AiKnowledgeItem",
+      "description": "Admin taught question and answer for IOIS AI Bot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique Q&A ID" },
+        "question": { "type": "string", "description": "Question text" },
+        "answer": { "type": "string", "description": "Answer taught by Admin" },
+        "category": { "type": "string", "description": "Category name" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "hits": { "type": "number", "description": "Number of times answered" }
+      },
+      "required": ["id", "question", "answer"]
+    },
+    "InterviewRecord": {
+      "title": "InterviewRecord",
+      "description": "Completed 15-question skill interview candidate assessment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Interview ID" },
+        "candidateName": { "type": "string", "description": "Candidate name" },
+        "candidateMobile": { "type": "string", "description": "Candidate mobile" },
+        "totalScore": { "type": "number", "description": "Total score" },
+        "recommendedPlanId": { "type": "number", "description": "Recommended plan ID" },
+        "recommendedPlanName": { "type": "string", "description": "Recommended plan name" },
+        "completedAt": { "type": "string", "description": "Submission timestamp" }
+      },
+      "required": ["id", "candidateName", "totalScore", "completedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public and private user registrations and membership passes"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/HelpTicket" },
+      "description": "Helpdesk support tickets for administration and user assistance"
+    },
+    "/ai_knowledge/{knowledgeId}": {
+      "schema": { "$ref": "#/entities/AiKnowledgeItem" },
+      "description": "Admin taught custom AI bot knowledge and answers"
+    },
+    "/interviews/{interviewId}": {
+      "schema": { "$ref": "#/entities/InterviewRecord" },
+      "description": "Assessment interview submissions by candidates"
+    }
+  }
+}

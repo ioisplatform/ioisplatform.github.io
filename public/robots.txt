@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Google AdSense Crawler Permission
+User-agent: Mediapartners-Google
+Allow: /
+
+# Googlebot
+User-agent: Googlebot
+Allow: /
+
+# Sitemap Location (Update with your GitHub Pages domain)
+# Sitemap: https://yourusername.github.io/sitemap.xml
