@@ -4,7 +4,29 @@
 
 ---
 
-## 🛠️ GitHub Pages के लिए किए गए तकनीकी समाधान (Zero-Error Architecture):
+## ⚠️ "पेज Blank क्यों आ रहा है और Publish क्यों नहीं हो रहा?" (समस्या और 1 मिनट का समाधान):
+
+### समस्या 1: GitHub Pages पर स्क्रीन पूरी Blank (सफेद) क्यों दिखती है?
+- **कारण**: जब आप GitHub पर फाइल्स पुश करते हैं और **Settings ➔ Pages** में जाकर **"Deploy from a branch" (main / root)** सेलेक्ट कर लेते हैं। GitHub Pages आपकी अन-कम्पाइल्ड `index.html` को लोड करता है, जिसमें `<script type="module" src="/src/main.tsx"></script>` लिखा होता है। ब्राउज़र TypeScript/JSX (`.tsx`) फाइल को सीधे नहीं चला सकता, जिससे ब्राउज़र में `404 / MIME type error` आता है और स्क्रीन **पूरी Blank** रह जाती है!
+- **समाधान**: आपको **Settings ➔ Pages** में जाकर **Source** को **"GitHub Actions"** सेलेक्ट करना है।
+
+---
+
+### समस्या 2: GitHub पर Publish क्यों नहीं हो रहा या Action Fail क्यों हो रहा है?
+GitHub पर पहली बार पब्लिश करते समय 2 सेटिंग्स ऑन करनी होती हैं:
+
+1. **सेटिंग 1 (Pages Source):**
+   - अपनी GitHub रिपॉजिटरी में **Settings** टैब खोलें।
+   - बाईं ओर **Pages** पर क्लिक करें।
+   - **Build and deployment** के नीचे **Source** ड्रॉपडाउन में **"GitHub Actions"** चुनें। *(Deploy from a branch नहीं!)*
+
+2. **सेटिंग 2 (Workflow Permissions):**
+   - रिपॉजिटरी के **Settings** में जाएं ➔ बाईं मेनू में **Actions** ➔ **General** पर क्लिक करें।
+   - पेज के सबसे नीचे स्क्रॉल करें ➔ **Workflow permissions** हेडिंग देखें।
+   - **"Read and write permissions"** को सेलेक्ट करें और **Save** दबाएं।
+   *(इससे GitHub Actions को आपकी वेबसाइट डिप्लॉय करने की अनुमति मिल जाती है।)*
+
+---
 
 1. **`.nojekyll` फ़ाइल**: GitHub Pages डिफ़ॉल्ट रूप से Jekyll चलाता है जो आधुनिक React/Vite एसेट्स को ब्लॉक कर देता है। हमने `/public/.nojekyll` और `dist/.nojekyll` जोड़ दिया है जिससे Jekyll बाईपास होता है।
 2. **`404.html` + `index.html` SPA Redirector**: GitHub Pages पर किसी भी पेज या सब-रूट को रीफ्रेश करने पर कभी भी "404 Not Found" नहीं आएगा।

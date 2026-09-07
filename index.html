@@ -50,10 +50,19 @@
       }
     }
     </script>
-    <!-- GitHub Pages Single Page App Redirect Receiver -->
+    <!-- GitHub Pages Relative Path & SPA Redirect Normalizer -->
     <script type="text/javascript">
+      // 1. Ensure trailing slash on GitHub Pages directory URLs (prevents ./assets/ 404 blank page)
+      (function() {
+        var p = window.location.pathname;
+        if (p && !p.endsWith('/') && !p.includes('.')) {
+          window.location.replace(p + '/' + window.location.search + window.location.hash);
+        }
+      })();
+
+      // 2. Decode SPA query redirect from 404.html if refreshed
       (function(l) {
-        if (l.search[1] === '/' ) {
+        if (l.search && l.search[1] === '/' ) {
           var decoded = l.search.slice(1).split('&').map(function(s) { 
             return s.replace(/~and~/g, '&');
           }).join('?');
@@ -65,7 +74,15 @@
     </script>
   </head>
   <body class="bg-[#020617] text-slate-100 antialiased overflow-x-hidden min-h-screen selection:bg-amber-400 selection:text-slate-950">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fast Preload Fallback (Prevents Blank White Screen on Slow 2G/3G or First Load) -->
+      <div id="iois-app-loading" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #020617; color: #f8fafc; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; text-align: center; padding: 20px;">
+        <div style="width: 50px; height: 50px; border: 3px solid rgba(245, 158, 11, 0.2); border-top-color: #f59e0b; border-radius: 50%; animation: iois-spin 0.9s linear infinite; margin-bottom: 20px;"></div>
+        <div style="font-size: 20px; font-weight: 800; color: #fbbf24; letter-spacing: 1px; margin-bottom: 8px;">IOIS PLATFORM</div>
+        <div style="font-size: 14px; color: #94a3b8; max-width: 320px;">पोर्टल लोड हो रहा है, कृपया कुछ सेकंड प्रतीक्षा करें...</div>
+        <style>@keyframes iois-spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

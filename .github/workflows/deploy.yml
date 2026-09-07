@@ -31,16 +31,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: 3. Install Dependencies
-        run: npm ci || npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: 4. Build Vite Static App for GitHub Pages
         run: npm run build:gh-pages
 
       - name: 5. Ensure .nojekyll in build output
-        run: touch ./dist/.nojekyll
+        run: |
+          touch ./dist/.nojekyll
+          cp ./public/404.html ./dist/404.html || true
 
       - name: 6. Setup Pages
         uses: actions/configure-pages@v4
