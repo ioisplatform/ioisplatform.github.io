@@ -214,6 +214,35 @@ function saveUsersToDisk(users: any[]): void {
   }
 }
 
+function maskMobile(mob?: string): string {
+  if (!mob) return "";
+  const digits = mob.replace(/\D/g, "");
+  if (digits.length < 4) return "******";
+  const last4 = digits.slice(-4);
+  return `+91 ******${last4}`;
+}
+
+function maskEmail(email?: string): string {
+  if (!email || !email.includes("@")) return "";
+  const [user, domain] = email.split("@");
+  const visible = user.length > 2 ? `${user[0]}***${user[user.length - 1]}` : `${user[0]}***`;
+  const [domainName, ...domainExt] = (domain || "").split(".");
+  const maskedDom = domainName && domainName.length > 2 ? `${domainName[0]}***${domainName[domainName.length - 1]}` : `${domainName || "***"}`;
+  return `${visible}@${maskedDom}.${domainExt.join(".")}`;
+}
+
+function maskName(name?: string): string {
+  if (!name) return "";
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w.length > 1 ? `${w[0]}${"*".repeat(Math.min(w.length - 1, 4))}` : w))
+    .join(" ");
+}
+
+// Temporary in-memory tokens for real-identity verified password resets (token -> { userId, expiresAt })
+const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
+
 function loadTicketsFromDisk(): any[] {
   try {
     if (!fs.existsSync(TICKETS_FILE)) {
@@ -547,10 +576,14 @@ async function startServer() {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // API Route: Get All Users
+  // API Route: Get All Users (Passwords stripped for privacy and security)
   app.get("/api/users", (_req: Request, res: Response) => {
     const users = loadUsersFromDisk();
-    res.json({ success: true, count: users.length, users });
+    const sanitized = users.map((u) => {
+      const { password, ...rest } = u;
+      return rest;
+    });
+    res.json({ success: true, count: sanitized.length, users: sanitized });
   });
 
   // API Route: Bulk User Sync
@@ -586,13 +619,51 @@ async function startServer() {
 
       const merged = Array.from(userMap.values());
       saveUsersToDisk(merged);
-      res.json({ success: true, count: merged.length, users: merged });
+      const sanitizedMerged = merged.map((u) => {
+        const { password, ...rest } = u;
+        return rest;
+      });
+      res.json({ success: true, count: sanitizedMerged.length, users: sanitizedMerged });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
   });
 
-  // API Route: Register New User
+  // API Route: Check if Mobile Number or Email already exists (Masked info only to prevent privacy leaks)
+  app.get("/api/users/check-duplicate", (req: Request, res: Response) => {
+    try {
+      const mobile = typeof req.query.mobile === "string" ? req.query.mobile.trim() : "";
+      const email = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
+      const excludeUserId = typeof req.query.excludeUserId === "string" ? req.query.excludeUserId.trim().toUpperCase() : "";
+
+      const users = loadUsersFromDisk();
+      const mobileDigits = mobile.replace(/\D/g, "");
+
+      for (const u of users) {
+        if (!u || !u.userId) continue;
+        if (excludeUserId && u.userId.toUpperCase() === excludeUserId) continue;
+
+        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+        const mobileMatch = mobileDigits.length >= 10 && uDigits.endsWith(mobileDigits.slice(-10));
+        const emailMatch = email.length > 3 && u.email && u.email.trim().toLowerCase() === email;
+
+        if (mobileMatch || emailMatch) {
+          return res.json({
+            exists: true,
+            matchedBy: mobileMatch && emailMatch ? "both" : mobileMatch ? "mobile" : "email",
+            maskedMobile: maskMobile(u.mobileNumber),
+            maskedEmail: maskEmail(u.email),
+          });
+        }
+      }
+
+      return res.json({ exists: false });
+    } catch (e: any) {
+      return res.status(500).json({ exists: false, error: e.message });
+    }
+  });
+
+  // API Route: Register New User (Strict Uniqueness: No duplicate Mobile or Email allowed)
   app.post("/api/users/register", (req: Request, res: Response) => {
     try {
       const {
@@ -618,29 +689,53 @@ async function startServer() {
 
       const users = loadUsersFromDisk();
       const planPrice = PLAN_PRICES[selectedPlanId] || 10;
-      
-      // Use existing user ID if passed, or safely generate one
+
+      const cleanMobile = mobileNumber.trim();
+      const cleanDigits = cleanMobile.replace(/\D/g, "");
+      const cleanEmail = (email || "").trim().toLowerCase();
+
+      // STRICT VALIDATION: Under no circumstance can multiple users have the same Mobile or Email
+      const existingUser = users.find((u) => {
+        if (!u) return false;
+        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+        const sameMobile = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+        const sameEmail = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
+        return sameMobile || sameEmail;
+      });
+
+      if (existingUser) {
+        const uDigits = (existingUser.mobileNumber || "").replace(/\D/g, "");
+        const mobileMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+        const emailMatch = cleanEmail.length > 3 && existingUser.email && existingUser.email.trim().toLowerCase() === cleanEmail;
+        const matchedBy = mobileMatch && emailMatch ? "both" : mobileMatch ? "mobile" : "email";
+
+        return res.status(409).json({
+          success: false,
+          alreadyExists: true,
+          matchedBy,
+          maskedMobile: maskMobile(existingUser.mobileNumber),
+          maskedEmail: maskEmail(existingUser.email),
+          error: `यह ${matchedBy === "both" ? "मोबाइल नंबर और ईमेल" : matchedBy === "mobile" ? "मोबाइल नंबर" : "ईमेल"} पहले से किसी सदस्य के खाते में पंजीकृत है। डेटा सुरक्षा नीति के तहत एक सदस्य केवल एक ही वैध खाता रख सकता है।`,
+        });
+      }
+
+      // Generate strictly unique User ID
       let userId = req.body.userId && typeof req.body.userId === "string" && req.body.userId.trim().length > 3
         ? req.body.userId.trim().toUpperCase()
         : generateUserIdHelper(fullName, planPrice, users);
 
-      const cleanMobile = mobileNumber.trim();
-      const cleanDigits = cleanMobile.replace(/\D/g, "");
-      const cleanEmail = (email || `${cleanDigits.slice(-10)}@iois.in`).trim();
-
-      // Check if user already exists by mobile (last 10 digits) or userId to prevent duplicates/mismatches
-      const existingIndex = users.findIndex((u) => {
-        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
-        const sameMobile = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
-        const sameId = u.userId && u.userId.toUpperCase() === userId.toUpperCase();
-        return sameMobile || sameId;
-      });
+      // Verify userId uniqueness against any collision
+      let safetyCounter = 1;
+      while (users.some((u) => u.userId && u.userId.toUpperCase() === userId.toUpperCase())) {
+        userId = generateUserIdHelper(fullName + safetyCounter, planPrice, users);
+        safetyCounter++;
+      }
 
       const newUser = {
         userId,
         fullName: fullName.trim(),
         mobileNumber: cleanMobile,
-        email: cleanEmail,
+        email: cleanEmail || `${cleanDigits.slice(-10)}@iois.in`,
         selectedPlanId: Number(selectedPlanId),
         role: role || "member",
         password: password || "1234",
@@ -656,15 +751,7 @@ async function startServer() {
         emergencyContact: emergencyContact ? emergencyContact.trim() : undefined,
       };
 
-      if (existingIndex >= 0) {
-        // Keep their assigned user ID if already set
-        if (users[existingIndex].userId) {
-          newUser.userId = users[existingIndex].userId;
-        }
-        users[existingIndex] = { ...users[existingIndex], ...newUser };
-      } else {
-        users.unshift(newUser);
-      }
+      users.unshift(newUser);
       saveUsersToDisk(users);
 
       // Trigger Telegram Alert in background
@@ -730,62 +817,181 @@ async function startServer() {
     }
   });
 
-  // API Route: Recover User ID by Mobile
+  // API Route: Secure Recover User ID (Requires matching Mobile AND Email to protect privacy)
   app.post("/api/users/recover-id", (req: Request, res: Response) => {
     try {
-      const { mobile } = req.body;
-      if (!mobile) {
-        return res.status(400).json({ success: false, error: "मोबाइल नंबर आवश्यक है।" });
+      const { mobile, email, fullName } = req.body;
+      if (!mobile || !email) {
+        return res.status(400).json({
+          success: false,
+          error: "सुरक्षा कारणों से User ID खोजने के लिए पंजीकृत मोबाइल नंबर और ईमेल आईडी दोनों अनिवार्य हैं।",
+        });
       }
 
       const cleanDigits = String(mobile).replace(/\D/g, "");
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanName = fullName ? String(fullName).trim().toLowerCase() : "";
+
       const users = loadUsersFromDisk();
 
       const user = users.find((u) => {
-        const uDigits = u.mobileNumber.replace(/\D/g, "");
-        return cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+        if (!u) return false;
+        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+        const mobMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+        const emailMatch = u.email && u.email.trim().toLowerCase() === cleanEmail;
+        const nameMatch = cleanName ? (u.fullName || "").trim().toLowerCase().includes(cleanName) : true;
+        return mobMatch && emailMatch && nameMatch;
       });
 
       if (!user) {
         return res.status(404).json({
           success: false,
-          error: "इस मोबाइल नंबर से कोई खाता नहीं मिला।",
+          error: "दर्ज किया गया मोबाइल नंबर और ईमेल किसी पंजीकृत खाते से मेल नहीं खाते। सुरक्षा कारणों से User ID नहीं दिखाई जा सकती।",
         });
       }
 
       return res.json({
         success: true,
         userId: user.userId,
-        fullName: user.fullName,
-        planId: user.selectedPlanId,
+        maskedName: maskName(user.fullName),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "रिकवरी में त्रुटि आई।" });
     }
   });
 
-  // API Route: Reset Password
-  app.post("/api/users/reset-password", (req: Request, res: Response) => {
+  // API Route: Verify Real Identity (Multi-field security challenge before password reset)
+  app.post("/api/users/verify-identity", (req: Request, res: Response) => {
     try {
-      const { userId, mobile, newPassword } = req.body;
-      if (!userId || !mobile || !newPassword) {
-        return res.status(400).json({ success: false, error: "सभी फ़ील्ड्स आवश्यक हैं।" });
+      const { identifier, fullName, email, address, sponsorId } = req.body;
+      if (!identifier || !fullName || !email) {
+        return res.status(400).json({
+          success: false,
+          error: "पहचान सत्यापन के लिए User ID या मोबाइल नंबर, पूरा नाम और ईमेल आईडी अनिवार्य हैं।",
+        });
       }
 
-      const cleanId = String(userId).trim().toLowerCase();
-      const cleanDigits = String(mobile).replace(/\D/g, "");
+      const cleanInput = String(identifier).trim().toLowerCase();
+      const inputDigits = cleanInput.replace(/\D/g, "");
+      const cleanName = String(fullName).trim().toLowerCase();
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanAddress = address ? String(address).trim().toLowerCase() : "";
+      const cleanSponsor = sponsorId ? String(sponsorId).trim().toLowerCase() : "";
 
       const users = loadUsersFromDisk();
-      const userIndex = users.findIndex((u) => {
-        const idMatch = u.userId.toLowerCase() === cleanId;
-        const mobileMatch = cleanDigits.length >= 10 && u.mobileNumber.replace(/\D/g, "").endsWith(cleanDigits.slice(-10));
-        return idMatch && mobileMatch;
+      const user = users.find((u) => {
+        if (!u) return false;
+        const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
+        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+        const mobileMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
+        return uidMatch || mobileMatch;
       });
 
-      if (userIndex === -1) {
+      if (!user) {
         return res.status(404).json({
           success: false,
-          error: "User ID और मोबाइल नंबर मैच नहीं हुए।",
+          error: "पहचान सत्यापन विफल: इस विवरण से कोई पंजीकृत सदस्य खाता नहीं मिला।",
+        });
+      }
+
+      // Check Real Identity: Full Name & Email match
+      const uName = (user.fullName || "").trim().toLowerCase();
+      const uEmail = (user.email || "").trim().toLowerCase();
+      const uAddress = (user.address || "").trim().toLowerCase();
+      const uSponsor = (user.sponsorId || "").trim().toLowerCase();
+
+      const nameMatch = uName === cleanName || uName.includes(cleanName) || cleanName.includes(uName);
+      const emailMatch = uEmail === cleanEmail;
+
+      let addressMatch = true;
+      if (cleanAddress && uAddress) {
+        addressMatch = uAddress.includes(cleanAddress) || cleanAddress.includes(uAddress);
+      }
+
+      let sponsorMatch = true;
+      if (cleanSponsor && uSponsor) {
+        sponsorMatch = uSponsor === cleanSponsor;
+      }
+
+      if (!nameMatch || !emailMatch || !addressMatch || !sponsorMatch) {
+        return res.status(401).json({
+          success: false,
+          error: "पहचान सत्यापन असफल: आपके द्वारा दर्ज किया गया नाम, ईमेल या पता इस खाते के रिकॉर्ड से मेल नहीं खाता। अनधिकृत पासवर्ड बदलाव को रोकने के लिए प्रक्रिया रोक दी गई है।",
+        });
+      }
+
+      // Generate secure verification token valid for 15 minutes
+      const token = `rst_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      passwordResetTokens.set(token, {
+        userId: user.userId,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+      });
+
+      return res.json({
+        success: true,
+        verificationToken: token,
+        userId: user.userId,
+        maskedName: maskName(user.fullName),
+        maskedMobile: maskMobile(user.mobileNumber),
+        message: "पहचान सत्यापन सफल! अब आप नया सुरक्षित पासवर्ड सेट कर सकते हैं।",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || "सत्यापन प्रक्रिया में त्रुटि आई।" });
+    }
+  });
+
+  // API Route: Reset Password (Requires valid verificationToken)
+  app.post("/api/users/reset-password", (req: Request, res: Response) => {
+    try {
+      const { userId, verificationToken, newPassword, confirmPassword, fallbackIdentity } = req.body;
+      if (!userId || !newPassword) {
+        return res.status(400).json({ success: false, error: "User ID और नया पासवर्ड आवश्यक हैं।" });
+      }
+
+      if (newPassword.length < 4) {
+        return res.status(400).json({ success: false, error: "नया पासवर्ड कम से कम 4 अक्षरों का होना चाहिए।" });
+      }
+
+      if (confirmPassword && newPassword !== confirmPassword) {
+        return res.status(400).json({ success: false, error: "दोनों पासवर्ड आपस में मेल नहीं खाते।" });
+      }
+
+      const cleanId = String(userId).trim().toUpperCase();
+      const users = loadUsersFromDisk();
+      const userIndex = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+
+      if (userIndex === -1) {
+        return res.status(404).json({ success: false, error: "उपयोगकर्ता खाता नहीं मिला।" });
+      }
+
+      const targetUser = users[userIndex];
+
+      // Validate token OR fallback identity check
+      let isAuthorized = false;
+      if (verificationToken) {
+        const tokenData = passwordResetTokens.get(verificationToken);
+        if (tokenData && tokenData.expiresAt > Date.now() && tokenData.userId.toUpperCase() === cleanId) {
+          isAuthorized = true;
+          passwordResetTokens.delete(verificationToken);
+        }
+      }
+
+      // Secondary fallback if token expired but full identity payload is verified
+      if (!isAuthorized && fallbackIdentity) {
+        const fName = String(fallbackIdentity.fullName || "").trim().toLowerCase();
+        const fEmail = String(fallbackIdentity.email || "").trim().toLowerCase();
+        const uName = (targetUser.fullName || "").trim().toLowerCase();
+        const uEmail = (targetUser.email || "").trim().toLowerCase();
+
+        if (fName && fEmail && (uName === fName || uName.includes(fName)) && uEmail === fEmail) {
+          isAuthorized = true;
+        }
+      }
+
+      if (!isAuthorized) {
+        return res.status(403).json({
+          success: false,
+          error: "अवैध या समाप्त सत्यापन सत्र। पासवर्ड बदलने से पहले अपनी वास्तविक पहचान सत्यापित करना अनिवार्य है।",
         });
       }
 
@@ -794,7 +1000,7 @@ async function startServer() {
 
       return res.json({
         success: true,
-        message: "पासवर्ड सफलतापूर्वक रीसेट हो गया है! अब नए पासवर्ड से लॉगिन करें।",
+        message: "पासवर्ड सफलतापूर्वक सुरक्षित रूप से बदल दिया गया है! अब आप नए पासवर्ड से लॉगिन कर सकते हैं।",
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "पासवर्ड रीसेट में त्रुटि आई।" });
@@ -812,6 +1018,27 @@ async function startServer() {
 
       if (index === -1) {
         return res.status(404).json({ success: false, error: "यूजर नहीं मिला।" });
+      }
+
+      // Check if new mobile or email is already taken by another user
+      if (updates.mobileNumber || updates.email) {
+        const checkMobileDigits = updates.mobileNumber ? updates.mobileNumber.trim().replace(/\D/g, "") : "";
+        const checkEmail = updates.email ? updates.email.trim().toLowerCase() : "";
+
+        const conflictUser = users.find((u) => {
+          if (!u || u.userId.toUpperCase() === userId.toUpperCase()) return false;
+          const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+          const mobileMatch = checkMobileDigits.length >= 10 && uDigits.endsWith(checkMobileDigits.slice(-10));
+          const emailMatch = checkEmail.length > 3 && u.email && u.email.trim().toLowerCase() === checkEmail;
+          return mobileMatch || emailMatch;
+        });
+
+        if (conflictUser) {
+          return res.status(409).json({
+            success: false,
+            error: "दर्ज किया गया मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है।",
+          });
+        }
       }
 
       users[index] = {

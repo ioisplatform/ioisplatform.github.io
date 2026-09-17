@@ -41,6 +41,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>('login');
+  const [authModalPrefill, setAuthModalPrefill] = useState<{ identifier?: string; mobile?: string; userId?: string }>({});
 
   // Sync users with backend on launch and periodically check status updates
   useEffect(() => {
@@ -69,8 +70,12 @@ export default function App() {
     setIsChatOpen(true);
   };
 
-  const handleOpenLogin = (mode: 'login' | 'forgot_user_id' | 'forgot_password' = 'login') => {
+  const handleOpenLogin = (
+    mode: 'login' | 'forgot_user_id' | 'forgot_password' = 'login',
+    prefill?: { identifier?: string; mobile?: string; userId?: string }
+  ) => {
     setAuthModalInitialMode(mode);
+    setAuthModalPrefill(prefill || {});
     setIsAuthModalOpen(true);
   };
 
@@ -189,7 +194,7 @@ export default function App() {
             />
             <RegistrationPortal
               onRegisterSuccess={handleRegisterSuccess}
-              onOpenLogin={() => handleOpenLogin('login')}
+              onOpenLogin={handleOpenLogin}
               preSelectedPlanId={selectedPlanForRegister}
             />
           </div>
@@ -568,6 +573,9 @@ export default function App() {
           navigateTo('register');
         }}
         initialMode={authModalInitialMode}
+        initialIdentifier={authModalPrefill.identifier}
+        initialMobile={authModalPrefill.mobile}
+        initialUserId={authModalPrefill.userId}
       />
     </div>
   );

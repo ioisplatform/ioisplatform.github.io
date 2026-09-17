@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_UPI_ID, OFFICIAL_PAYEE_NAME } from '../data/plansData';
-import { registerNewUserAsync } from '../services/userService';
+import { registerNewUserAsync, checkUserAlreadyExists, DuplicateCheckResult } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { 
   UserPlus, 
@@ -19,12 +19,19 @@ import {
   CreditCard,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  KeyRound,
+  Shield,
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
 
 interface RegistrationPortalProps {
   onRegisterSuccess: (user: UserProfile) => void;
-  onOpenLogin: () => void;
+  onOpenLogin: (
+    mode?: 'login' | 'forgot_user_id' | 'forgot_password',
+    prefill?: { identifier?: string; mobile?: string; userId?: string }
+  ) => void;
   preSelectedPlanId?: number;
 }
 
@@ -39,6 +46,15 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   const [selectedPlanId, setSelectedPlanId] = useState<number>(preSelectedPlanId);
   const [role, setRole] = useState<string>('Verified Elite Member');
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
+
+  // Duplicate Account Prevention State (Privacy Preserved, Masked)
+  const [duplicateNotice, setDuplicateNotice] = useState<{
+    exists: boolean;
+    matchedBy: 'mobile' | 'email' | 'both';
+    maskedMobile?: string;
+    maskedEmail?: string;
+  } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (preSelectedPlanId) {
@@ -61,6 +77,34 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       // ignore
     }
   }, []);
+
+  // Real-time duplicate checking on mobile or email blur/change (Zero PII leak)
+  const verifyUniqueness = async (mob: string, em: string) => {
+    const cleanDigits = mob.replace(/\D/g, '');
+    const cleanEmail = em.trim();
+    if (cleanDigits.length < 10 && cleanEmail.length < 5) {
+      setDuplicateNotice(null);
+      return;
+    }
+
+    try {
+      setIsCheckingDuplicate(true);
+      const result = await checkUserAlreadyExists(mob, em);
+      setIsCheckingDuplicate(false);
+      if (result.exists) {
+        setDuplicateNotice({
+          exists: true,
+          matchedBy: result.matchedBy || 'mobile',
+          maskedMobile: result.maskedMobile,
+          maskedEmail: result.maskedEmail,
+        });
+      } else {
+        setDuplicateNotice(null);
+      }
+    } catch {
+      setIsCheckingDuplicate(false);
+    }
+  };
 
   // Photos & Screenshots
   const [photoUrl, setPhotoUrl] = useState<string>('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80');
@@ -95,6 +139,21 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       setErrorMsg('कृपया वैध 10 अंकों का मोबाइल नंबर दर्ज करें।');
       return;
     }
+
+    // 1. Strict Duplicate Check before submitting (Zero PII leak)
+    const dupCheck = await checkUserAlreadyExists(mobileNumber, email);
+    if (dupCheck.exists) {
+      setDuplicateNotice({
+        exists: true,
+        matchedBy: dupCheck.matchedBy || 'mobile',
+        maskedMobile: dupCheck.maskedMobile,
+        maskedEmail: dupCheck.maskedEmail,
+      });
+      const label = dupCheck.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल' : dupCheck.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल';
+      setErrorMsg(`यह ${label} पहले से पंजीकृत है। डेटा गोपनीयता नीति के अनुसार केवल एक खाता अनुमत है। कृपया सीधे लॉगिन करें अथवा पहचान सत्यापित कर पासवर्ड रीसेट करें।`);
+      return;
+    }
+
     if (!password || password.length < 4) {
       setErrorMsg('कृपया कम से कम 4 अक्षरों का सुरक्षित पासवर्ड बनाएं।');
       return;
@@ -139,6 +198,14 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       onRegisterSuccess(newUser);
     } catch (err: any) {
       setIsSubmitting(false);
+      if (err.alreadyExists) {
+        setDuplicateNotice({
+          exists: true,
+          matchedBy: err.matchedBy || 'mobile',
+          maskedMobile: err.maskedMobile,
+          maskedEmail: err.maskedEmail,
+        });
+      }
       setErrorMsg(err.message || 'पंजीकरण के दौरान कोई त्रुटि आई।');
     }
   };
@@ -178,8 +245,88 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
             </button>
           </div>
 
+          {/* Duplicate Account Detection Banner with Masked Privacy Protection (No PII leak) */}
+          {duplicateNotice && (
+            <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-950/90 via-slate-950 to-red-950/90 border-2 border-amber-400 rounded-2xl sm:rounded-3xl text-white shadow-[0_10px_35px_rgba(245,158,11,0.35)] space-y-4 animate-fadeIn">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-base sm:text-lg font-black text-amber-300">
+                    ⚠️ यह खाता पहले से पंजीकृत है! (Account Already Registered)
+                  </h4>
+                  <p className="text-xs text-slate-200 mt-1 leading-relaxed">
+                    दर्ज किया गया {duplicateNotice.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल आईडी' : duplicateNotice.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल आईडी'} IOIS प्लेटफ़ॉर्म पर पहले से सक्रिय खाते में दर्ज है। 
+                    एक सदस्य केवल एक ही वैध ID बना सकता है।
+                  </p>
+                </div>
+              </div>
+
+              {/* Data Privacy & Masked Identity Card */}
+              <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
+                <div className="flex items-center gap-2 text-amber-400 font-bold pb-2 border-b border-slate-800">
+                  <Shield className="w-4 h-4" />
+                  <span>गोपनीयता व डेटा सुरक्षा प्रोटोकॉल (Privacy & Data Protection Active)</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-normal">
+                  सुरक्षा कारणों से किसी अन्य व्यक्ति को वास्तविक नाम, पूरा ईमेल या User ID उजागर नहीं किया जाता। यदि यह आपका ही खाता है तो आप नीचे दिए गए विकल्पों का उपयोग करके सुरक्षित लॉगिन या वास्तविक पहचान सत्यापन द्वारा पासवर्ड रीसेट कर सकते हैं:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {duplicateNotice.maskedMobile && (
+                    <div className="bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <span className="text-slate-400">सुरक्षित मोबाइल:</span>
+                      <span className="text-amber-300 font-mono font-bold">{duplicateNotice.maskedMobile}</span>
+                    </div>
+                  )}
+                  {duplicateNotice.maskedEmail && (
+                    <div className="bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <span className="text-slate-400">सुरक्षित ईमेल:</span>
+                      <span className="text-amber-300 font-mono font-bold">{duplicateNotice.maskedEmail}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons: Direct Login or Identity Verification Password Reset */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenLogin('login');
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-2 hover:from-amber-300 transition shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>सीधे लॉगिन करें →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenLogin('forgot_password');
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-slate-900 border border-amber-400/60 text-amber-300 font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span>पहचान सत्यापित कर पासवर्ड रीसेट करें 🔒</span>
+                </button>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDuplicateNotice(null)}
+                  className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                >
+                  विवरण बदलकर दूसरा मोबाइल/ईमेल दर्ज करें ✖
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Error display */}
-          {errorMsg && (
+          {errorMsg && !duplicateNotice && (
             <div className="p-4 bg-red-950/70 border border-red-500/50 rounded-2xl text-red-300 text-xs flex items-center gap-3">
               <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
               <span>{errorMsg}</span>
@@ -241,17 +388,32 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    मोबाइल / WhatsApp नंबर <span className="text-red-400">*</span>:
+                  <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                    <span>मोबाइल / WhatsApp नंबर <span className="text-red-400">*</span>:</span>
+                    {isCheckingDuplicate && (
+                      <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> जांच हो रही है...
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
                     required
                     value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMobileNumber(val);
+                      if (val.replace(/\D/g, '').length >= 10) {
+                        verifyUniqueness(val, email);
+                      }
+                    }}
+                    onBlur={() => verifyUniqueness(mobileNumber, email)}
                     placeholder="उदा. +91 9876543210"
                     className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
                   />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    (एक मोबाइल नंबर से केवल 1 User ID ही बन सकती है)
+                  </span>
                 </div>
 
                 <div>
@@ -277,10 +439,20 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEmail(val);
+                      if (val.includes('@') && val.includes('.')) {
+                        verifyUniqueness(mobileNumber, val);
+                      }
+                    }}
+                    onBlur={() => verifyUniqueness(mobileNumber, email)}
                     placeholder="name@example.com"
                     className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
                   />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    (डुप्लीकेट ईमेल से दोबारा रजिस्ट्रेशन की अनुमति नहीं है)
+                  </span>
                 </div>
 
                 <div className="sm:col-span-2">

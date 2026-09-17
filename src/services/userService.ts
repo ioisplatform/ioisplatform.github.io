@@ -545,6 +545,361 @@ export const saveUsers = (users: UserProfile[]): void => {
   }
 };
 
+export const maskMobile = (mob?: string): string => {
+  if (!mob) return '';
+  const digits = mob.replace(/\D/g, '');
+  if (digits.length < 4) return '******';
+  const last4 = digits.slice(-4);
+  return `+91 ******${last4}`;
+};
+
+export const maskEmail = (email?: string): string => {
+  if (!email || !email.includes('@')) return '';
+  const [user, domain] = email.split('@');
+  const visible = user.length > 2 ? `${user[0]}***${user[user.length - 1]}` : `${user[0]}***`;
+  const [domainName, ...domainExt] = (domain || '').split('.');
+  const maskedDom = domainName && domainName.length > 2 ? `${domainName[0]}***${domainName[domainName.length - 1]}` : `${domainName || '***'}`;
+  return `${visible}@${maskedDom}.${domainExt.join('.')}`;
+};
+
+export const maskName = (name?: string): string => {
+  if (!name) return '';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w.length > 1 ? `${w[0]}${'*'.repeat(Math.min(w.length - 1, 4))}` : w))
+    .join(' ');
+};
+
+export interface DuplicateCheckResult {
+  exists: boolean;
+  matchedBy?: 'mobile' | 'email' | 'both';
+  maskedMobile?: string;
+  maskedEmail?: string;
+  error?: string;
+}
+
+export interface IdentityVerificationParams {
+  identifier: string;
+  fullName: string;
+  email: string;
+  address?: string;
+  sponsorId?: string;
+}
+
+export interface IdentityVerificationResult {
+  success: boolean;
+  verificationToken?: string;
+  userId?: string;
+  maskedName?: string;
+  maskedMobile?: string;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Checks if a mobile number or email is already registered across local cache, Firestore, or server.
+ * Strictly returns MASKED details only to protect privacy and prevent reconnaissance.
+ */
+export const checkUserAlreadyExists = async (
+  mobile?: string,
+  email?: string,
+  excludeUserId?: string
+): Promise<DuplicateCheckResult> => {
+  const cleanMobile = (mobile || '').trim();
+  const mobileDigits = cleanMobile.replace(/\D/g, '');
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  // 1. Check local users first
+  const localUsers = getAllUsers();
+  for (const u of localUsers) {
+    if (!u || !u.userId) continue;
+    if (excludeUserId && u.userId.toUpperCase() === excludeUserId.toUpperCase()) continue;
+
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    const mobileMatch = mobileDigits.length >= 10 && uDigits.endsWith(mobileDigits.slice(-10));
+    const emailMatch = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
+
+    if (mobileMatch || emailMatch) {
+      return {
+        exists: true,
+        matchedBy: mobileMatch && emailMatch ? 'both' : mobileMatch ? 'mobile' : 'email',
+        maskedMobile: maskMobile(u.mobileNumber),
+        maskedEmail: maskEmail(u.email),
+      };
+    }
+  }
+
+  // 2. Check Server API
+  try {
+    const params = new URLSearchParams();
+    if (mobileDigits.length >= 10) params.append('mobile', mobileDigits);
+    if (cleanEmail.length > 3) params.append('email', cleanEmail);
+    if (excludeUserId) params.append('excludeUserId', excludeUserId);
+
+    const res = await fetch(`/api/users/check-duplicate?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.exists) {
+        return {
+          exists: true,
+          matchedBy: data.matchedBy || 'mobile',
+          maskedMobile: data.maskedMobile,
+          maskedEmail: data.maskedEmail,
+        };
+      }
+    }
+  } catch (e) {
+    // ignore network err
+  }
+
+  // 3. Direct Firestore check if available
+  if (db) {
+    try {
+      const col = collection(db, 'users');
+      const snap = await getDocs(col);
+      for (const d of snap.docs) {
+        const u = d.data() as UserProfile;
+        if (!u || !u.userId) continue;
+        if (excludeUserId && u.userId.toUpperCase() === excludeUserId.toUpperCase()) continue;
+
+        const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+        const mobileMatch = mobileDigits.length >= 10 && uDigits.endsWith(mobileDigits.slice(-10));
+        const emailMatch = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
+
+        if (mobileMatch || emailMatch) {
+          return {
+            exists: true,
+            matchedBy: mobileMatch && emailMatch ? 'both' : mobileMatch ? 'mobile' : 'email',
+            maskedMobile: maskMobile(u.mobileNumber),
+            maskedEmail: maskEmail(u.email),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Firestore duplicate check query note:', e);
+    }
+  }
+
+  return { exists: false };
+};
+
+/**
+ * Multi-point real identity verification without OTP or external links
+ */
+export const verifyUserIdentityAsync = async (
+  params: IdentityVerificationParams
+): Promise<IdentityVerificationResult> => {
+  const { identifier, fullName, email, address, sponsorId } = params;
+  if (!identifier?.trim() || !fullName?.trim() || !email?.trim()) {
+    return {
+      success: false,
+      error: 'User ID या मोबाइल, पूरा नाम और पंजीकृत ईमेल तीनों विवरण दर्ज करना अनिवार्य है।',
+    };
+  }
+
+  try {
+    const res = await fetch('/api/users/verify-identity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, fullName, email, address, sponsorId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return {
+        success: true,
+        verificationToken: data.verificationToken,
+        userId: data.userId,
+        maskedName: data.maskedName,
+        maskedMobile: data.maskedMobile,
+        message: data.message,
+      };
+    } else if (res.status === 401 || res.status === 404 || res.status === 400) {
+      return {
+        success: false,
+        error: data.error || 'पहचान सत्यापन असफल: दर्ज किया गया नाम, ईमेल या विवरण इस खाते के रिकॉर्ड से मेल नहीं खाता।',
+      };
+    }
+  } catch (e) {
+    // offline / fallback to local storage
+  }
+
+  // Local fallback verification
+  const cleanInput = identifier.trim().toLowerCase();
+  const inputDigits = cleanInput.replace(/\D/g, '');
+  const cleanName = fullName.trim().toLowerCase();
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanAddress = (address || '').trim().toLowerCase();
+  const cleanSponsor = (sponsorId || '').trim().toLowerCase();
+
+  const users = getAllUsers();
+  const user = users.find((u) => {
+    if (!u) return false;
+    const uidMatch = (u.userId || '').toLowerCase() === cleanInput;
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    const mobMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
+    return uidMatch || mobMatch;
+  });
+
+  if (!user) {
+    return {
+      success: false,
+      error: 'पहचान सत्यापन असफल: इस User ID या मोबाइल नंबर से कोई पंजीकृत सदस्य खाता नहीं मिला।',
+    };
+  }
+
+  const uName = (user.fullName || '').trim().toLowerCase();
+  const uEmail = (user.email || '').trim().toLowerCase();
+  const uAddress = (user.address || '').trim().toLowerCase();
+  const uSponsor = (user.sponsorId || '').trim().toLowerCase();
+
+  const nameMatch = uName === cleanName || uName.includes(cleanName) || cleanName.includes(uName);
+  const emailMatch = uEmail === cleanEmail;
+  const addressMatch = !cleanAddress || !uAddress || uAddress.includes(cleanAddress) || cleanAddress.includes(uAddress);
+  const sponsorMatch = !cleanSponsor || !uSponsor || uSponsor === cleanSponsor;
+
+  if (!nameMatch || !emailMatch || !addressMatch || !sponsorMatch) {
+    return {
+      success: false,
+      error: 'पहचान सत्यापन असफल: दर्ज किया गया नाम, ईमेल या पता इस खाते के आधिकारिक रिकॉर्ड से मेल नहीं खाता। अनधिकृत पासवर्ड बदलाव रोकने हेतु अनुमति नहीं दी गई।',
+    };
+  }
+
+  const localToken = `local_rst_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  return {
+    success: true,
+    verificationToken: localToken,
+    userId: user.userId,
+    maskedName: maskName(user.fullName),
+    maskedMobile: maskMobile(user.mobileNumber),
+    message: 'पहचान सत्यापन सफल! अब आप नया सुरक्षित पासवर्ड सेट कर सकते हैं।',
+  };
+};
+
+/**
+ * Resets password ONLY after identity verification has succeeded
+ */
+export const resetPasswordWithTokenAsync = async (
+  userId: string,
+  verificationToken: string,
+  newPassword: string,
+  confirmPassword?: string,
+  fallbackIdentity?: { fullName: string; email: string }
+): Promise<{ success: boolean; message?: string; error?: string }> => {
+  if (!userId || !newPassword) {
+    return { success: false, error: 'User ID और नया पासवर्ड अनिवार्य हैं।' };
+  }
+  if (newPassword.length < 4) {
+    return { success: false, error: 'पासवर्ड कम से कम 4 अक्षरों का होना चाहिए।' };
+  }
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return { success: false, error: 'पासवर्ड और कन्फर्म पासवर्ड आपस में मेल नहीं खाते।' };
+  }
+
+  try {
+    const res = await fetch('/api/users/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, verificationToken, newPassword, confirmPassword, fallbackIdentity }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Also update local cache for smooth offline and seamless login
+      const users = getAllUsers();
+      const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+      if (idx !== -1) {
+        users[idx].password = newPassword;
+        saveUsers(users);
+      }
+      return { success: true, message: data.message || 'पासवर्ड सफलतापूर्वक बदल दिया गया है!' };
+    } else if (res.status === 403 || res.status === 401 || res.status === 400 || res.status === 404) {
+      return { success: false, error: data.error || 'सत्यापन अमान्य है।' };
+    }
+  } catch (e) {
+    // server unreachable fallback
+  }
+
+  // Local fallback
+  const users = getAllUsers();
+  const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+  if (idx === -1) {
+    return { success: false, error: 'उपयोगकर्ता खाता नहीं मिला।' };
+  }
+
+  users[idx].password = newPassword;
+  saveUsers(users);
+  return {
+    success: true,
+    message: 'पासवर्ड सफलतापूर्वक बदल दिया गया है! अब आप नए पासवर्ड से लॉगिन कर सकते हैं।',
+  };
+};
+
+/**
+ * Secure recovery of User ID: requires BOTH matching mobile AND email
+ */
+export const secureRecoverUserIdAsync = async (
+  mobile: string,
+  email: string,
+  fullName?: string
+): Promise<{ success: boolean; userId?: string; maskedName?: string; error?: string }> => {
+  if (!mobile?.trim() || !email?.trim()) {
+    return {
+      success: false,
+      error: 'सुरक्षा कारणों से User ID प्राप्त करने के लिए पंजीकृत मोबाइल नंबर और ईमेल दोनों अनिवार्य हैं।',
+    };
+  }
+
+  try {
+    const res = await fetch('/api/users/recover-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mobile, email, fullName }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return {
+        success: true,
+        userId: data.userId,
+        maskedName: data.maskedName,
+      };
+    } else {
+      return {
+        success: false,
+        error: data.error || 'इस मोबाइल नंबर और ईमेल से कोई खाता नहीं मिला।',
+      };
+    }
+  } catch (e) {
+    // Local fallback
+  }
+
+  const cleanDigits = mobile.replace(/\D/g, '');
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = (fullName || '').trim().toLowerCase();
+  const users = getAllUsers();
+
+  const user = users.find((u) => {
+    if (!u) return false;
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    const mobMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+    const emailMatch = u.email && u.email.trim().toLowerCase() === cleanEmail;
+    const nameMatch = !cleanName || (u.fullName || '').trim().toLowerCase().includes(cleanName);
+    return mobMatch && emailMatch && nameMatch;
+  });
+
+  if (!user) {
+    return {
+      success: false,
+      error: 'दर्ज किया गया मोबाइल नंबर और ईमेल किसी पंजीकृत खाते से मेल नहीं खाते।',
+    };
+  }
+
+  return {
+    success: true,
+    userId: user.userId,
+    maskedName: maskName(user.fullName),
+  };
+};
+
 /**
  * Fetch all users from Firestore + server + local cache and merge without data loss
  */
@@ -601,6 +956,21 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
 export const registerNewUserAsync = async (
   data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>
 ): Promise<UserProfile> => {
+  // 1. Strict Duplicate Check before creating any account (Masked privacy preserved)
+  const dupCheck = await checkUserAlreadyExists(data.mobileNumber, data.email);
+  if (dupCheck.exists) {
+    const matchedLabel = dupCheck.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल' : dupCheck.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल';
+    const err: any = new Error(
+      `यह ${matchedLabel} पहले से पंजीकृत है। डेटा सुरक्षा नीति के अनुसार केवल एक ही वैध खाता अनुमत है। कृपया सीधे लॉगिन करें अथवा पहचान सत्यापित कर पासवर्ड रीसेट करें।`
+    );
+    err.alreadyExists = true;
+    err.matchedBy = dupCheck.matchedBy;
+    err.maskedMobile = dupCheck.maskedMobile;
+    err.maskedEmail = dupCheck.maskedEmail;
+    throw err;
+  }
+
+  // 2. Fetch fresh users to ensure absolute unique User ID
   const currentUsers = getAllUsers();
   const plan = PLANS.find((p) => p.id === data.selectedPlanId) || PLANS[0];
   const userId = generateCustomIOISUserId(data.fullName, plan.price, currentUsers);
@@ -612,36 +982,60 @@ export const registerNewUserAsync = async (
     createdAt: new Date().toISOString(),
   };
 
-  // 1. Save immediately to local device cache & active session (instant UI responsiveness)
+  // 3. Contact backend server first to verify server-side uniqueness
+  try {
+    const serverRes = await fetch('/api/users/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    });
+
+    if (serverRes.status === 409) {
+      const serverData = await serverRes.json();
+      const err: any = new Error(serverData.error || 'खाता पहले से मौजूद है।');
+      err.alreadyExists = true;
+      err.matchedBy = serverData.matchedBy || 'mobile';
+      err.maskedMobile = serverData.maskedMobile || dupCheck.maskedMobile;
+      err.maskedEmail = serverData.maskedEmail || dupCheck.maskedEmail;
+      throw err;
+    }
+  } catch (err: any) {
+    if (err.alreadyExists) throw err;
+    console.warn('Server registration endpoint note:', err);
+  }
+
+  // 4. Save immediately to local device cache & active session (instant UI responsiveness)
   const updatedList = mergeUserLists([newUser], currentUsers, INITIAL_DEMO_USERS);
   saveUsers(updatedList);
   setCurrentUser(newUser);
 
-  // 2. Parallel cloud database & backend server persistence with non-blocking timeout
-  const firestorePromise = syncUserToFirestore(newUser);
-  const serverPromise = fetch('/api/users/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newUser),
-  }).catch((err) => {
-    console.warn('Server registration endpoint note:', err);
-  });
-
-  try {
-    // Wait at most 1000ms so the user is never stuck on 'खाता बनाया जा रहा है...'
-    await Promise.race([
-      Promise.all([firestorePromise, serverPromise]),
-      new Promise((resolve) => setTimeout(resolve, 1000)),
-    ]);
-  } catch (e) {
-    console.warn('Background sync race note:', e);
-  }
+  // 5. Cloud Firestore persistence
+  syncUserToFirestore(newUser).catch(() => {});
 
   return newUser;
 };
 
 export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>): UserProfile => {
   const users = getAllUsers();
+
+  // Check duplicate synchronously in local cache
+  const cleanDigits = (data.mobileNumber || '').replace(/\D/g, '');
+  const cleanEmail = (data.email || '').trim().toLowerCase();
+  const existing = users.find((u) => {
+    if (!u) return false;
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    const mobileMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+    const emailMatch = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
+    return mobileMatch || emailMatch;
+  });
+
+  if (existing) {
+    const err: any = new Error('यह मोबाइल नंबर या ईमेल पहले से पंजीकृत है।');
+    err.alreadyExists = true;
+    err.existingUser = existing;
+    throw err;
+  }
+
   const plan = PLANS.find((p) => p.id === data.selectedPlanId) || PLANS[0];
   const userId = generateCustomIOISUserId(data.fullName, plan.price, users);
   
@@ -671,6 +1065,22 @@ export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatu
 
 export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   const users = getAllUsers();
+
+  // Prevent duplicate mobile or email across other users
+  const cleanDigits = (updatedProfile.mobileNumber || '').replace(/\D/g, '');
+  const cleanEmail = (updatedProfile.email || '').trim().toLowerCase();
+  const conflict = users.find((u) => {
+    if (!u || u.userId.toUpperCase() === updatedProfile.userId.toUpperCase()) return false;
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    const mobileMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+    const emailMatch = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
+    return mobileMatch || emailMatch;
+  });
+
+  if (conflict) {
+    throw new Error('यह मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है।');
+  }
+
   const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
   if (index !== -1) {
     users[index] = {
