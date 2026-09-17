@@ -19,8 +19,8 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
   });
 
   return (
-    <section id="plans" className="space-y-12">
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
+    <section id="plans" className="space-y-8 sm:space-y-12 w-full">
+      <div className="text-center space-y-3 sm:space-y-4 max-w-3xl mx-auto px-1">
         <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-black px-3.5 py-1 rounded-full uppercase tracking-wider">
           <Crown className="w-3.5 h-3.5 text-amber-400" />
           <span>स्वदेशी डिजिटल स्वावलंबन नेटवर्क</span>
@@ -55,7 +55,7 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 w-full">
         {filteredPlans.map((plan) => {
           const isMasterTier = plan.id === 7;
 

@@ -50,23 +50,23 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   ];
 
   return (
-    <div className="space-y-4 pb-5 border-b border-slate-800/80">
+    <div className="w-full space-y-3 sm:space-y-4 pb-3 sm:pb-5 border-b border-slate-800/80">
       {/* Top Navigation Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
         {/* Back to Home Button */}
         <button
           onClick={() => {
             onNavigate('home');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition transform hover:scale-105 active:scale-95 cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 px-3.5 sm:px-4 py-2 rounded-xl sm:rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition transform hover:scale-105 active:scale-95 cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-4 h-4 stroke-[3]" />
-          <span>← मुख्य होम पेज पर वापस जाएं (Home)</span>
+          <span>← मुख्य होम पेज पर वापस जाएं</span>
         </button>
 
         {/* Quick Switcher Pills for other pages */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 scrollbar-none bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-[11px]">
+        <div className="w-full sm:w-auto flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 scrollbar-none bg-slate-950 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-800 text-[11px]">
           {quickLinks.map((link) => {
             const Icon = link.icon;
             const isActive = currentPage === link.id;
@@ -77,7 +77,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                   onNavigate(link.id);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   isActive
                     ? 'bg-amber-400 text-slate-950 shadow-md font-black'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900'
@@ -92,8 +92,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       </div>
 
       {/* Page Title & Breadcrumb Header */}
-      <div className="pt-2">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-1">
+      <div className="pt-1">
+        <div className="flex items-center gap-2 text-[11px] sm:text-xs font-bold text-slate-400 mb-1">
           <button 
             onClick={() => {
               onNavigate('home');
@@ -107,8 +107,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <span>/</span>
           <span className="text-slate-200 capitalize">{currentPage}</span>
         </div>
-        <h2 className="text-2xl sm:text-4xl font-black text-white">{title}</h2>
-        {subtitle && <p className="text-slate-400 text-xs sm:text-sm mt-1">{subtitle}</p>}
+        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-white">{title}</h2>
+        {subtitle && <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">{subtitle}</p>}
       </div>
     </div>
   );

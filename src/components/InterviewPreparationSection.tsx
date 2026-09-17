@@ -167,7 +167,7 @@ export const InterviewPreparationSection: React.FC<InterviewPreparationSectionPr
   });
 
   return (
-    <section id="interview-preparation-hub" className="space-y-8 bg-slate-900/60 border border-amber-500/20 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+    <section id="interview-preparation-hub" className="space-y-6 sm:space-y-8 bg-slate-900/60 border border-amber-500/20 rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 md:p-10 shadow-2xl relative overflow-hidden w-full">
       <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}

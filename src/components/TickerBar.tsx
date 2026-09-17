@@ -16,7 +16,7 @@ export const TickerBar: React.FC = () => {
   };
 
   return (
-    <div id="live-news-ticker-container" className="bg-black/95 border-b-2 border-amber-500/80 sticky top-[69px] z-40 shadow-xl select-none">
+    <div id="live-news-ticker-container" className="bg-black/95 border-b-2 border-amber-500/80 sticky top-[48px] sm:top-[60px] z-30 shadow-xl select-none w-full">
       <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[11px] text-slate-300">
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 relative">

@@ -144,26 +144,26 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   };
 
   return (
-    <section id="registration-portal" className="scroll-mt-24 space-y-8">
+    <section id="registration-portal" className="scroll-mt-24 space-y-6 sm:space-y-8 w-full">
       {/* Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/40 px-4 py-1.5 rounded-full text-amber-300 text-xs font-black uppercase tracking-wider">
-          <UserPlus className="w-4 h-4 text-amber-400" />
+      <div className="text-center max-w-3xl mx-auto space-y-2.5 sm:space-y-3 px-1">
+        <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/40 px-3.5 py-1 rounded-full text-amber-300 text-[11px] sm:text-xs font-black uppercase tracking-wider">
+          <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
           <span>ALL-IN-ONE OFFICIAL PORTAL</span>
         </div>
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white">
+        <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white">
           📝 IOIS <span className="gold-text">आधिकारिक रजिस्ट्रेशन व वेरिफिकेशन</span>
         </h2>
-        <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+        <p className="text-slate-300 text-xs sm:text-base leading-relaxed">
           अपना विवरण भरें, उपयुक्त प्लान चुनें और पेमेंट विवरण दर्ज करें। पंजीकरण पूर्ण होते ही आपका 
           <strong> आधिकारिक डिजिटल मेंबर ID व डैशबोर्ड</strong> तुरंत सक्रिय हो जाएगा।
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start w-full">
         
         {/* Left Side: Registration Form (8 Cols) */}
-        <div className="lg:col-span-8 glass-card-gold p-6 sm:p-8 rounded-3xl border border-amber-500/30 space-y-6">
+        <div className="lg:col-span-8 glass-card-gold p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-amber-500/30 space-y-5 sm:space-y-6 w-full">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <h3 className="text-lg font-black text-white flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-amber-400" />

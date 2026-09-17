@@ -151,53 +151,53 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
   ];
 
   return (
-    <div className="space-y-12 sm:space-y-16 max-w-6xl mx-auto">
+    <div className="space-y-8 sm:space-y-14 w-full max-w-6xl mx-auto">
       
       {/* 1. TOP HEADER WATCH (DIGITAL CLOCK + LUXURY ANALOG WATCH 1..12) */}
-      <section className="space-y-2">
+      <section className="w-full space-y-2">
         <HomeHeaderWatch />
       </section>
 
       {/* 2. GOOGLE CHROME STYLE CLEAN SEARCH & WELCOME SURFACE */}
-      <section className="space-y-8 text-center pt-2 sm:pt-4">
+      <section className="w-full space-y-6 sm:space-y-8 text-center pt-1 sm:pt-4">
         
         {/* Centered Brand Title & Logo (Chrome Aesthetic) */}
-        <div className="space-y-3 max-w-2xl mx-auto">
-          <div className="inline-flex items-center justify-center gap-2 p-1.5 px-4 rounded-full bg-slate-900 border border-amber-500/30 text-amber-300 text-xs font-black shadow-lg">
-            <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+        <div className="space-y-2.5 sm:space-y-3 w-full max-w-2xl mx-auto px-1">
+          <div className="inline-flex items-center justify-center gap-2 p-1.5 px-3 sm:px-4 rounded-full bg-slate-900 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-black shadow-lg">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
             <span>IOIS 2026 OFFICIAL DIGITAL PLATFORM</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white leading-tight">
             <span className="tiranga-text">IOIS DIGITAL</span> PORTAL
           </h1>
 
-          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed px-2">
             भारतीय ऑनलाइन आय सहयोग प्रणाली (Indian Online Income Supporting System) — स्वच्छ, सुरक्षित व 100% पारदर्शी डिजिटल मंच।
           </p>
         </div>
 
         {/* Clean Google Chrome Style Search / Ask Bar */}
-        <div className="max-w-2xl mx-auto">
+        <div className="w-full max-w-2xl mx-auto px-1">
           <form onSubmit={handleSearchSubmit} className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/20 rounded-full blur-md group-hover:blur-lg transition opacity-75" />
             
-            <div className="relative flex items-center bg-slate-950 border-2 border-slate-700 hover:border-amber-400 focus-within:border-amber-400 rounded-full px-5 py-3.5 shadow-2xl transition">
-              <Search className="w-5 h-5 text-amber-400 shrink-0 mr-3" />
+            <div className="relative flex items-center bg-slate-950 border-2 border-slate-700 hover:border-amber-400 focus-within:border-amber-400 rounded-full px-3.5 sm:px-5 py-2.5 sm:py-3.5 shadow-2xl transition">
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0 mr-2 sm:mr-3" />
               
               <input
                 type="text"
                 value={chromeSearchQuery}
                 onChange={(e) => setChromeSearchQuery(e.target.value)}
-                placeholder="IOIS सेवा, 7 प्लान, RTPS, इंटरव्यू प्रश्न या कोई भी सवाल सर्च करें..."
-                className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
+                placeholder="सेवा, 7 प्लान, RTPS, नोट्स या सवाल खोजें..."
+                className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none"
               />
 
               {chromeSearchQuery ? (
                 <button
                   type="button"
                   onClick={() => setChromeSearchQuery('')}
-                  className="text-slate-400 hover:text-white text-xs px-2"
+                  className="text-slate-400 hover:text-white text-xs px-1.5"
                 >
                   ✕
                 </button>
@@ -205,7 +205,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
               <button
                 type="submit"
-                className="ml-2 px-4 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition cursor-pointer flex items-center gap-1 shrink-0"
+                className="ml-1 sm:ml-2 px-3 sm:px-4 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition cursor-pointer flex items-center gap-1 shrink-0"
               >
                 <span>खोजें</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -214,8 +214,8 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           </form>
 
           {/* Quick Search Chips below bar */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-3 text-[11px] text-slate-400">
-            <span className="font-bold text-slate-400">त्वरित सुझाव:</span>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-2.5 sm:pt-3 text-[10px] sm:text-[11px] text-slate-400">
+            <span className="font-bold text-slate-400 hidden xs:inline">त्वरित सुझाव:</span>
             <button
               onClick={() => onNavigate('plans')}
               className="px-2.5 py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 transition cursor-pointer"
@@ -253,29 +253,29 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         </div>
 
         {/* 🌟 Registration / Join Now Hero Callout & Mandatory Warning */}
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border-2 border-amber-400/50 shadow-2xl relative overflow-hidden">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1.5 text-center md:text-left">
-              <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] sm:text-xs font-black px-3 py-1 rounded-full uppercase">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+        <div className="w-full max-w-4xl mx-auto p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border-2 border-amber-400/50 shadow-2xl relative overflow-hidden">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+            <div className="space-y-1.5 text-center md:text-left w-full">
+              <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-xs font-black px-2.5 py-0.5 rounded-full uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                 <span>नया सत्र 2026-27 | डायरेक्ट नामांकन चालू</span>
               </div>
-              <h3 className="text-lg sm:text-xl font-black text-white flex items-center justify-center md:justify-start gap-2">
+              <h3 className="text-base sm:text-xl font-black text-white flex items-center justify-center md:justify-start gap-2">
                 <span>🎯 IOIS रजिस्ट्रेशन / Join Now (7 मास्टर प्लांस)</span>
               </h3>
               <p className="text-slate-300 text-xs max-w-xl leading-relaxed">
                 ₹10 से ₹999 में से कोई भी प्लान चुनें, अपना डिजिटल ID कार्ड पाएं और हर रेफरल पर सीधा <strong>70% इंसेंटिव</strong> अपने खाते में प्राप्त करें।
               </p>
-              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/40 text-[11px] text-amber-200 flex items-start gap-2 text-left">
-                <span className="text-amber-400 font-bold shrink-0">⚠️ चेतावनी:</span>
-                <span>रजिस्ट्रेशन करते समय अपना <strong>Payment Received UPI ID / पता</strong> सही-सही भरें और <strong>Sponsor ID</strong> (डिफ़ॉल्ट: <strong className="text-amber-400">IOIS999VK01</strong>) अवश्य दर्ज करें।</span>
+              <div className="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/40 text-[10px] sm:text-[11px] text-amber-200 flex items-start gap-2 text-left">
+                <span className="text-amber-400 font-bold shrink-0">⚠️ ध्यान दें:</span>
+                <span>रजिस्ट्रेशन के समय अपना <strong>Payment Received UPI ID</strong> सही भरें और <strong>Sponsor ID</strong> (डिफ़ॉल्ट: <strong className="text-amber-400">IOIS999VK01</strong>) अवश्य दर्ज करें।</span>
               </div>
             </div>
 
-            <div className="shrink-0 w-full md:w-auto">
+            <div className="shrink-0 w-full md:w-auto pt-1 sm:pt-0">
               <button
                 onClick={() => onNavigate('register')}
-                className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition transform hover:scale-105 active:scale-95 cursor-pointer border border-emerald-300"
+                className="w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition transform hover:scale-105 active:scale-95 cursor-pointer border border-emerald-300"
               >
                 <span>रजिस्ट्रेशन / Join Now</span>
                 <ArrowRight className="w-4 h-4" />
@@ -285,31 +285,31 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         </div>
 
         {/* Chrome-Style Speed Dial Quick Shortcuts Grid (Minimalist, Clean) */}
-        <div className="max-w-4xl mx-auto pt-2">
-          <div className="text-left text-xs font-black text-slate-400 uppercase tracking-wider mb-3 px-2 flex items-center justify-between">
+        <div className="w-full max-w-4xl mx-auto pt-1 sm:pt-2">
+          <div className="text-left text-[11px] sm:text-xs font-black text-slate-400 uppercase tracking-wider mb-2.5 px-1 flex items-center justify-between">
             <span>प्रमुख डिजिटल सेवाएं (Core Quick Shortcuts):</span>
             <span className="text-amber-400 font-bold">1-क्लिक एक्सेस</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
             {chromeQuickShortcuts.map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
-                  className="p-4 rounded-2xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition-all duration-200 cursor-pointer flex flex-col items-center text-center space-y-2 group shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition-all duration-200 cursor-pointer flex flex-col items-center text-center space-y-1.5 sm:space-y-2 group shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
-                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${item.color} p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition`}>
-                    <div className="w-full h-full rounded-2xl bg-slate-950 flex items-center justify-center">
-                      <Icon className={`w-5 h-5 ${item.iconColor}`} />
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr ${item.color} p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition shrink-0`}>
+                    <div className="w-full h-full rounded-xl sm:rounded-2xl bg-slate-950 flex items-center justify-center">
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${item.iconColor}`} />
                     </div>
                   </div>
                   <div className="space-y-0.5 w-full">
                     <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition truncate">
                       {item.title}
                     </h4>
-                    <p className="text-[10px] text-slate-400 truncate">
+                    <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">
                       {item.sub}
                     </p>
                   </div>
@@ -322,14 +322,14 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       </section>
 
       {/* 3. IOIS INTRODUCTION & CORE VALUES (परिचय व उद्देश्य) */}
-      <section className="space-y-6 bg-slate-900/50 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+      <section className="space-y-5 sm:space-y-6 bg-slate-900/50 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 md:p-10 shadow-2xl relative overflow-hidden w-full">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 border-b border-slate-800 pb-4 sm:pb-6">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-wider">
-              <Compass className="w-4 h-4" />
+            <div className="inline-flex items-center gap-1.5 text-amber-400 text-[11px] sm:text-xs font-black uppercase tracking-wider">
+              <Compass className="w-3.5 h-3.5" />
               <span>ABOUT IOIS PLATFORM</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
+            <h2 className="text-xl sm:text-3xl font-black text-white">
               📖 IOIS क्या है और यह कैसे काम करता है?
             </h2>
             <p className="text-slate-300 text-xs sm:text-sm max-w-2xl">
@@ -337,10 +337,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <button
               onClick={() => onNavigate('plans')}
-              className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md"
+              className="w-full md:w-auto px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
             >
               <Crown className="w-4 h-4" />
               <span>7 मास्टर प्लांस देखें</span>
@@ -349,9 +349,9 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         </div>
 
         {/* 3 Core Pillars of IOIS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-base border border-amber-500/30">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-sm border border-amber-500/30">
               70%
             </div>
             <h3 className="text-sm font-black text-white">1. सीधा 70% रेफरल इंसेंटिव</h3>
@@ -360,8 +360,8 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-black text-base border border-violet-500/30">
+          <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-black text-sm border border-violet-500/30">
               📚
             </div>
             <h3 className="text-sm font-black text-white">2. विद्यार्थी शिक्षा व डिजिटल संसाधन</h3>
@@ -370,8 +370,8 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-base border border-emerald-500/30">
+          <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-sm border border-emerald-500/30">
               🏛️
             </div>
             <h3 className="text-sm font-black text-white">3. नागरिक सहायता व RTPS गाइड</h3>
@@ -382,30 +382,30 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         </div>
 
         {/* 3 Step Working Process */}
-        <div className="p-6 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-950 to-emerald-500/10 border border-amber-400/20 space-y-4">
+        <div className="p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-950 to-emerald-500/10 border border-amber-400/20 space-y-3 sm:space-y-4">
           <h4 className="text-xs font-black text-amber-300 uppercase tracking-wider">
             ⚡ केवल 3 चरणों में शुरुआत करें (How to Get Started):
           </h4>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="flex items-start gap-3 bg-slate-900/90 p-3.5 rounded-xl border border-slate-800">
-              <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0">1</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 text-xs">
+            <div className="flex items-start gap-2.5 sm:gap-3 bg-slate-900/90 p-3 sm:p-3.5 rounded-xl border border-slate-800">
+              <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">1</span>
               <div>
                 <strong className="text-white block font-bold">प्लान चुनें</strong>
                 <span className="text-slate-400">₹10 से ₹999 में से अपनी सुविधा अनुसार 7 मास्टर प्लांस में से कोई एक चुनें।</span>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 bg-slate-900/90 p-3.5 rounded-xl border border-slate-800">
-              <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0">2</span>
+            <div className="flex items-start gap-2.5 sm:gap-3 bg-slate-900/90 p-3 sm:p-3.5 rounded-xl border border-slate-800">
+              <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">2</span>
               <div>
                 <strong className="text-white block font-bold">रजिस्टर करें</strong>
                 <span className="text-slate-400">इन-ऐप फॉर्म भरें, पेमेंट प्रूफ अपलोड करें और तुरंत अपना डिजिटल ID कार्ड पाएं।</span>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 bg-slate-900/90 p-3.5 rounded-xl border border-slate-800">
-              <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0">3</span>
+            <div className="flex items-start gap-2.5 sm:gap-3 bg-slate-900/90 p-3 sm:p-3.5 rounded-xl border border-slate-800">
+              <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">3</span>
               <div>
                 <strong className="text-white block font-bold">शेयर करें व कमाएं</strong>
                 <span className="text-slate-400">डिजिटल सामग्री साझा करें और हर नए सदस्य पर 70% इंसेंटिव अपने खाते में प्राप्त करें।</span>
@@ -422,13 +422,13 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       />
 
       {/* 5. CLEAN BOTTOM AI ASSISTANCE CALLOUT (NO GLITCHES / NO DUPLICATES) */}
-      <section className="glass-card-gold p-6 sm:p-8 rounded-3xl border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-1.5 text-center md:text-left">
-          <div className="inline-flex items-center gap-2 text-amber-400 text-xs font-bold uppercase">
+      <section className="glass-card-gold p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 w-full">
+        <div className="space-y-1 text-center md:text-left">
+          <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold uppercase">
             <Sparkles className="w-4 h-4 animate-pulse" />
             <span>24x7 ऑल इंडिया हेल्पडेस्क व AI समाधान</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white">
+          <h3 className="text-lg sm:text-2xl font-black text-white">
             क्या आपको किसी सेवा या प्लान के बारे में और जानना है?
           </h3>
           <p className="text-slate-300 text-xs sm:text-sm">
@@ -438,7 +438,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
         <button
           onClick={onOpenAiChat}
-          className="btn-gold-gradient px-6 py-3.5 text-xs sm:text-sm whitespace-nowrap cursor-pointer flex items-center gap-2 shadow-lg shrink-0"
+          className="btn-gold-gradient px-5 sm:px-6 py-3 sm:py-3.5 text-xs sm:text-sm whitespace-nowrap cursor-pointer flex items-center justify-center gap-2 shadow-lg shrink-0 w-full sm:w-auto"
         >
           <Sparkles className="w-4 h-4" />
           <span>Ask IOIS AI Chatbot</span>

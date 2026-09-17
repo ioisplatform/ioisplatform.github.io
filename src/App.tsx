@@ -29,7 +29,7 @@ import { Footer } from './components/Footer';
 import { AIChatBot } from './components/AIChatBot';
 import { Plan, UserProfile, PageType } from './types';
 import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser } from './services/userService';
-import { Sparkles, ArrowLeft } from 'lucide-react';
+import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('home');
@@ -113,8 +113,8 @@ export default function App() {
       {/* 2. Controlled Live News & Instant Payout Ticker */}
       <TickerBar />
 
-      {/* 3. Main Dynamic Content Area based on Current Page */}
-      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-12 flex-1">
+      {/* 3. Main Dynamic Content Area based on Current Page - Full width & responsive */}
+      <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-20 sm:pb-8">
         
         {/* ================= PAGE 1: HOME PAGE (Central Dashboard with all section buttons) ================= */}
         {currentPage === 'home' && (
@@ -481,21 +481,77 @@ export default function App() {
       {/* 4. Official Footer with AdSense Compliance Navigation */}
       <Footer onNavigate={navigateTo} />
 
-      {/* 5. Floating AI Chatbot Launcher Button */}
+      {/* 5. Mobile Bottom Quick Navigation Bar (1-Click access to top portals on phones) */}
+      <nav 
+        id="mobile-bottom-nav" 
+        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-amber-500/30 px-1 py-1.5 sm:hidden flex items-center justify-around shadow-[0_-5px_20px_rgba(0,0,0,0.8)]"
+      >
+        <button
+          onClick={() => navigateTo('home')}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+            currentPage === 'home' ? 'text-amber-400 font-black' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Home className="w-4 h-4" />
+          <span className="text-[10px] mt-0.5 font-bold">होम</span>
+        </button>
+
+        <button
+          onClick={() => navigateTo('plans')}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+            currentPage === 'plans' ? 'text-amber-400 font-black' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Crown className="w-4 h-4 text-amber-400" />
+          <span className="text-[10px] mt-0.5 font-bold">7 प्लान्स</span>
+        </button>
+
+        <button
+          onClick={() => navigateTo('rtps-services')}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+            currentPage === 'rtps-services' ? 'text-emerald-400 font-black' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <FileText className="w-4 h-4 text-emerald-400" />
+          <span className="text-[10px] mt-0.5 font-bold">RTPS</span>
+        </button>
+
+        <button
+          onClick={() => navigateTo('student-study')}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+            currentPage === 'student-study' || currentPage === 'study' ? 'text-violet-400 font-black' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 text-violet-400" />
+          <span className="text-[10px] mt-0.5 font-bold">पढ़ाई</span>
+        </button>
+
+        <button
+          onClick={() => navigateTo('idcard')}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+            currentPage === 'idcard' ? 'text-blue-400 font-black' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <CreditCard className="w-4 h-4 text-blue-400" />
+          <span className="text-[10px] mt-0.5 font-bold">ID कार्ड</span>
+        </button>
+      </nav>
+
+      {/* 6. Floating AI Chatbot Launcher Button - Positioned above mobile bar on phones */}
       <button
         id="floating-ai-chat-launcher"
         onClick={() => {
           setChatInitialQuery('');
           setIsChatOpen(true);
         }}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black px-4 py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_30px_rgba(212,175,55,0.4)] flex items-center gap-2 transition transform hover:scale-108 active:scale-95 cursor-pointer border-2 border-white/40"
+        className="fixed bottom-16 sm:bottom-6 right-3 sm:right-6 z-40 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_30px_rgba(212,175,55,0.4)] flex items-center gap-1.5 sm:gap-2 transition transform hover:scale-108 active:scale-95 cursor-pointer border-2 border-white/40"
         title="Open Live AI Assistant"
       >
         <Sparkles className="w-4 h-4 text-black animate-spin" style={{ animationDuration: '4s' }} />
         <span>Ask IOIS AI</span>
       </button>
 
-      {/* 6. Live AI Chatbot Modal / Drawer */}
+      {/* 7. Live AI Chatbot Modal / Drawer */}
       <AIChatBot
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}

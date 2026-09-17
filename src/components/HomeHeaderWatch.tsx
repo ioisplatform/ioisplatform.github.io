@@ -106,7 +106,7 @@ export const HomeHeaderWatch: React.FC = () => {
   });
 
   return (
-    <div className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-6 shadow-2xl overflow-hidden backdrop-blur-xl">
+    <div className="relative w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl overflow-hidden backdrop-blur-xl">
       {/* Background radial soft aura */}
       <div className="absolute top-0 right-1/4 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />

@@ -110,30 +110,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header id="main-header" className="bg-slate-950/95 backdrop-blur-xl border-b border-amber-500/20 py-3 px-4 sm:px-6 sticky top-0 z-40 transition-all">
-        <div className="container mx-auto flex items-center justify-between gap-3">
+      <header id="main-header" className="bg-slate-950/95 backdrop-blur-xl border-b border-amber-500/20 py-2 sm:py-3 px-2.5 sm:px-6 sticky top-0 z-50 transition-all shadow-lg">
+        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-2">
           
           {/* Brand / Logo (Always connects back to Home Page) */}
           <div 
-            className="flex items-center gap-3 cursor-pointer select-none" 
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none shrink-0" 
             onClick={() => handleNavClick('home')}
             title="मुख्य होम पेज पर जाएं"
           >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 border-amber-400 bg-gradient-to-tr from-amber-500 via-yellow-400 to-green-500 p-0.5 shadow-lg flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-amber-400 bg-gradient-to-tr from-amber-500 via-yellow-400 to-green-500 p-0.5 shadow-md flex items-center justify-center shrink-0">
               <div className="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center text-center">
-                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 leading-none">IOIS</span>
-                <span className="text-[7px] text-green-400 font-bold leading-none mt-0.5">INDIA</span>
+                <span className="text-[9px] sm:text-[11px] font-black text-amber-400 leading-none">IOIS</span>
+                <span className="text-[6px] sm:text-[7px] text-green-400 font-bold leading-none mt-0.5">INDIA</span>
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="tiranga-text text-lg sm:text-xl font-black tracking-tight">IOIS PLATFORM</h1>
-                <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="tiranga-text text-base sm:text-xl font-black tracking-tight leading-tight">IOIS PLATFORM</h1>
+                <span className="hidden md:inline-flex bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  <span>OFFICIAL PORTAL</span>
+                  <span>OFFICIAL</span>
                 </span>
               </div>
-              <p className="gold-metallic-text text-[8px] sm:text-[9px] uppercase tracking-widest font-semibold">
+              <p className="hidden sm:block gold-metallic-text text-[8px] sm:text-[9px] uppercase tracking-widest font-semibold">
                 Indian Online Income Supporting System
               </p>
             </div>
@@ -171,36 +171,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Right Side Buttons: Share, Admin, User Login/Dashboard, AI, Corner Menu */}
-          <div className="flex items-center gap-2">
+          {/* Right Side Action Buttons: Compact & Aligned for all Mobile & Desktop devices */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
-            {/* Corner All Services Button for Quick Access */}
+            {/* Desktop Only: Quick All Services Button */}
             <button
               onClick={() => setServicesModalOpen(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 border border-amber-500/50 hover:border-amber-400 text-amber-300 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-md"
+              className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 border border-amber-500/50 hover:border-amber-400 text-amber-300 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-md"
               title="सभी 17+ IOIS सेवाएं"
             >
               <Grid className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">IOIS सेवाएं</span>
+              <span>IOIS सेवाएं</span>
             </button>
 
-            {/* Share Button */}
+            {/* Desktop Only: Share Button */}
             <button
               id="nav-share-btn"
               onClick={handleShareOrCopy}
-              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer"
               title="लिंक कॉपी या शेयर करें"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Share2 className="w-3.5 h-3.5 text-amber-400" />}
-              <span className="hidden lg:inline">{copied ? 'कॉपी!' : 'शेयर'}</span>
+              <span>{copied ? 'कॉपी!' : 'शेयर'}</span>
             </button>
 
             {/* User Session / Login Button */}
             {currentUser ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={() => handleNavClick('dashboard')}
-                  className={`border px-3.5 py-1.5 rounded-full font-black text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                  className={`border px-2.5 sm:px-3.5 py-1.5 rounded-full font-black text-xs flex items-center gap-1.5 transition cursor-pointer ${
                     currentPage === 'dashboard'
                       ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md'
                       : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300'
@@ -210,7 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="w-4 h-4 rounded-full overflow-hidden border border-amber-400 shrink-0">
                     <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
                   </div>
-                  <span className="max-w-[70px] sm:max-w-[100px] truncate">{currentUser.fullName}</span>
+                  <span className="max-w-[55px] sm:max-w-[90px] truncate">{currentUser.fullName}</span>
                 </button>
 
                 <button
@@ -222,11 +222,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   id="nav-login-btn"
                   onClick={onOpenLogin}
-                  className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 px-3 py-1.5 rounded-full font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 px-2.5 sm:px-3 py-1.5 rounded-full font-bold text-xs flex items-center gap-1 transition cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-amber-400" />
                   <span>लॉगिन</span>
@@ -235,32 +235,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="nav-register-btn"
                   onClick={() => handleNavClick('register')}
-                  className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 px-3.5 py-1.5 rounded-full font-black text-xs shadow-md transition transform hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 px-2.5 sm:px-3.5 py-1.5 rounded-full font-black text-xs shadow-md transition transform hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>रजिस्ट्रेशन / Join Now</span>
+                  <UserPlus className="w-3.5 h-3.5 shrink-0" />
+                  <span className="sm:hidden">ज्वाइन</span>
+                  <span className="hidden sm:inline">रजिस्ट्रेशन</span>
                 </button>
               </div>
             )}
 
-            {/* AI Chat Button */}
+            {/* AI Chat Quick Button */}
             <button
               id="nav-ai-chat-btn"
               onClick={onOpenChat}
               className="flex items-center gap-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/50 hover:border-amber-400 text-amber-300 p-1.5 sm:px-2.5 sm:py-1.5 rounded-full text-xs font-bold shadow-md transition cursor-pointer"
               title="Ask AI Chatbot"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
               <span className="hidden sm:inline">AI</span>
             </button>
 
             {/* Mobile Menu Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="xl:hidden p-2 bg-slate-900 text-slate-300 hover:text-white rounded-xl border border-slate-800 cursor-pointer"
+              className="xl:hidden p-1.5 sm:p-2 bg-slate-900 text-slate-200 hover:text-white rounded-xl border border-slate-800 cursor-pointer flex items-center justify-center"
               title="Menu"
+              aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5" />}
             </button>
 
           </div>
@@ -268,25 +270,75 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Drawer Menu */}
         {mobileMenuOpen && (
-          <div className="xl:hidden mt-3 pt-3 border-t border-slate-800/80 space-y-3 bg-slate-950/98 p-4 rounded-3xl border border-slate-800 max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div className="xl:hidden mt-2 pt-3 border-t border-slate-800/80 space-y-3 bg-slate-950/98 p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-800 max-h-[85vh] overflow-y-auto shadow-2xl">
             
-            {/* Primary All Services Big Button */}
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setServicesModalOpen(true);
-              }}
-              className="w-full p-3 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-slate-950 font-black text-xs flex items-center justify-between shadow-lg"
-            >
-              <div className="flex items-center gap-2">
-                <Grid className="w-4 h-4" />
-                <span>सभी 17+ IOIS सेवाएं व पेज (Open All Services)</span>
-              </div>
-              <span>→</span>
-            </button>
+            {/* Quick Mobile Action Bar inside Menu: Share + All Services */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setServicesModalOpen(true);
+                }}
+                className="p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <Grid className="w-4 h-4 text-amber-400" />
+                <span>सभी 17+ सेवाएं</span>
+              </button>
 
-            <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-2 pt-1">
-              त्वरित नेविगेशन (Quick Links):
+              <button
+                onClick={handleShareOrCopy}
+                className="p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4 text-amber-400" />}
+                <span>{copied ? 'लिंक कॉपी हो गया!' : 'शेयर पोर्टल'}</span>
+              </button>
+            </div>
+
+            {/* User Session Banner in Mobile Menu */}
+            {currentUser ? (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full overflow-hidden border border-amber-400 shrink-0">
+                    <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-amber-400 font-bold block">सक्रिय सदस्य</span>
+                    <h4 className="text-xs font-black text-white truncate max-w-[140px]">{currentUser.fullName}</h4>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleNavClick('dashboard')}
+                  className="px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs"
+                >
+                  डैशबोर्ड →
+                </button>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-300 font-medium">खाता नहीं है या लॉगिन करना है?</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLogin();
+                    }}
+                    className="px-3 py-1 rounded-lg bg-slate-800 text-white text-xs font-bold border border-slate-700"
+                  >
+                    लॉगिन
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('register')}
+                    className="px-3 py-1 rounded-lg bg-amber-400 text-slate-950 text-xs font-black"
+                  >
+                    ज्वाइन करें
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-1 pt-1 flex items-center justify-between">
+              <span>मुख्य अनुभाग (Navigation):</span>
+              <span className="text-amber-400 text-[9px]">1-क्लिक एक्सेस</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -299,7 +351,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => handleNavClick(item.id)}
                     className={`p-2.5 rounded-xl text-left text-xs font-bold transition flex items-center gap-2 border ${
                       isActive
-                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black'
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
                         : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:text-white'
                     }`}
                   >
@@ -315,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleNavClick('admin')}
                 className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs font-bold flex items-center justify-center gap-1.5"
               >
-                <ShieldAlert className="w-4 h-4" />
+                <ShieldAlert className="w-4 h-4 text-red-400" />
                 <span>एडमिन पैनल</span>
               </button>
               <button
