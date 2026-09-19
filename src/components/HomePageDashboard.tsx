@@ -36,6 +36,9 @@ interface HomePageDashboardProps {
   onNavigate: (page: PageType) => void;
   onOpenLogin: () => void;
   onOpenAiChat: () => void;
+  onOpenRegister?: (planId?: number) => void;
+  onOpenDashboard?: () => void;
+  onOpenIdCard?: () => void;
   onSelectPlanForRegister?: (planId: number) => void;
 }
 
@@ -43,6 +46,9 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
   onNavigate,
   onOpenLogin,
   onOpenAiChat,
+  onOpenRegister,
+  onOpenDashboard,
+  onOpenIdCard,
   onSelectPlanForRegister,
 }) => {
   const [chromeSearchQuery, setChromeSearchQuery] = useState<string>('');
@@ -66,9 +72,14 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
     } else if (q.includes('news') || q.includes('tv') || q.includes('khabar')) {
       onNavigate('news');
     } else if (q.includes('register') || q.includes('join') || q.includes('signup')) {
-      onNavigate('register');
+      if (onOpenRegister) onOpenRegister();
+      else onNavigate('register');
     } else if (q.includes('id') || q.includes('card')) {
-      onNavigate('idcard');
+      if (onOpenIdCard) onOpenIdCard();
+      else onNavigate('idcard');
+    } else if (q.includes('dashboard') || q.includes('profile')) {
+      if (onOpenDashboard) onOpenDashboard();
+      else onNavigate('dashboard');
     } else {
       // Open AI Chat with this query
       onOpenAiChat();
@@ -274,7 +285,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
             <div className="shrink-0 w-full md:w-auto pt-1 sm:pt-0">
               <button
-                onClick={() => onNavigate('register')}
+                onClick={() => {
+                  if (onOpenRegister) onOpenRegister();
+                  else onNavigate('register');
+                }}
                 className="w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition transform hover:scale-105 active:scale-95 cursor-pointer border border-emerald-300"
               >
                 <span>रजिस्ट्रेशन / Join Now</span>
@@ -297,7 +311,15 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate(item.id)}
+                  onClick={() => {
+                    if (item.id === 'register' && onOpenRegister) {
+                      onOpenRegister();
+                    } else if (item.id === 'idcard' && onOpenIdCard) {
+                      onOpenIdCard();
+                    } else {
+                      onNavigate(item.id);
+                    }
+                  }}
                   className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition-all duration-200 cursor-pointer flex flex-col items-center text-center space-y-1.5 sm:space-y-2 group shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr ${item.color} p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition shrink-0`}>

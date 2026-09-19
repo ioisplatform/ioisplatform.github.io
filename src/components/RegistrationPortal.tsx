@@ -1,20 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_UPI_ID, OFFICIAL_PAYEE_NAME } from '../data/plansData';
-import { registerNewUserAsync, checkUserAlreadyExists, DuplicateCheckResult } from '../services/userService';
+import { registerNewUserAsync, checkUserAlreadyExists } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { 
   UserPlus, 
   ShieldCheck, 
-  Sparkles, 
   Lock, 
   CheckCircle2, 
   AlertCircle, 
-  QrCode, 
   ArrowRight,
-  Info,
-  Phone,
-  Mail,
+  ArrowLeft,
   User,
   CreditCard,
   Copy,
@@ -23,7 +19,9 @@ import {
   KeyRound,
   Shield,
   ShieldAlert,
-  Loader2
+  Loader2,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 
 interface RegistrationPortalProps {
@@ -40,14 +38,34 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   onOpenLogin,
   preSelectedPlanId = 1,
 }) => {
+  // Step State: 1 = Personal Details, 2 = Plan & Security, 3 = Payment & Verification
+  const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Form State
   const [fullName, setFullName] = useState<string>('');
   const [mobileNumber, setMobileNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
+  const [sponsorId, setSponsorId] = useState<string>('IOIS999VK01');
+
   const [selectedPlanId, setSelectedPlanId] = useState<number>(preSelectedPlanId);
   const [role, setRole] = useState<string>('Verified Elite Member');
-  const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [photoUrl, setPhotoUrl] = useState<string>('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80');
+  const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>('');
 
-  // Duplicate Account Prevention State (Privacy Preserved, Masked)
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string>('');
+  const [googleDrivePaymentLink, setGoogleDrivePaymentLink] = useState<string>('');
+  const [paymentUtr, setPaymentUtr] = useState<string>('');
+  const [payoutUpi, setPayoutUpi] = useState<string>('');
+
+  // UI state
+  const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Duplicate Check
   const [duplicateNotice, setDuplicateNotice] = useState<{
     exists: boolean;
     matchedBy: 'mobile' | 'email' | 'both';
@@ -56,19 +74,13 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   } | null>(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState<boolean>(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (preSelectedPlanId) {
       setSelectedPlanId(preSelectedPlanId);
     }
   }, [preSelectedPlanId]);
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>('');
-  const [address, setAddress] = useState<string>('');
-  const [payoutUpi, setPayoutUpi] = useState<string>('');
-  const [sponsorId, setSponsorId] = useState<string>('IOIS999VK01');
-  const [paymentUtr, setPaymentUtr] = useState<string>('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
@@ -78,7 +90,8 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     }
   }, []);
 
-  // Real-time duplicate checking on mobile or email blur/change (Zero PII leak)
+  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
+
   const verifyUniqueness = async (mob: string, em: string) => {
     const cleanDigits = mob.replace(/\D/g, '');
     const cleanEmail = em.trim();
@@ -106,17 +119,6 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     }
   };
 
-  // Photos & Screenshots
-  const [photoUrl, setPhotoUrl] = useState<string>('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80');
-  const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>('');
-  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string>('');
-  const [googleDrivePaymentLink, setGoogleDrivePaymentLink] = useState<string>('');
-
-  const [errorMsg, setErrorMsg] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-
-  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
-
   const handleCopyUpi = async () => {
     try {
       await navigator.clipboard.writeText(OFFICIAL_UPI_ID);
@@ -127,20 +129,23 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step Validation
+  const validateStep1 = async (): Promise<boolean> => {
     setErrorMsg('');
-
     if (!fullName.trim()) {
-      setErrorMsg('कृपया अपना पूरा नाम (Full Name) दर्ज करें।');
-      return;
+      setErrorMsg('कृपया अपना पूरा नाम दर्ज करें।');
+      return false;
     }
-    if (!mobileNumber.trim() || mobileNumber.replace(/\D/g, '').length < 10) {
+    const cleanDigits = mobileNumber.replace(/\D/g, '');
+    if (cleanDigits.length < 10) {
       setErrorMsg('कृपया वैध 10 अंकों का मोबाइल नंबर दर्ज करें।');
-      return;
+      return false;
+    }
+    if (!sponsorId.trim()) {
+      setErrorMsg('कृपया Sponsor ID दर्ज करें (डिफ़ॉल्ट: IOIS999VK01)।');
+      return false;
     }
 
-    // 1. Strict Duplicate Check before submitting (Zero PII leak)
     const dupCheck = await checkUserAlreadyExists(mobileNumber, email);
     if (dupCheck.exists) {
       setDuplicateNotice({
@@ -149,49 +154,86 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
         maskedMobile: dupCheck.maskedMobile,
         maskedEmail: dupCheck.maskedEmail,
       });
-      const label = dupCheck.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल' : dupCheck.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल';
-      setErrorMsg(`यह ${label} पहले से पंजीकृत है। डेटा गोपनीयता नीति के अनुसार केवल एक खाता अनुमत है। कृपया सीधे लॉगिन करें अथवा पहचान सत्यापित कर पासवर्ड रीसेट करें।`);
-      return;
+      return false;
     }
 
-    if (!password || password.length < 4) {
-      setErrorMsg('कृपया कम से कम 4 अक्षरों का सुरक्षित पासवर्ड बनाएं।');
-      return;
+    return true;
+  };
+
+  const validateStep2 = (): boolean => {
+    setErrorMsg('');
+    if (!password.trim()) {
+      setErrorMsg('कृपया सुरक्षित पासवर्ड दर्ज करें (कम से कम 4 अक्षर)।');
+      return false;
+    }
+    if (password.length < 4) {
+      setErrorMsg('पासवर्ड कम से कम 4 अक्षरों का होना चाहिए।');
+      return false;
     }
     if (password !== confirmPassword) {
-      setErrorMsg('पासवर्ड और कन्फर्म पासवर्ड मैच नहीं हो रहे हैं।');
-      return;
+      setErrorMsg('दोनों पासवर्ड समान नहीं हैं। कृपया पुनः जांचें।');
+      return false;
     }
-    if (!sponsorId.trim()) {
-      setErrorMsg('कृपया Sponsor ID (स्पॉन्सर आईडी) अवश्य भरें। यदि आपके पास स्पॉन्सर आईडी नहीं है तो IOIS999VK01 दर्ज करें।');
-      return;
+    return true;
+  };
+
+  const goToNextStep = async () => {
+    if (currentStep === 1) {
+      const ok = await validateStep1();
+      if (ok) setCurrentStep(2);
+    } else if (currentStep === 2) {
+      const ok = validateStep2();
+      if (ok) setCurrentStep(3);
     }
-    if (!payoutUpi.trim()) {
-      setErrorMsg('कृपया अपना Payment Received Address / UPI ID सही-सही भरें जहाँ आप अपनी कमाई व 70% पेआउट प्राप्त करना चाहते हैं।');
-      return;
+  };
+
+  const goToPrevStep = () => {
+    setErrorMsg('');
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
-    if (!paymentScreenshotUrl && !googleDrivePaymentLink && !paymentUtr) {
-      setErrorMsg('कृपया पेमेंट स्क्रीनशॉट, ड्राइव लिंक या UTR नंबर दर्ज करें।');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    const step1Ok = await validateStep1();
+    if (!step1Ok) {
+      setCurrentStep(1);
       return;
     }
 
+    const step2Ok = validateStep2();
+    if (!step2Ok) {
+      setCurrentStep(2);
+      return;
+    }
+
+    if (!payoutUpi.trim()) {
+      setErrorMsg('कृपया अपनी कमाई पाने का UPI ID दर्ज करें।');
+      setCurrentStep(3);
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      setIsSubmitting(true);
       const newUser = await registerNewUserAsync({
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
-        email: email.trim() || `${mobileNumber.replace(/\D/g, '')}@iois.in`,
-        selectedPlanId,
-        role,
-        password,
-        photoUrl,
+        email: email.trim(),
+        selectedPlanId: selectedPlanId,
+        password: password.trim(),
+        role: role,
+        address: address.trim(),
+        payoutUpi: payoutUpi.trim(),
+        sponsorId: sponsorId.trim().toUpperCase() || 'IOIS999VK01',
+        paymentUtr: paymentUtr.trim(),
+        photoUrl: photoUrl.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
         googleDrivePhotoLink: googleDrivePhotoLink.trim() || undefined,
-        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
+        paymentScreenshotUrl: paymentScreenshotUrl.trim() || undefined,
         googleDrivePaymentLink: googleDrivePaymentLink.trim() || undefined,
-        paymentUtr: paymentUtr.trim() || undefined,
-        address: address.trim() || undefined,
-        payoutUpi: payoutUpi.trim() || undefined,
-        sponsorId: sponsorId.trim().toUpperCase(),
       });
 
       setIsSubmitting(false);
@@ -211,581 +253,590 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   };
 
   return (
-    <section id="registration-portal" className="scroll-mt-24 space-y-6 sm:space-y-8 w-full">
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-2.5 sm:space-y-3 px-1">
-        <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/40 px-3.5 py-1 rounded-full text-amber-300 text-[11px] sm:text-xs font-black uppercase tracking-wider">
-          <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-          <span>ALL-IN-ONE OFFICIAL PORTAL</span>
-        </div>
-        <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white">
-          📝 IOIS <span className="gold-text">आधिकारिक रजिस्ट्रेशन व वेरिफिकेशन</span>
+    <section id="registration-portal" className="scroll-mt-24 space-y-6 w-full max-w-5xl mx-auto">
+      {/* Clean Header */}
+      <div className="text-center space-y-2 px-2">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white">
+          सदस्य पंजीकरण <span className="gold-text">पोर्टल</span>
         </h2>
-        <p className="text-slate-300 text-xs sm:text-base leading-relaxed">
-          अपना विवरण भरें, उपयुक्त प्लान चुनें और पेमेंट विवरण दर्ज करें। पंजीकरण पूर्ण होते ही आपका 
-          <strong> आधिकारिक डिजिटल मेंबर ID व डैशबोर्ड</strong> तुरंत सक्रिय हो जाएगा।
+        <p className="text-slate-400 text-xs sm:text-sm">
+          आधिकारिक सदस्यता व डिजिटल ID कार्ड प्राप्त करने के लिए 3 आसान चरणों को पूरा करें।
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start w-full">
-        
-        {/* Left Side: Registration Form (8 Cols) */}
-        <div className="lg:col-span-8 glass-card-gold p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-amber-500/30 space-y-5 sm:space-y-6 w-full">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <h3 className="text-lg font-black text-white flex items-center gap-2">
+      {/* Step Indicator Tabs */}
+      <div className="glass-card-gold p-2 sm:p-3 rounded-2xl border border-amber-500/30">
+        <div className="grid grid-cols-3 gap-2">
+          {/* Step 1 Tab */}
+          <button
+            type="button"
+            onClick={() => setCurrentStep(1)}
+            className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              currentStep === 1
+                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                : currentStep > 1
+                ? 'bg-slate-900/80 text-emerald-400 border border-emerald-500/30'
+                : 'bg-slate-950/60 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+              currentStep === 1
+                ? 'bg-slate-950 text-amber-300'
+                : currentStep > 1
+                ? 'bg-emerald-500 text-slate-950'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {currentStep > 1 ? '✓' : '1'}
+            </span>
+            <span className="truncate">1. व्यक्तिगत विवरण</span>
+          </button>
+
+          {/* Step 2 Tab */}
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await validateStep1();
+              if (ok) setCurrentStep(2);
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              currentStep === 2
+                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                : currentStep > 2
+                ? 'bg-slate-900/80 text-emerald-400 border border-emerald-500/30'
+                : 'bg-slate-950/60 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+              currentStep === 2
+                ? 'bg-slate-950 text-amber-300'
+                : currentStep > 2
+                ? 'bg-emerald-500 text-slate-950'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {currentStep > 2 ? '✓' : '2'}
+            </span>
+            <span className="truncate">2. प्लान व पासवर्ड</span>
+          </button>
+
+          {/* Step 3 Tab */}
+          <button
+            type="button"
+            onClick={async () => {
+              const ok1 = await validateStep1();
+              if (ok1 && validateStep2()) setCurrentStep(3);
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              currentStep === 3
+                ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                : 'bg-slate-950/60 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+              currentStep === 3
+                ? 'bg-slate-950 text-amber-300'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              3
+            </span>
+            <span className="truncate">3. पेमेंट व एक्टिवेशन</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Main Form Container (8 Cols on Desktop) */}
+        <div className="lg:col-span-8 glass-card-gold p-5 sm:p-7 rounded-2xl sm:rounded-3xl border border-amber-500/30 space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-amber-400" />
-              <span>नया खाता पंजीकरण फॉर्म (Direct Member Enrollment)</span>
+              <span>
+                {currentStep === 1 && 'चरण 1: व्यक्तिगत व स्पॉन्सर जानकारी'}
+                {currentStep === 2 && 'चरण 2: प्लान चयन व पासवर्ड निर्माण'}
+                {currentStep === 3 && 'चरण 3: पेमेंट विवरण व एक्टिवेशन'}
+              </span>
             </h3>
             <button
               type="button"
-              onClick={onOpenLogin}
-              className="text-xs text-amber-400 hover:text-amber-300 font-extrabold flex items-center gap-1 cursor-pointer bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30"
+              onClick={() => onOpenLogin('login')}
+              className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30 transition"
             >
-              <span>पहले से खाता है? लॉगिन करें →</span>
+              <span>लॉगिन करें →</span>
             </button>
           </div>
 
-          {/* Duplicate Account Detection Banner with Masked Privacy Protection (No PII leak) */}
+          {/* Duplicate Notice Banner (Masked Privacy) */}
           {duplicateNotice && (
-            <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-950/90 via-slate-950 to-red-950/90 border-2 border-amber-400 rounded-2xl sm:rounded-3xl text-white shadow-[0_10px_35px_rgba(245,158,11,0.35)] space-y-4 animate-fadeIn">
+            <div className="p-4 sm:p-5 bg-gradient-to-br from-amber-950/90 via-slate-950 to-red-950/90 border-2 border-amber-400 rounded-2xl text-white space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-6 h-6 text-amber-400" />
-                </div>
+                <ShieldAlert className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-base sm:text-lg font-black text-amber-300">
-                    ⚠️ यह खाता पहले से पंजीकृत है! (Account Already Registered)
+                  <h4 className="text-sm sm:text-base font-black text-amber-300">
+                    यह खाता पहले से पंजीकृत है
                   </h4>
-                  <p className="text-xs text-slate-200 mt-1 leading-relaxed">
-                    दर्ज किया गया {duplicateNotice.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल आईडी' : duplicateNotice.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल आईडी'} IOIS प्लेटफ़ॉर्म पर पहले से सक्रिय खाते में दर्ज है। 
-                    एक सदस्य केवल एक ही वैध ID बना सकता है।
+                  <p className="text-xs text-slate-200 mt-0.5">
+                    दर्ज किया गया {duplicateNotice.matchedBy === 'both' ? 'मोबाइल नंबर व ईमेल' : duplicateNotice.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल'} पहले से सक्रिय है।
                   </p>
                 </div>
               </div>
 
-              {/* Data Privacy & Masked Identity Card */}
-              <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
-                <div className="flex items-center gap-2 text-amber-400 font-bold pb-2 border-b border-slate-800">
-                  <Shield className="w-4 h-4" />
-                  <span>गोपनीयता व डेटा सुरक्षा प्रोटोकॉल (Privacy & Data Protection Active)</span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-normal">
-                  सुरक्षा कारणों से किसी अन्य व्यक्ति को वास्तविक नाम, पूरा ईमेल या User ID उजागर नहीं किया जाता। यदि यह आपका ही खाता है तो आप नीचे दिए गए विकल्पों का उपयोग करके सुरक्षित लॉगिन या वास्तविक पहचान सत्यापन द्वारा पासवर्ड रीसेट कर सकते हैं:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {duplicateNotice.maskedMobile && (
-                    <div className="bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 flex items-center justify-between">
-                      <span className="text-slate-400">सुरक्षित मोबाइल:</span>
-                      <span className="text-amber-300 font-mono font-bold">{duplicateNotice.maskedMobile}</span>
-                    </div>
-                  )}
-                  {duplicateNotice.maskedEmail && (
-                    <div className="bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 flex items-center justify-between">
-                      <span className="text-slate-400">सुरक्षित ईमेल:</span>
-                      <span className="text-amber-300 font-mono font-bold">{duplicateNotice.maskedEmail}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons: Direct Login or Identity Verification Password Reset */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    onOpenLogin('login');
-                  }}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-2 hover:from-amber-300 transition shadow-lg shadow-amber-500/20 cursor-pointer"
+                  onClick={() => onOpenLogin('login')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Lock className="w-4 h-4" />
-                  <span>सीधे लॉगिन करें →</span>
+                  <span>सीधे लॉगिन करें</span>
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => {
-                    onOpenLogin('forgot_password');
-                  }}
-                  className="w-full py-3 px-4 rounded-xl bg-slate-900 border border-amber-400/60 text-amber-300 font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-slate-800 transition cursor-pointer"
+                  onClick={() => onOpenLogin('forgot_password')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-900 border border-amber-400/60 text-amber-300 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span>पहचान सत्यापित कर पासवर्ड रीसेट करें 🔒</span>
+                  <span>पासवर्ड रीसेट करें</span>
                 </button>
               </div>
 
-              <div className="text-center pt-1">
+              <div className="text-center pt-0.5">
                 <button
                   type="button"
                   onClick={() => setDuplicateNotice(null)}
                   className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
                 >
-                  विवरण बदलकर दूसरा मोबाइल/ईमेल दर्ज करें ✖
+                  अन्य मोबाइल नंबर से पंजीकरण करें
                 </button>
               </div>
             </div>
           )}
 
-          {/* Error display */}
+          {/* Validation Error Message */}
           {errorMsg && !duplicateNotice && (
-            <div className="p-4 bg-red-950/70 border border-red-500/50 rounded-2xl text-red-300 text-xs flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
+            <div className="p-3.5 bg-red-950/70 border border-red-500/50 rounded-xl text-red-300 text-xs flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* ⚠️ Mandatory Warning Banner (चेतावनी) as requested */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-950/70 via-amber-950/60 to-red-950/70 border-2 border-amber-400 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-amber-300 font-black text-sm">
-              <AlertCircle className="w-5 h-5 text-amber-400 animate-pulse shrink-0" />
-              <span>⚠️ अति आवश्यक निर्देश व चेतावनी (Mandatory Alert)</span>
-            </div>
-            <div className="space-y-2 text-xs text-slate-200 leading-relaxed">
-              <div className="flex items-start gap-2 bg-slate-950/90 p-3 rounded-xl border border-amber-500/40">
-                <span className="text-amber-400 font-black text-sm shrink-0">1.</span>
-                <div>
-                  <strong className="text-amber-300">UPI ID / Payment Received Address सही-सही भरें:</strong>
-                  <p className="text-slate-300 text-[11px] mt-0.5">
-                    जहाँ आप अपनी कमाई, 70% रेफरल इंसेंटिव और दैनिक पेआउट प्राप्त करना चाहते हैं (Google Pay, PhonePe, Paytm, BHIM आदि), वह UPI ID या पता <strong>बिल्कुल सही-सही और सावधानीपूर्वक</strong> भरें ताकि पैसा सीधे आपके खाते में जमा हो।
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2 bg-slate-950/90 p-3 rounded-xl border border-emerald-500/40">
-                <span className="text-emerald-400 font-black text-sm shrink-0">2.</span>
-                <div>
-                  <strong className="text-emerald-300">Sponsor ID (स्पॉन्सर आईडी) जरूर भरें:</strong>
-                  <p className="text-slate-300 text-[11px] mt-0.5">
-                    रजिस्ट्रेशन के लिए Sponsor ID भरना अनिवार्य है। यदि आपके पास कोई स्पॉन्सर आईडी नहीं है, तो आधिकारिक हेडक्वार्टर आईडी <strong>IOIS999VK01</strong> दर्ज करें।
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6 text-xs">
-            
-            {/* 1. Basic Info & Sponsor ID */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <span>1. व्यक्तिगत व स्पॉन्सर विवरण (Personal & Sponsor Details)</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    पूरा नाम (Full Name) <span className="text-red-400">*</span>:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="उदा. Rahul Kumar"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    (User ID आपके नाम के पहले अक्षरों से स्वतः बनेगी)
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
-                    <span>मोबाइल / WhatsApp नंबर <span className="text-red-400">*</span>:</span>
-                    {isCheckingDuplicate && (
-                      <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" /> जांच हो रही है...
-                      </span>
-                    )}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={mobileNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setMobileNumber(val);
-                      if (val.replace(/\D/g, '').length >= 10) {
-                        verifyUniqueness(val, email);
-                      }
-                    }}
-                    onBlur={() => verifyUniqueness(mobileNumber, email)}
-                    placeholder="उदा. +91 9876543210"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    (एक मोबाइल नंबर से केवल 1 User ID ही बन सकती है)
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
-                    <span>Sponsor ID (स्पॉन्सर आईडी) <span className="text-red-400">* (अनिवार्य)</span>:</span>
-                    <span className="text-[10px] text-amber-400 font-black">ज़रूर भरें</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={sponsorId}
-                    onChange={(e) => setSponsorId(e.target.value.toUpperCase())}
-                    placeholder="उदा. IOIS999VK01 या स्पॉन्सर ID"
-                    className="w-full bg-slate-950 border-2 border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-black rounded-xl px-3.5 py-2.5 outline-none transition uppercase"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    (डिफ़ॉल्ट आधिकारिक स्पॉन्सर आईडी: <strong className="text-amber-400">IOIS999VK01</strong>)
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">ईमेल पता (Email ID):</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEmail(val);
-                      if (val.includes('@') && val.includes('.')) {
-                        verifyUniqueness(mobileNumber, val);
-                      }
-                    }}
-                    onBlur={() => verifyUniqueness(mobileNumber, email)}
-                    placeholder="name@example.com"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    (डुप्लीकेट ईमेल से दोबारा रजिस्ट्रेशन की अनुमति नहीं है)
-                  </span>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-slate-300 font-bold mb-1.5">शहर / राज्य (Address/City):</label>
-                  <input
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="उदा. पटना, बिहार"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Plan & Membership Role */}
-            <div className="space-y-4 pt-3 border-t border-slate-800">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <span>2. प्लान व सदस्यता स्तर (Select Plan)</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    IOIS एक्टिव प्लान <span className="text-red-400">*</span>:
-                  </label>
-                  <select
-                    value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition cursor-pointer font-bold"
-                  >
-                    {PLANS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        Plan 0{p.id}: {p.name} — ₹{p.price} ({p.percentage}% Payout)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">सदस्यता पद (Designation):</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition cursor-pointer"
-                  >
-                    <option value="Verified Elite Member">Verified Elite Member</option>
-                    <option value="Active Digital Learner">Active Digital Learner</option>
-                    <option value="Official Youth Reseller">Official Youth Reseller</option>
-                    <option value="Supreme Master Partner">Supreme Master Partner</option>
-                    <option value="Student Ambassador">Student Ambassador</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Password Creation */}
-            <div className="space-y-4 pt-3 border-t border-slate-800">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <span>3. सुरक्षित पासवर्ड बनाएं (Create Password)</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    पासवर्ड (Password) <span className="text-red-400">*</span>:
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="कम से कम 4 अक्षर का पासवर्ड"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    पासवर्ड कन्फर्म करें <span className="text-red-400">*</span>:
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="पुनः वही पासवर्ड दर्ज करें"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Smart Photo Upload (No file size limits, 25MB+ Drive link) */}
-            <div className="space-y-3 pt-3 border-t border-slate-800">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <span>4. डिजिटल ID कार्ड फोटो (Card Profile Photo)</span>
-              </h4>
-
-              <SmartFileUpload
-                label="अपनी फ़ोटो अपलोड करें (या 25MB से बड़ी फ़ाइल हेतु Drive Link दें)"
-                sublabel="यह फ़ोटो आपके डिजिटल ID कार्ड पर प्रदर्शित होगी।"
-                fileValue={photoUrl}
-                driveLinkValue={googleDrivePhotoLink}
-                onFileChange={setPhotoUrl}
-                onDriveLinkChange={setGoogleDrivePhotoLink}
-              />
-            </div>
-
-            {/* 5. Payment Verification Upload & UTR */}
-            <div className="space-y-4 pt-3 border-t border-slate-800">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <span>5. आधिकारिक पेमेंट व वेरिफिकेशन प्रूफ (Payment to Vikas Kumar)</span>
-              </h4>
-
-              <div className="bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-950 border-2 border-amber-500/40 p-5 rounded-2xl text-slate-300 space-y-4 shadow-lg">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+          <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+            {/* ================= SECTION 1: PERSONAL & SPONSOR DETAILS ================= */}
+            {currentStep === 1 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Full Name */}
                   <div>
-                    <span className="text-[11px] text-slate-400 uppercase font-black tracking-wider block">
-                      चुना हुआ प्लान व देय शुल्क:
-                    </span>
-                    <div className="text-xl font-black text-white">
-                      {selectedPlan.code} ({selectedPlan.name})
-                    </div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      पूरा नाम (Full Name) <span className="text-red-400">*</span>:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="जैसे: Rahul Kumar"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-amber-400 font-bold">देय राशि:</span>
-                    <span className="text-2xl font-black text-amber-300 bg-slate-950 px-4 py-1 rounded-xl border border-amber-400 font-mono shadow-md">
-                      ₹{selectedPlan.price}
-                    </span>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span>मोबाइल / WhatsApp नंबर <span className="text-red-400">*</span>:</span>
+                      {isCheckingDuplicate && (
+                        <span className="text-[10px] text-amber-400 flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> जांच हो रही है...
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={mobileNumber}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setMobileNumber(val);
+                        if (val.replace(/\D/g, '').length >= 10) {
+                          verifyUniqueness(val, email);
+                        }
+                      }}
+                      onBlur={() => verifyUniqueness(mobileNumber, email)}
+                      placeholder="10 अंकों का मोबाइल नंबर"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Sponsor ID */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span>स्पॉन्सर ID (Sponsor ID) <span className="text-red-400">*</span>:</span>
+                      <span className="text-[10px] text-amber-400 font-semibold">डिफ़ॉल्ट: IOIS999VK01</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={sponsorId}
+                      onChange={(e) => setSponsorId(e.target.value.toUpperCase())}
+                      placeholder="IOIS999VK01"
+                      className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition uppercase"
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      ईमेल पता (Email ID):
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEmail(val);
+                        if (val.includes('@') && val.includes('.')) {
+                          verifyUniqueness(mobileNumber, val);
+                        }
+                      }}
+                      onBlur={() => verifyUniqueness(mobileNumber, email)}
+                      placeholder="name@example.com (वैकल्पिक)"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Address */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      शहर व राज्य (City & State):
+                    </label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="जैसे: पटना, बिहार"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
                   </div>
                 </div>
 
-                {/* Official UPI Details Card with QR Code & Copy */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-slate-950/90 p-4 rounded-xl border border-slate-800">
-                  {/* QR Code */}
-                  <div className="md:col-span-4 flex flex-col items-center justify-center p-3 bg-white rounded-xl text-center space-y-1">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi%3A%2F%2Fpay%3Fpa%3D${OFFICIAL_UPI_ID}%26pn%3DVikas%2520Kumar%26am%3D${selectedPlan.price}%26cu%3DINR`} 
-                      alt="UPI QR Code - Vikas Kumar" 
-                      className="w-32 h-32 object-contain"
-                    />
-                    <span className="text-[9px] font-black text-slate-900 uppercase tracking-tighter">
-                      SCAN VIA GPAY / PHONEPE / PAYTM
-                    </span>
+                {/* Next Button */}
+                <div className="pt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={goToNextStep}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    <span>अगला: प्लान व पासवर्ड चुनें</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ================= SECTION 2: PLAN & SECURITY ================= */}
+            {currentStep === 2 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Select Plan */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span>IOIS सदस्यता प्लान <span className="text-red-400">*</span>:</span>
+                      <span className="text-[10px] text-amber-400 font-bold">
+                        चुना हुआ: ₹{selectedPlan.price} ({selectedPlan.percentage}% पेआउट)
+                      </span>
+                    </label>
+                    <select
+                      value={selectedPlanId}
+                      onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition cursor-pointer font-bold"
+                    >
+                      {PLANS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          Plan 0{p.id}: {p.name} — ₹{p.price} ({p.percentage}% Payout)
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* UPI Details & Copy */}
-                  <div className="md:col-span-8 space-y-3">
+                  {/* Role */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      सदस्यता पद (Role / Designation):
+                    </label>
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition cursor-pointer"
+                    >
+                      <option value="Verified Elite Member">Verified Elite Member</option>
+                      <option value="Active Digital Learner">Active Digital Learner</option>
+                      <option value="Official Youth Reseller">Official Youth Reseller</option>
+                      <option value="Supreme Master Partner">Supreme Master Partner</option>
+                      <option value="Student Ambassador">Student Ambassador</option>
+                    </select>
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      पासवर्ड बनाएं <span className="text-red-400">*</span>:
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="कम से कम 4 अक्षर"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      पासवर्ड कन्फर्म करें <span className="text-red-400">*</span>:
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="वही पासवर्ड दोबारा दर्ज करें"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Profile Photo */}
+                <div className="pt-2">
+                  <SmartFileUpload
+                    label="प्रोफाइल फोटो (डिजिटल ID कार्ड हेतु)"
+                    sublabel="फ़ोटो चुनें या Google Drive लिंक दर्ज करें"
+                    fileValue={photoUrl}
+                    driveLinkValue={googleDrivePhotoLink}
+                    onFileChange={setPhotoUrl}
+                    onDriveLinkChange={setGoogleDrivePhotoLink}
+                  />
+                </div>
+
+                {/* Navigation Buttons */}
+                <div className="pt-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={goToPrevStep}
+                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>पीछे जाएं</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={goToNextStep}
+                    className="px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase flex items-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    <span>अगला: पेमेंट व एक्टिवेशन</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ================= SECTION 3: PAYMENT & ACTIVATION ================= */}
+            {currentStep === 3 && (
+              <div className="space-y-4">
+                {/* Official UPI Details Box */}
+                <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/40 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                     <div>
-                      <span className="text-[10px] text-amber-400 uppercase font-black tracking-widest block">
-                        आधिकारिक प्राप्तकर्ता नाम (Payee Name):
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">चुना हुआ प्लान:</span>
+                      <div className="text-sm font-black text-white">{selectedPlan.code} ({selectedPlan.name})</div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">देय राशि:</span>
+                      <div className="text-lg font-black text-amber-300 font-mono">₹{selectedPlan.price}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                    {/* QR Code */}
+                    <div className="sm:col-span-4 flex flex-col items-center justify-center p-2.5 bg-white rounded-xl text-center">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi%3A%2F%2Fpay%3Fpa%3D${OFFICIAL_UPI_ID}%26pn%3DVikas%2520Kumar%26am%3D${selectedPlan.price}%26cu%3DINR`} 
+                        alt="UPI QR Code - Vikas Kumar" 
+                        className="w-28 h-28 object-contain"
+                      />
+                      <span className="text-[8px] font-black text-slate-900 mt-1">
+                        GPAY • PHONEPE • PAYTM
                       </span>
-                      <div className="text-base sm:text-lg font-black text-white flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        <span>{OFFICIAL_PAYEE_NAME}</span>
-                        <span className="text-[10px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full font-bold border border-green-500/30">
-                          VERIFIED
-                        </span>
-                      </div>
                     </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
-                        आधिकारिक UPI ID (Official Payment Address):
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-900 border border-amber-500/40 rounded-xl px-3.5 py-2 font-mono text-xs sm:text-sm font-black text-amber-300 select-all overflow-x-auto">
-                          {OFFICIAL_UPI_ID}
+                    {/* Payee Info & Copy Button */}
+                    <div className="sm:col-span-8 space-y-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">आधिकारिक प्राप्तकर्ता:</span>
+                        <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{OFFICIAL_PAYEE_NAME}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleCopyUpi}
-                          className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
-                          title="UPI ID कॉपी करें"
-                        >
-                          {copiedUpi ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-green-950 stroke-[3]" />
-                              <span>कॉपी हुआ!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>कॉपी करें</span>
-                            </>
-                          )}
-                        </button>
                       </div>
-                    </div>
 
-                    {/* Direct UPI Intent Button for Mobile Users */}
-                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-1">आधिकारिक UPI ID:</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 font-mono text-xs font-bold text-amber-300 truncate">
+                            {OFFICIAL_UPI_ID}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyUpi}
+                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            {copiedUpi ? (
+                              <>
+                                <Check className="w-3 h-3 text-slate-950 stroke-[3]" />
+                                <span>कॉपी हुआ</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>कॉपी</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
                       <a
                         href={`upi://pay?pa=${OFFICIAL_UPI_ID}&pn=Vikas%20Kumar&am=${selectedPlan.price}&cu=INR`}
-                        className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
+                        className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-[11px] font-bold"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>सीधे UPI ऐप से भुगतान करें (Mobile Pay)</span>
+                        <ExternalLink className="w-3 h-3" />
+                        <span>सीधे UPI ऐप से भुगतान करें</span>
                       </a>
-                      <span className="text-[10px] text-slate-400">
-                        व्हाट्सएप सहायता: <strong className="text-slate-200">{OFFICIAL_PHONE}</strong>
-                      </span>
                     </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  📌 <strong>निर्देश:</strong> ऊपर दिए गए UPI ID (<strong>{OFFICIAL_UPI_ID}</strong> - Vikas Kumar) या QR कोड पर <strong>₹{selectedPlan.price}</strong> ट्रांसफर करें और सफल ट्रांजेक्शन का स्क्रीनशॉट व 12-अंकों का UTR नंबर नीचे दर्ज करें।
-                </p>
-              </div>
+                {/* Screenshot Upload */}
+                <SmartFileUpload
+                  label="पेमेंट स्क्रीनशॉट अपलोड करें (Screenshot Proof)"
+                  sublabel="सफल ट्रांजेक्शन का स्क्रीनशॉट या ड्राइव लिंक दें"
+                  fileValue={paymentScreenshotUrl}
+                  driveLinkValue={googleDrivePaymentLink}
+                  onFileChange={setPaymentScreenshotUrl}
+                  onDriveLinkChange={setGoogleDrivePaymentLink}
+                />
 
-              <SmartFileUpload
-                label="पेमेंट स्क्रीनशॉट अपलोड करें (Payment Screenshot Proof)"
-                sublabel="एडमिन आपके स्क्रीनशॉट को देखकर 5 मिनट में अप्रूव करेगा।"
-                fileValue={paymentScreenshotUrl}
-                driveLinkValue={googleDrivePaymentLink}
-                onFileChange={setPaymentScreenshotUrl}
-                onDriveLinkChange={setGoogleDrivePaymentLink}
-              />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* UTR */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      UTR / Transaction Ref नंबर:
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentUtr}
+                      onChange={(e) => setPaymentUtr(e.target.value)}
+                      placeholder="उदा. 4239XXXXXXXX (वैकल्पिक)"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2 outline-none transition font-mono"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1.5">
-                    UTR / Transaction Ref नंबर:
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentUtr}
-                    onChange={(e) => setPaymentUtr(e.target.value)}
-                    placeholder="उदा. 4239XXXXXXXX"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition font-mono"
-                  />
+                  {/* Payout UPI ID */}
+                  <div>
+                    <label className="block text-amber-300 font-bold mb-1.5">
+                      पेआउट पाने का UPI ID <span className="text-red-400">*</span>:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={payoutUpi}
+                      onChange={(e) => setPayoutUpi(e.target.value)}
+                      placeholder="जैसे: 9876543210@paytm या UPI ID"
+                      className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2 outline-none transition"
+                    />
+                  </div>
                 </div>
 
-                <div className="bg-amber-500/10 border-2 border-amber-500/50 p-3.5 rounded-2xl">
-                  <label className="block text-amber-300 font-black mb-1.5 flex items-center justify-between">
-                    <span>पेमेंट रिसीव करने का UPI ID / Payment Received Address <span className="text-red-400">*</span>:</span>
-                    <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded">सावधानीपूर्वक भरें</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={payoutUpi}
-                    onChange={(e) => setPayoutUpi(e.target.value)}
-                    placeholder="उदा. 9876543210@paytm या name@okhdfcbank"
-                    className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition"
-                  />
-                  <span className="text-[10px] text-amber-200/80 mt-1 block">
-                    ⚠️ <strong>चेतावनी:</strong> जहाँ आप अपनी कमाई व 70% इंसेंटिव पाना चाहते हैं, वही सही UPI ID भरें।
-                  </span>
+                {/* Submit & Back Buttons */}
+                <div className="pt-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={goToPrevStep}
+                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>पीछे जाएं</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 sm:flex-initial px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 via-amber-400 to-emerald-500 hover:from-emerald-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-xl shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                    <span>{isSubmitting ? 'खाता बनाया जा रहा है...' : 'रजिस्ट्रेशन पूर्ण करें (Get Digital ID)'}</span>
+                  </button>
                 </div>
               </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="pt-4 border-t border-slate-800">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-amber-400 to-emerald-500 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-base uppercase tracking-wider shadow-2xl shadow-emerald-500/30 flex items-center justify-center gap-2 transition transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50 border border-amber-300"
-              >
-                <CheckCircle2 className="w-5 h-5 text-slate-950" />
-                <span>{isSubmitting ? 'खाता बनाया जा रहा है...' : 'रजिस्ट्रेशन / Join Now (तुरंत डिजिटल ID कार्ड प्राप्त करें)'}</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-
+            )}
           </form>
         </div>
 
-        {/* Right Side: Live Summary & Formula Explainer (4 Cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Unique ID Formula Card */}
-          <div className="glass-card-gold p-6 rounded-3xl border border-amber-500/40 space-y-4">
-            <div className="flex items-center gap-2 text-amber-400 font-black text-sm">
-              <Sparkles className="w-4 h-4" />
-              <span>आपकी यूनिक User ID कैसे बनेगी?</span>
+        {/* Clean Right Sidebar: Compact Summary (4 Cols on Desktop) */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="glass-card-gold p-5 rounded-2xl sm:rounded-3xl border border-amber-500/30 space-y-3">
+            <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>रजिस्ट्रेशन समरी (Live Summary)</span>
+            </h4>
+
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">आवेदक:</span>
+                <span className="font-bold text-white truncate max-w-[150px]">
+                  {fullName.trim() || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">मोबाइल:</span>
+                <span className="font-mono text-white">
+                  {mobileNumber.trim() || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">प्लान:</span>
+                <span className="font-bold text-amber-400">
+                  {selectedPlan.code} (₹{selectedPlan.price})
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300 border-t border-slate-800/80 pt-2">
+                <span className="text-slate-400">डिजिटल ID:</span>
+                <span className="font-mono font-bold text-emerald-400">
+                  {fullName.trim() 
+                    ? `IOIS${selectedPlan.price}${fullName.trim().split(/\s+/).map(n => n[0]?.toUpperCase()).join('').slice(0,2) || 'XX'}01`
+                    : `IOIS${selectedPlan.price}RK01`
+                  }
+                </span>
+              </div>
             </div>
 
-            <div className="p-3 bg-slate-950 rounded-2xl border border-amber-500/30 text-center space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">अनुमानित User ID प्रिव्यू:</span>
-              <div className="text-xl font-black text-amber-300 font-mono tracking-wider">
-                {fullName.trim() 
-                  ? `IOIS${selectedPlan.price}${fullName.trim().split(/\s+/).map(n => n[0]?.toUpperCase()).join('').slice(0,2) || 'XX'}01`
-                  : `IOIS${selectedPlan.price}RK01`
-                }
-              </div>
-            </div>
-
-            <div className="space-y-2 text-[11px] text-slate-300 leading-relaxed">
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-amber-400">1. IOIS:</span>
-                <span>प्लेटफॉर्म का आधिकारिक ब्रांड कोड</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-amber-400">2. {selectedPlan.price}:</span>
-                <span>आपके चुने हुए प्लान की कीमत (₹{selectedPlan.price})</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-amber-400">3. {fullName.trim() ? (fullName.trim().split(/\s+/).map(n => n[0]?.toUpperCase()).join('').slice(0,2) || 'RK') : 'RK'}:</span>
-                <span>आपके नाम और उपनाम के पहले अक्षर</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-amber-400">4. 01:</span>
-                <span>उस प्लान को चुनने वाले सदस्य का यूनिक क्रम संख्या</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-2xl text-[10px] text-emerald-300 font-bold flex items-center gap-2">
-              <Lock className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>यह ID 100% नॉन-एडिटेबल और कभी रिपीट न होने वाली आजीवन पहचान है।</span>
+            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300 flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>पंजीकरण के तुरंत बाद डिजिटल ID कार्ड उपलब्ध होगा।</span>
             </div>
           </div>
 
-          {/* Quick Help & Guarantee */}
-          <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-3 text-xs text-slate-300">
-            <h4 className="font-black text-white flex items-center gap-2">
-              <Info className="w-4 h-4 text-sky-400" />
-              <span>सुरक्षित व सीधा पेमेंट सिस्टम</span>
-            </h4>
-            <p className="leading-relaxed">
-              किसी भी थर्ड पार्टी ऐप की आवश्यकता नहीं है। पंजीकरण के तुरंत बाद आपका डैशबोर्ड खुल जाएगा जहाँ आप अपना विवरण कभी भी अपडेट कर सकते हैं।
-            </p>
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">24x7 WhatsApp सपोर्ट:</span>
+          <div className="glass-card p-4 rounded-2xl border border-slate-800 text-xs text-slate-400 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span>हेल्पलाइन सपोर्ट:</span>
               <span className="font-bold text-emerald-400">{OFFICIAL_PHONE}</span>
             </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span>प्राप्तकर्ता:</span>
+              <span className="text-slate-300">{OFFICIAL_PAYEE_NAME}</span>
+            </div>
           </div>
-
         </div>
-
       </div>
     </section>
   );

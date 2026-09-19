@@ -22,6 +22,9 @@ import { RegistrationPortal } from './components/RegistrationPortal';
 import { UserDashboard } from './components/UserDashboard';
 import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
+import { RegistrationModal } from './components/RegistrationModal';
+import { DashboardModal } from './components/DashboardModal';
+import { IdCardModal } from './components/IdCardModal';
 import { ContactFaq } from './components/ContactFaq';
 import { LegalPolicyPages } from './components/LegalPolicyPages';
 import { QuickPageShortcuts } from './components/QuickPageShortcuts';
@@ -29,7 +32,7 @@ import { Footer } from './components/Footer';
 import { AIChatBot } from './components/AIChatBot';
 import { Plan, UserProfile, PageType } from './types';
 import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser } from './services/userService';
-import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard } from 'lucide-react';
+import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('home');
@@ -42,6 +45,11 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>('login');
   const [authModalPrefill, setAuthModalPrefill] = useState<{ identifier?: string; mobile?: string; userId?: string }>({});
+
+  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card)
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
+  const [isDashboardModalOpen, setIsDashboardModalOpen] = useState<boolean>(false);
+  const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
 
   // Sync users with backend on launch and periodically check status updates
   useEffect(() => {
@@ -79,25 +87,47 @@ export default function App() {
     setIsAuthModalOpen(true);
   };
 
+  const handleOpenRegister = (planId?: number) => {
+    if (planId) setSelectedPlanForRegister(planId);
+    setIsRegisterModalOpen(true);
+  };
+
+  const handleOpenDashboard = () => {
+    if (!currentUser) {
+      handleOpenLogin('login');
+      return;
+    }
+    setIsDashboardModalOpen(true);
+  };
+
+  const handleOpenIdCard = () => {
+    setIsIdCardModalOpen(true);
+  };
+
   const handleLogout = () => {
     logoutUser();
     setCurrentUser(null);
+    setIsDashboardModalOpen(false);
     navigateTo('home');
   };
 
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
-    navigateTo('dashboard');
+    setIsAuthModalOpen(false);
+    // Open the member dashboard dialog box window directly!
+    setIsDashboardModalOpen(true);
   };
 
   const handleRegisterSuccess = (user: UserProfile) => {
     setCurrentUser(user);
-    navigateTo('dashboard');
+    setIsRegisterModalOpen(false);
+    // Open the member dashboard dialog box window directly!
+    setIsDashboardModalOpen(true);
   };
 
   const handleSelectPlanForRegister = (planId: number) => {
     setSelectedPlanForRegister(planId);
-    navigateTo('register');
+    setIsRegisterModalOpen(true);
   };
 
   return (
@@ -112,6 +142,9 @@ export default function App() {
           setIsChatOpen(true);
         }}
         onOpenLogin={() => handleOpenLogin('login')}
+        onOpenRegister={() => handleOpenRegister()}
+        onOpenDashboard={handleOpenDashboard}
+        onOpenIdCard={handleOpenIdCard}
         onLogout={handleLogout}
       />
 
@@ -139,16 +172,18 @@ export default function App() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => navigateTo('dashboard')}
-                    className="px-5 py-2.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition cursor-pointer shadow-md"
+                    onClick={handleOpenDashboard}
+                    className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition cursor-pointer shadow-md flex items-center gap-1.5"
                   >
-                    सदस्य डैशबोर्ड खोलें →
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <span>डैशबोर्ड डायलॉग खोलें →</span>
                   </button>
                   <button
-                    onClick={() => navigateTo('idcard')}
-                    className="px-4 py-2.5 rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
+                    onClick={handleOpenIdCard}
+                    className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:bg-slate-800 transition cursor-pointer flex items-center gap-1.5"
                   >
-                    ID कार्ड
+                    <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                    <span>ID कार्ड</span>
                   </button>
                 </div>
               </div>
@@ -158,6 +193,9 @@ export default function App() {
             <HomePageDashboard
               onNavigate={navigateTo}
               onOpenLogin={() => handleOpenLogin('login')}
+              onOpenRegister={handleOpenRegister}
+              onOpenDashboard={handleOpenDashboard}
+              onOpenIdCard={handleOpenIdCard}
               onOpenAiChat={() => {
                 setChatInitialQuery('');
                 setIsChatOpen(true);
@@ -186,11 +224,25 @@ export default function App() {
         {/* ================= PAGE 3: REGISTRATION PAGE ================= */}
         {currentPage === 'register' && (
           <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">सुविधाजनक विकल्प</span>
+                <h4 className="text-sm font-black text-white">पॉप-अप डायलॉग बॉक्स (Modal) विंडो में भरें</h4>
+                <p className="text-xs text-slate-300">यदि आप पेज बदले बिना त्वरित 3-स्टेप फॉर्म भरना चाहते हैं, तो पॉप-अप विंडो खोलें।</p>
+              </div>
+              <button
+                onClick={() => handleOpenRegister(selectedPlanForRegister)}
+                className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>पॉप-अप विंडो खोलें</span>
+              </button>
+            </div>
             <PageHeader
               currentPage="register"
               onNavigate={navigateTo}
-              title="नया सदस्य रजिस्ट्रेशन (Official In-App Registration)"
-              subtitle="डायरेक्ट इन-ऐप फॉर्म, 25MB+ पेमेंट प्रूफ अपलोड व ऑटो-जनरेटेड यूनिक User ID"
+              title="नया सदस्य रजिस्ट्रेशन (Member Registration)"
+              subtitle="3 आसान चरणों में पंजीकरण पूर्ण करें और तुरंत डिजिटल ID कार्ड प्राप्त करें"
             />
             <RegistrationPortal
               onRegisterSuccess={handleRegisterSuccess}
@@ -203,6 +255,20 @@ export default function App() {
         {/* ================= PAGE 4: DIGITAL ID CARD PAGE ================= */}
         {currentPage === 'idcard' && (
           <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30">
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-black tracking-wider text-blue-400">त्वरित प्रिव्यू</span>
+                <h4 className="text-sm font-black text-white">ID कार्ड पॉप-अप डायलॉग विंडो</h4>
+                <p className="text-xs text-slate-300">किसी भी पेज से सीधा डायलॉग बॉक्स में ID कार्ड देखें व PNG डाउनलोड करें।</p>
+              </div>
+              <button
+                onClick={handleOpenIdCard}
+                className="shrink-0 px-4 py-2.5 bg-blue-500 hover:bg-blue-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>पॉप-अप में देखें</span>
+              </button>
+            </div>
             <PageHeader
               currentPage="idcard"
               onNavigate={navigateTo}
@@ -211,7 +277,7 @@ export default function App() {
             />
             <IDCardGenerator
               currentUser={currentUser}
-              onOpenRegister={() => navigateTo('register')}
+              onOpenRegister={() => handleOpenRegister()}
             />
           </div>
         )}
@@ -375,7 +441,7 @@ export default function App() {
               title="लाइव सरकारी व प्राइवेट नौकरी अलर्ट (Jobs & Careers)"
               subtitle="SSC, रेलवे, बैंक, पुलिस की नई भर्तियां और IOIS में वर्क-फ्रॉम-होम डिजिटल इनकम के अवसर"
             />
-            <JobAlertsPage onOpenRegister={() => navigateTo('register')} />
+            <JobAlertsPage onOpenRegister={() => handleOpenRegister()} />
           </div>
         )}
 
@@ -413,6 +479,22 @@ export default function App() {
         {/* ================= PAGE 10: USER DASHBOARD PAGE ================= */}
         {currentPage === 'dashboard' && (
           <div className="space-y-8">
+            {currentUser && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">सुपर फास्ट एक्सेस</span>
+                  <h4 className="text-sm font-black text-white">पॉप-अप डैशबोर्ड डायलॉग विंडो</h4>
+                  <p className="text-xs text-slate-300">बिना फुल-पेज स्क्रॉल किए डायलॉग बॉक्स में प्रोफाइल, ID कार्ड व सपोर्ट टिकट मैनेज करें।</p>
+                </div>
+                <button
+                  onClick={handleOpenDashboard}
+                  className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>डायलॉग बॉक्स में खोलें</span>
+                </button>
+              </div>
+            )}
             <PageHeader
               currentPage="dashboard"
               onNavigate={navigateTo}
@@ -424,7 +506,7 @@ export default function App() {
                 user={currentUser}
                 onUserUpdated={(updated) => setCurrentUser(updated)}
                 onLogout={handleLogout}
-                onScrollToCard={() => navigateTo('idcard')}
+                onScrollToCard={() => handleOpenIdCard()}
               />
             ) : (
               <div className="text-center py-16 bg-slate-900/60 rounded-3xl border border-slate-800 space-y-4">
@@ -437,7 +519,7 @@ export default function App() {
                     लॉगिन करें
                   </button>
                   <button
-                    onClick={() => navigateTo('register')}
+                    onClick={() => handleOpenRegister()}
                     className="px-6 py-2.5 rounded-full bg-slate-800 text-white font-bold text-xs hover:bg-slate-700 transition cursor-pointer"
                   >
                     नया रजिस्ट्रेशन
@@ -522,24 +604,30 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => navigateTo('student-study')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-            currentPage === 'student-study' || currentPage === 'study' ? 'text-violet-400 font-black' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <GraduationCap className="w-4 h-4 text-violet-400" />
-          <span className="text-[10px] mt-0.5 font-bold">पढ़ाई</span>
-        </button>
-
-        <button
-          onClick={() => navigateTo('idcard')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-            currentPage === 'idcard' ? 'text-blue-400 font-black' : 'text-slate-400 hover:text-slate-200'
-          }`}
+          onClick={handleOpenIdCard}
+          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-blue-400 hover:text-blue-300 transition"
         >
           <CreditCard className="w-4 h-4 text-blue-400" />
           <span className="text-[10px] mt-0.5 font-bold">ID कार्ड</span>
         </button>
+
+        {currentUser ? (
+          <button
+            onClick={handleOpenDashboard}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-amber-400 font-black transition"
+          >
+            <LayoutDashboard className="w-4 h-4 text-amber-400" />
+            <span className="text-[10px] mt-0.5 font-bold">डैशबोर्ड</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => handleOpenRegister()}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-emerald-400 font-black transition"
+          >
+            <UserPlus className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] mt-0.5 font-bold">रजिस्टर</span>
+          </button>
+        )}
       </nav>
 
       {/* 6. Floating AI Chatbot Launcher Button - Positioned above mobile bar on phones */}
@@ -567,19 +655,59 @@ export default function App() {
         currentUser={currentUser}
       />
 
-      {/* 7. Auth Modal (Login / Forgot ID / Forgot Password) */}
+      {/* 8. Auth Modal (Login / Forgot ID / Forgot Password) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccessLogin={handleLoginSuccess}
         onSwitchToRegister={() => {
           setIsAuthModalOpen(false);
-          navigateTo('register');
+          setIsRegisterModalOpen(true);
         }}
         initialMode={authModalInitialMode}
         initialIdentifier={authModalPrefill.identifier}
         initialMobile={authModalPrefill.mobile}
         initialUserId={authModalPrefill.userId}
+      />
+
+      {/* 9. Dedicated Registration Pop-Up Dialog Box Modal */}
+      <RegistrationModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onRegisterSuccess={handleRegisterSuccess}
+        onOpenLogin={(mode, prefill) => {
+          setIsRegisterModalOpen(false);
+          handleOpenLogin(mode || 'login', prefill);
+        }}
+        initialPlanId={selectedPlanForRegister}
+      />
+
+      {/* 10. Dedicated Member Dashboard Pop-Up Dialog Box Modal */}
+      <DashboardModal
+        isOpen={isDashboardModalOpen}
+        onClose={() => setIsDashboardModalOpen(false)}
+        user={currentUser}
+        onUserUpdated={(updated) => setCurrentUser(updated)}
+        onLogout={handleLogout}
+        onOpenLogin={() => {
+          setIsDashboardModalOpen(false);
+          handleOpenLogin('login');
+        }}
+      />
+
+      {/* 11. Dedicated Digital ID Card Pop-Up Dialog Box Modal */}
+      <IdCardModal
+        isOpen={isIdCardModalOpen}
+        onClose={() => setIsIdCardModalOpen(false)}
+        user={currentUser}
+        onOpenRegister={() => {
+          setIsIdCardModalOpen(false);
+          handleOpenRegister();
+        }}
+        onOpenLogin={() => {
+          setIsIdCardModalOpen(false);
+          handleOpenLogin('login');
+        }}
       />
     </div>
   );

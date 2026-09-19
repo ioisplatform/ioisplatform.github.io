@@ -39,6 +39,9 @@ interface NavbarProps {
   onNavigate: (page: PageType) => void;
   onOpenChat: () => void;
   onOpenLogin: () => void;
+  onOpenRegister?: () => void;
+  onOpenDashboard?: () => void;
+  onOpenIdCard?: () => void;
   onLogout: () => void;
 }
 
@@ -48,6 +51,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   onOpenChat, 
   onOpenLogin,
+  onOpenRegister,
+  onOpenDashboard,
+  onOpenIdCard,
   onLogout,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
@@ -79,9 +85,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleNavClick = (page: PageType, hashId?: string) => {
-    onNavigate(page);
     setMobileMenuOpen(false);
     setServicesModalOpen(false);
+    if (page === 'register' && onOpenRegister) {
+      onOpenRegister();
+      return;
+    }
+    if (page === 'dashboard' && onOpenDashboard) {
+      onOpenDashboard();
+      return;
+    }
+    if (page === 'idcard' && onOpenIdCard) {
+      onOpenIdCard();
+      return;
+    }
+    onNavigate(page);
     if (hashId) {
       setTimeout(() => {
         const el = document.getElementById(hashId);

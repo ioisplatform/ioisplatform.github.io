@@ -1063,12 +1063,42 @@ export const registerNewUserAsync = async (
   return newUser;
 };
 
+export const GITHUB_PLATFORM_URL = 'https://ioisplatform.github.io';
+
+export const sanitizeUpiId = (upi?: string): string => {
+  if (!upi) return '';
+  const trimmed = upi.trim();
+  // If garbage, multi-line, HTML, or entire webpage was pasted
+  if (
+    trimmed.length > 45 ||
+    trimmed.includes('\n') ||
+    trimmed.includes('\r') ||
+    trimmed.includes(' ') ||
+    trimmed.includes('<') ||
+    trimmed.includes('http') ||
+    trimmed.includes('/')
+  ) {
+    const match = trimmed.match(/[a-zA-Z0-9.\-_]{2,35}@[a-zA-Z]{2,20}/);
+    return match ? match[0] : '';
+  }
+  return trimmed;
+};
+
+export const getGitHubReferralLink = (userId: string): string => {
+  return `${GITHUB_PLATFORM_URL}/?ref=${encodeURIComponent((userId || '').trim().toUpperCase())}`;
+};
+
 export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>): UserProfile => {
   const users = getAllUsers();
+  const cleanPayoutUpi = sanitizeUpiId(data.payoutUpi);
+  const sanitizedData = {
+    ...data,
+    payoutUpi: cleanPayoutUpi,
+  };
 
   // Check duplicate synchronously in local cache
-  const cleanDigits = (data.mobileNumber || '').replace(/\D/g, '');
-  const cleanEmail = (data.email || '').trim().toLowerCase();
+  const cleanDigits = (sanitizedData.mobileNumber || '').replace(/\D/g, '');
+  const cleanEmail = (sanitizedData.email || '').trim().toLowerCase();
   const existing = users.find((u) => {
     if (!u) return false;
     const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
@@ -1084,11 +1114,11 @@ export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatu
     throw err;
   }
 
-  const plan = PLANS.find((p) => p.id === data.selectedPlanId) || PLANS[0];
-  const userId = generateCustomIOISUserId(data.fullName, plan.price, users);
+  const plan = PLANS.find((p) => p.id === sanitizedData.selectedPlanId) || PLANS[0];
+  const userId = generateCustomIOISUserId(sanitizedData.fullName, plan.price, users);
   
   const newUser: UserProfile = {
-    ...data,
+    ...sanitizedData,
     userId,
     paymentStatus: 'pending',
     createdAt: new Date().toISOString(),
@@ -1131,8 +1161,10 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
 
   const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
   if (index !== -1) {
+    const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
     users[index] = {
       ...updatedProfile,
+      payoutUpi: sanitizedUpi,
       userId: users[index].userId, // Immutable
     };
     saveUsers(users);
@@ -1283,7 +1315,11 @@ export const getCurrentUser = (): UserProfile | null => {
   try {
     const raw = localStorage.getItem(STORAGE_CURRENT_USER_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const user: UserProfile = JSON.parse(raw);
+    if (user && user.payoutUpi) {
+      user.payoutUpi = sanitizeUpiId(user.payoutUpi);
+    }
+    return user;
   } catch (e) {
     return null;
   }
