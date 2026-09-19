@@ -292,6 +292,17 @@ export interface AssessmentQuestion {
   }[];
 }
 
+export interface ChatAction {
+  id: string;
+  label: string;
+  type: 'navigate' | 'open_login' | 'select_plan' | 'external_link' | 'whatsapp';
+  target?: PageType | string;
+  planId?: number;
+  loginMode?: 'login' | 'forgot_password' | 'forgot_user_id';
+  icon?: string;
+  badge?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -300,6 +311,8 @@ export interface ChatMessage {
   grounded?: boolean;
   searchQueries?: string[];
   sources?: Array<{ title: string; uri: string }>;
+  actions?: ChatAction[];
+  learned?: boolean;
 }
 
 export type TickerSpeed = 'paused' | 'slow' | 'normal' | 'fast';

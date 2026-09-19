@@ -481,72 +481,223 @@ function generateUserIdHelper(fullName: string, planPrice: number, existingUsers
 }
 
 const IOIS_SYSTEM_INSTRUCTION = `
-You are the Official Smart AI Helpline & Educational Guide Assistant for the "IOIS PLATFORM" (Indian Online Income Supporting System).
-You speak fluently and naturally in Hindi (Devanagari script), Hinglish, and English, matching the user's preferred language and tone.
+You are the Official Smart AI Helpline & Interactive System Navigator for the "IOIS PLATFORM" (Indian Online Income Supporting System), inspired by the direct, accurate, and helpful teaching style of "Chintu AI" on Bal Vikas (https://ioisplatform.github.io/balvikas/).
+You speak fluently, warmly, and naturally in Hindi (Devanagari script), Hinglish, and English, matching the user's preferred language and tone.
+
+=======================================================
+🚫 CRITICAL FORMATTING RESTRICTIONS (STRICTLY ENFORCED)
+=======================================================
+1. NEVER USE MARKDOWN ASTERISKS! Do NOT use **bold** or *italic*. Absolute zero asterisks (*) in your response.
+2. DO NOT USE MARKDOWN HEADERS (#, ##, ###).
+3. DO NOT USE BACKTICKS or code blocks unless explicitly writing programming code.
+4. For bullet points, use the standard bullet symbol: •
+5. Your text must be 100% clean, clear, readable, and natural plain text without symbols or formatting noise.
+
+=======================================================
+🎯 DIRECT ANSWER MANDATE (LIKE CHINTU AI ON BALVIKAS)
+=======================================================
+- Like Chintu AI on https://ioisplatform.github.io/balvikas/, answer every question with the exact direct factual answer on the very first line!
+- No dodging, no preamble, no repetitive greetings before the answer.
+- If asked about "Bal Vikas" (बाल विकास): Explain the 700+ page digital book, Chintu AI live cartoon teacher, 3D body parts, pencil tracing slate, and Plan 01 (₹10 lifetime access with ₹7 instant payout).
+- If asked any Academic, GK, Math, Science, or General question (e.g., 2+2, भारत की राजधानी, बिहार के मुख्यमंत्री, प्रकाश संश्लेषण, गोदावरी नदी, आदि): State the exact answer immediately on line 1, followed by concise key facts and relevant navigation buttons.
+- Always be truthful, accurate, and genuinely helpful.
 
 =======================================================
 🌟 MASTER IDENTITY & MISSION
 =======================================================
 - IOIS (Indian Online Income Supporting System) is India's premier digital learning, educational guidance, citizen services advisory, and livelihood micro-earning platform.
-- You provide comprehensive, 100% accurate, deeply helpful, and friendly guidance on:
-  1. Student Studies (कक्षा 1 से स्नातक व उच्च शिक्षा), NCERT Notes, Math Formulas, Question-Answers, Career Roadmaps (Doctor/NEET, Engineer/JEE, Civil Services/UPSC, Banking, Defense/NDA, CA).
-  2. Scholarship Portal (NSP, Bihar Post-Matric PMS, Medhasoft Kanya Utthan) & Special BA/BSc Bonafide Certificate generation and application steps.
-  3. General Knowledge (GK) & Geography (Indian Rivers like Godavari, Ganga, Yamuna, Narmada, Krishna; History, Science, Constitution).
-  4. 15-Question Skill & Aptitude Assessment Interview Test with scoring criteria, answer guide, and personalized digital plan recommendations.
-  5. IOIS 7 Master Plans (Plan 01 ₹10 to Plan 07 ₹999), 50%-70% Instant UPI Payouts (PhonePe / GPay / Paytm), 5-minute Admin Verification.
-  6. Official Smart Digital ID Card (256-bit encrypted, HD PNG download, QR Code verification, Print).
-  7. Citizen Services: RTPS (Jati, Aay, Niwas, OBC NCL, EWS), Jamin Sudhar (Bihar Bhumi Dakhil Kharij / Mutation, Parimarjan Plus, LPC, Jamabandi, Bhu Naksha).
-  8. Government Welfare Schemes (PM Kisan, Ayushman Bharat ₹5 Lakh Free Health Card, PM Surya Ghar, E-Shram, Ration Card).
-  9. Instant e-PAN Card (10-minute 100% Free digital PAN via Aadhaar OTP), Aadhaar-PAN link.
-  10. Daily Utilities: Live Weather & IMD Rain Alerts, Live 24x7 News TV & E-Papers, Vedic Panchang & Rashifal, Mandi Bhav & Gold/Silver Bullion Rates, Latest Govt Job Vacancies.
+- You provide 100% accurate, deep, step-by-step guidance on all platform features, academic questions, citizen services, and government schemes.
+- CRITICAL NAVIGATION MANDATE: When guiding users or answering any question about an IOIS feature, citizen service, study material, or process, you MUST provide explicit in-app navigation tags so the user can be directly transported to the exact page, form, or section!
 
 =======================================================
-📚 SPECIAL EDUCATION, GK & CAREER GUIDELINES
+🚀 DIRECT IN-APP NAVIGATION PROTOCOL (MANDATORY)
 =======================================================
-• Indian Geography / Rivers Example:
-  - गोदावरी नदी (Godavari River): उद्गम महाराष्ट्र के नासिक जिले में स्थित त्र्यंबकेश्वर (Trimbakeshwar / ब्रह्मगिरि पर्वत) से होता है। इसे 'दक्षिण गंगा' या 'वृद्ध गंगा' कहा जाता है। कुल लंबाई 1,465 किमी है और यह बंगाल की खाड़ी (आंध्र प्रदेश) में गिरती है।
-  - गंगा नदी (Ganga River): उद्गम उत्तराखंड के उत्तरकाशी में गंगोत्री हिमनद (भागीरथी नदी) से होता है और देवप्रयाग में अलकनंदा से मिलकर गंगा बनती है।
-  - नर्मदा नदी: अमरकंटक (मध्य प्रदेश), ताप्ती: बैतूल (म.प्र.), कृष्णा: महाबलेश्वर (महाराष्ट्र), कावेरी: ब्रह्मगिरि (कर्नाटक)।
-
-• 15-Question Skill Assessment Test Guide:
-  - 15-सवाल साक्षात्कार पोर्टल होमपेज या मेन्यू में "15-सवाल करियर असेसमेंट" पर उपलब्ध है।
-  - इसमें 4 श्रेणियां होती हैं: 1. डिजिटल साक्षरता, 2. संचार कौशल, 3. समस्या निवारण, 4. करियर लक्ष्य।
-  - प्रश्नों के उत्तर आपकी वास्तविक रुचि व कौशल के अनुसार देने होते हैं। 15/15 स्कोर करने पर सिस्टम आपको Master Lifetime Plan (Plan 07) या Student Elite (Plan 05) की अनुशंसा करता है।
-
-• Career Paths:
-  - डॉक्टर (Doctor / MBBS): 11वीं-12वीं में PCB (Physics, Chemistry, Biology), NEET-UG परीक्षा की तैयारी।
-  - इंजीनियर (Engineer / BTech): 11वीं-12वीं में PCM (Physics, Chemistry, Mathematics), JEE Main व JEE Advanced परीक्षा।
-  - प्रशासनिक सेवा (IAS / IPS / BPSC): किसी भी विषय में स्नातक (Graduation), NCERT 6-12 का गहन अध्ययन, Current Affairs, UPSC/State PSC परीक्षा।
-
-• Scholarship & Bonafide Certificate:
-  - NSP (scholarships.gov.in) & Bihar Post-Matric PMS (pmsonline.bih.nic.in) के लिए कॉलेज से प्रिंसिपल द्वारा हस्ताक्षरित 'Bonafide Certificate' और 'Fee Structure' अनिवार्य होता है।
-  - छात्रा कन्या उत्थान योजना में 10वीं पास को ₹10,000, 12वीं पास को ₹25,000 और स्नातक उत्तीर्ण को ₹50,000 सीधे बैंक खाते में मिलते हैं।
-
-=======================================================
-🌐 GOOGLE SEARCH GROUNDING DIRECTIVE
-=======================================================
-- CRITICAL: For any question about current facts, external general knowledge, latest news, weather, or competitive exams, use the Google Search tool to retrieve the latest and accurate facts.
+Whenever relevant, append one or more of these navigation tags at the end of your answer (or inline):
+• Registration: [[NAV:page:register|नया सदस्य रजिस्ट्रेशन फॉर्म खोलें]]
+• Member Login: [[NAV:login:login|सदस्य लॉगिन खोलें]]
+• Forgot Password: [[NAV:login:forgot_password|पासवर्ड रीसेट करें]]
+• Forgot User ID: [[NAV:login:forgot_user_id|User ID खोजें]]
+• 15-Question Skill Assessment: [[NAV:page:assessment|15-सवाल कौशल साक्षात्कार शुरू करें]]
+• 7 Master Plans: [[NAV:page:plans|7 मास्टर प्लांस देखें]]
+• Select Specific Plan: [[NAV:plan:1|Plan 01 (₹10) चुनें]] to [[NAV:plan:7|Plan 07 (₹999) चुनें]]
+• Smart Digital ID Card: [[NAV:page:idcard|डिजिटल ID कार्ड डाउनलोड करें]]
+• Student Study, NCERT & Math Formulas: [[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स हब खोलें]]
+• RTPS Citizen Services (Jati, Aay, Niwas, OBC NCL, EWS): [[NAV:page:rtps-services|RTPS नागरिक सेवाएं पोर्टल खोलें]]
+• Bihar Jamin Sudhar (Dakhil Kharij / Mutation, Parimarjan, Jamabandi, Bhu Naksha): [[NAV:page:rtps-services|जमीन सुधार व दाखिल खारिज खोलें]]
+• Instant 10-Minute Free e-PAN Card: [[NAV:page:rtps-services|इंस्टेंट e-PAN पोर्टल खोलें]]
+• Government Welfare Schemes (Ayushman Bharat, PM Kisan, PM Surya Ghar, E-Shram): [[NAV:page:govt-schemes|सरकारी योजनाएं पोर्टल देखें]]
+• Live Weather & Rain Alerts: [[NAV:page:weather|लाइव मौसम व वर्षा अलर्ट देखें]]
+• 24x7 Live News TV & E-Papers: [[NAV:page:news|24x7 लाइव न्यूज़ टीवी देखें]]
+• Daily Vedic Panchang & 12 Rashifal: [[NAV:page:panchang-rashifal|दैनिक पंचांग व राशिफल देखें]]
+• Mandi Bhav & Gold/Silver Bullion: [[NAV:page:mandi-market|मंडी भाव व सोना-चांदी दरें देखें]]
+• Govt & Private Job Alerts: [[NAV:page:jobs|सरकारी व प्राइवेट जॉब अलर्ट देखें]]
+• Instant Payout Calculator: [[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]
+• Entertainment & Community Hub: [[NAV:page:entertainment|मनोरंजन व मीडिया हब खोलें]]
+• Parents Guide: [[NAV:page:parents|अभिभावक गाइड पढ़ें]]
+• Official WhatsApp Support: [[NAV:whatsapp:918877490845|व्हाट्सएप पर सहायता लें (+91 8877490845)]]
+• Telegram Official Channel: [[NAV:external:https://t.me/ioisplatform|टेलीग्राम चैनल @ioisplatform]]
 
 =======================================================
 💎 THE 7 MASTER PLANS & 50%-70% INSTANT PAYOUTS
 =======================================================
-• Plan 01: Bal Vikas Access - ₹10 (₹7 Instant Payout - 70%)
-• Plan 02: Youth Skill Access - ₹49 (₹34 Instant Payout - 70%)
-• Plan 03: Career & Job Access - ₹99 (₹64 Instant Payout - 65%)
-• Plan 04: Family VIP Access - ₹199 (₹119 Instant Payout - 60%)
-• Plan 05: Student Elite Access - ₹299 (₹179 Instant Payout - 60%)
-• Plan 06: Agency Reseller Hub - ₹499 (₹274 Instant Payout - 55%)
-• Plan 07: Master Lifetime Access - ₹999 (₹499 Instant Payout - 50%)
+• Plan 01: Bal Vikas Access - ₹10 (₹7 Instant Payout - 70%) -> NCERT Class 1-5 PDFs, Worksheets, Bal Vikas 700+ Book & Chintu AI.
+• Plan 02: Youth Skill Access - ₹49 (₹34 Instant Payout - 70%) -> Digital Literacy, Typing, Basic IT.
+• Plan 03: Career & Job Access - ₹99 (₹64 Instant Payout - 65%) -> Resume/CV templates, Interview Q&A.
+• Plan 04: Family VIP Access - ₹199 (₹119 Instant Payout - 60%) -> Citizen services assistance + Multi-device.
+• Plan 05: Student Elite Access - ₹299 (₹179 Instant Payout - 60%) -> Full NCERT 6-12, Math Formulas, Board Prep.
+• Plan 06: Agency Reseller Hub - ₹499 (₹274 Instant Payout - 55%) -> Sub-agent onboarding, Marketing kits.
+• Plan 07: Master Lifetime Access - ₹999 (₹499 Instant Payout - 50%) -> All plans unlocked + Lifetime VIP updates.
 
 =======================================================
-💳 OFFICIAL CONTACT & PAYMENT DETAILS
+📚 SPECIAL EDUCATION, GK & CAREER GUIDELINES
+=======================================================
+• Bal Vikas & Chintu AI:
+  - बाल विकास (ioisplatform.github.io/balvikas) में 700+ पृष्ठों की सम्पूर्ण डिजिटल पुस्तक है जिसमें अ से ज्ञ, A-Z, 1-100 गिनती, बारहखड़ी, 3D मानव शरीर रचना और डिजिटल पेंसिल ट्रेसिंग शामिल है।
+  - चिंटू AI लाइव शिक्षक बच्चों को आवाज़ के साथ पढ़ना व लिखना सिखाता है।
+• Rivers of India:
+  - गोदावरी नदी (Godavari River): उद्गम महाराष्ट्र के नासिक जिले के त्र्यंबकेश्वर (Trimbakeshwar / ब्रह्मगिरि पर्वत) से होता है। इसे 'दक्षिण गंगा' या 'वृद्ध गंगा' कहते हैं। लंबाई 1,465 किमी है।
+  - गंगा नदी: गंगोत्री हिमनद (भागीरथी), उत्तराखंड।
+  - नर्मदा नदी: अमरकंटक, मध्य प्रदेश।
+  - कृष्णा नदी: महाबलेश्वर, महाराष्ट्र।
+• 15-Question Skill Assessment Test:
+  - 4 श्रेणियां: डिजिटल साक्षरता, संचार कौशल, समस्या निवारण, करियर लक्ष्य। 15/15 स्कोर करने पर Plan 07 अनुशंसित।
+• Scholarship & Bonafide Certificate:
+  - NSP (scholarships.gov.in) व बिहार Post-Matric PMS (pmsonline.bih.nic.in) हेतु बोनाफाइड सर्टिफिकेट अनिवार्य है।
+  - कन्या उत्थान योजना: 10वीं ₹10,000, 12वीं ₹25,000, स्नातक ₹50,000।
+• Instant Free e-PAN Card:
+  - eportal.incometax.gov.in पर Instant e-PAN में आधार नंबर व OTP से 10 मिनट में 100% फ्री e-PAN बनता है।
+
+=======================================================
+💳 OFFICIAL PAYMENT & CONTACT
 =======================================================
 - Official UPI ID: 8877490845@spicepay (Vikas Kumar)
 - WhatsApp Support: +91 8877490845
-- Telegram Official Channel: @ioisplatform
+- Telegram: @ioisplatform
 - Email: ioisplatform@gmail.com
 - Support Hours: 24x7 All India Helpdesk
 `;
+
+// Helper to sanitize any raw text and remove all asterisks and unwanted formatting symbols
+function cleanBotReply(raw: string): string {
+  if (!raw) return "";
+  let text = raw;
+  // Remove markdown bold asterisks: **text** -> text
+  text = text.replace(/\*\*(.*?)\*\*/g, "$1");
+  // Remove markdown single asterisks: *text* -> text
+  text = text.replace(/\*([^\*\n]+)\*/g, "$1");
+  // Remove leftover multiple asterisks
+  text = text.replace(/\*{2,}/g, "");
+  // Replace starting bullet asterisks with clean bullet symbol
+  text = text.replace(/^[\*]\s+/gm, "• ");
+  // Remove any remaining stray asterisks
+  text = text.replace(/\*/g, "");
+  // Remove markdown headers (#, ##, ###)
+  text = text.replace(/^#{1,6}\s*/gm, "");
+  // Remove backticks
+  text = text.replace(/`{1,3}/g, "");
+  // Clean markdown links [text](url) -> text (url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)");
+  return text.trim();
+}
+
+function cleanSearchQuery(text: string): string {
+  let q = text
+    .replace(/(के बारे में|बताओ|बताइए|कब है|क्या है|कहा है|कहाँ है|किसे कहते हैं|की जानकारी|जानकारी दो|जानकारी दीजिए|कब मनाया जाता है|what is|tell me about|who is|when is)/gi, "")
+    .replace(/[?।!,]/g, "")
+    .trim();
+  return q || text.replace(/[?।!,]/g, "").trim();
+}
+
+async function performLiveWebResearch(rawQuery: string): Promise<{
+  reply: string;
+  grounded: boolean;
+  searchQueries: string[];
+  sources: Array<{ title: string; uri: string }>;
+} | null> {
+  try {
+    const cleanQ = cleanSearchQuery(rawQuery);
+    if (!cleanQ || cleanQ.length < 2) return null;
+
+    // 1. Try Hindi Wikipedia search
+    const hiSearchUrl = `https://hi.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQ)}&format=json&utf8=1`;
+    const hiSearchRes = await fetch(hiSearchUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
+    if (hiSearchRes.ok) {
+      const hiSearchData: any = await hiSearchRes.json();
+      const hit = hiSearchData.query?.search?.[0];
+      if (hit && hit.title) {
+        const sumUrl = `https://hi.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`;
+        const sumRes = await fetch(sumUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
+        if (sumRes.ok) {
+          const sumData: any = await sumRes.json();
+          if (sumData.extract && sumData.extract.length > 25) {
+            const rawSentences = sumData.extract.split(". ").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            let formatted = `${rawSentences[0]}.`;
+            if (rawSentences.length > 1) {
+              formatted += "\n\nमुख्य विवरण व ऐतिहासिक तथ्य:\n";
+              for (let i = 1; i < Math.min(rawSentences.length, 6); i++) {
+                let s = rawSentences[i];
+                if (!s.endsWith(".")) s += ".";
+                formatted += `• ${s}\n`;
+              }
+            }
+            formatted += `\n[[NAV:page:student-study|विद्यार्थी शिक्षा व अध्ययन हब खोलें]]`;
+
+            return {
+              reply: cleanBotReply(formatted),
+              grounded: true,
+              searchQueries: [cleanQ],
+              sources: [{
+                title: `${sumData.title || hit.title} (आधिकारिक विकिपीडिया संदर्भ)`,
+                uri: sumData.content_urls?.desktop?.page || `https://hi.wikipedia.org/wiki/${encodeURIComponent(hit.title)}`
+              }]
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Try English Wikipedia search as fallback
+    const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQ)}&format=json&utf8=1`;
+    const enSearchRes = await fetch(enSearchUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
+    if (enSearchRes.ok) {
+      const enSearchData: any = await enSearchRes.json();
+      const hit = enSearchData.query?.search?.[0];
+      if (hit && hit.title) {
+        const sumUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`;
+        const sumRes = await fetch(sumUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
+        if (sumRes.ok) {
+          const sumData: any = await sumRes.json();
+          if (sumData.extract && sumData.extract.length > 25) {
+            const rawSentences = sumData.extract.split(". ").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            let formatted = `${rawSentences[0]}.`;
+            if (rawSentences.length > 1) {
+              formatted += "\n\nKey Research Facts:\n";
+              for (let i = 1; i < Math.min(rawSentences.length, 5); i++) {
+                let s = rawSentences[i];
+                if (!s.endsWith(".")) s += ".";
+                formatted += `• ${s}\n`;
+              }
+            }
+            formatted += `\n[[NAV:page:student-study|विद्यार्थी सामान्य ज्ञान हब खोलें]]`;
+
+            return {
+              reply: cleanBotReply(formatted),
+              grounded: true,
+              searchQueries: [cleanQ],
+              sources: [{
+                title: `${sumData.title || hit.title} (Wikipedia Reference)`,
+                uri: sumData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title)}`
+              }]
+            };
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Live web research error:", err);
+  }
+  return null;
+}
 
 let aiClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI | null {
@@ -1607,7 +1758,45 @@ async function startServer() {
         // Increment hit count
         directMatch.hits = (directMatch.hits || 0) + 1;
         saveKnowledgeToDisk(knowledgeList);
-        return res.json({ reply: directMatch.answer, learned: true });
+        return res.json({ reply: cleanBotReply(directMatch.answer), learned: true });
+      }
+
+      // 0.0 Special: Bihar Diwas (बिहार दिवस) Complete Authoritative Live Knowledge
+      if (lower.includes("बिहार दिवस") || lower.includes("bihar diwas") || lower.includes("bihar day") || (lower.includes("बिहार") && lower.includes("दिवस"))) {
+        const biharDiwasReply = `बिहार दिवस (Bihar Diwas) हर वर्ष 22 मार्च को बड़े धूमधाम से मनाया जाता है।
+
+यह दिन बिहार राज्य के गठन को चिह्नित करता है।
+
+मुख्य ऐतिहासिक व आवश्यक तथ्य:
+• ऐतिहासिक पृष्ठभूमि: 22 मार्च 1912 को ब्रिटिश हुकूमत द्वारा बंगाल प्रेसीडेंसी से अलग कर बिहार को एक स्वतंत्र राज्य का दर्जा दिया गया था।
+• राज्य पुनर्गठन: इसके बाद 1 अप्रैल 1936 को उड़ीसा (ओडिशा) और 15 नवंबर 2000 को दक्षिण बिहार से अलग होकर झारखंड राज्य अस्तित्व में आया।
+• आधिकारिक उत्सव की शुरुआत: वर्ष 2010 में बिहार के मुख्यमंत्री श्री नीतीश कुमार ने 22 मार्च को व्यापक स्तर पर आधिकारिक 'बिहार दिवस' के रूप में मनाने की शुरुआत की।
+• सार्वजनिक अवकाश: 22 मार्च को संपूर्ण बिहार राज्य में सार्वजनिक अवकाश (Public Holiday) रहता है।
+• राज्यव्यापी उत्सव: राजधानी पटना के ऐतिहासिक गांधी मैदान और श्रीकृष्ण मेमोरियल हॉल सहित सभी 38 जिलों में त्रिदिवसीय सांस्कृतिक, शैक्षिक व वैज्ञानिक कार्यक्रमों का भव्य आयोजन होता है।
+• उद्देश्य: राज्य की समृद्ध ऐतिहासिक विरासत (नालंदा, वैशाली, बोधगया, पाटलिपुत्र, चंपारण) का गौरव पुनर्स्थापित करना और प्रगतिशील बिहार का निर्माण करना।
+
+बिहार सामान्य ज्ञान संक्षेप:
+• राजधानी: पटना
+• वर्तमान मुख्यमंत्री: श्री नीतीश कुमार
+• उप-मुख्यमंत्री: श्री सम्राट चौधरी व श्री विजय कुमार सिन्हा
+• राज्यपाल: श्री राजेंद्र विश्वनाथ आर्लेकर
+• कुल जिले: 38 जिले
+• राजकीय वृक्ष: पीपल | राजकीय पक्षी: गौरैया | राजकीय पशु: बैल (गौर) | राजकीय पुष्प: गेंदा
+
+[[NAV:page:student-study|विद्यार्थी सामान्य ज्ञान व बिहार अध्ययन हब खोलें]]
+[[NAV:external:https://ioisplatform.github.io/balvikas/|बाल विकास डिजिटल पुस्तक व चिंटू AI खोलें]]`;
+
+        return res.json({
+          reply: cleanBotReply(biharDiwasReply),
+          grounded: true,
+          searchQueries: ["बिहार दिवस 22 मार्च 1912 इतिहास गठन"],
+          sources: [
+            {
+              title: "बिहार दिवस (आधिकारिक विकिपीडिया संदर्भ)",
+              uri: "https://hi.wikipedia.org/wiki/%E0%A4%AC%E0%A4%BF%E0%A4%B9%E0%A4%BE%E0%A4%B0_%E0%A4%A6%E0%A4%BF%E0%A4%B5%E0%A4%B8"
+            }
+          ]
+        });
       }
 
       let ai = getGenAI();
@@ -1639,10 +1828,10 @@ async function startServer() {
         let searchQueries: string[] = [];
         let sources: Array<{ title: string; uri: string }> = [];
 
-        // Attempt 1: Gemini 2.5 Flash with Google Search Grounding
+        // Attempt 1: Gemini 3.8 Flash with Google Search Grounding
         try {
           response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.8-flash",
             contents: formattedContents,
             config: {
               systemInstruction: IOIS_SYSTEM_INSTRUCTION + dynamicKnowledge,
@@ -1662,7 +1851,7 @@ async function startServer() {
           // Attempt 2: Direct Gemini without search tool
           try {
             response = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
+              model: "gemini-3.8-flash",
               contents: formattedContents,
               config: {
                 systemInstruction: IOIS_SYSTEM_INSTRUCTION + dynamicKnowledge,
@@ -1677,7 +1866,7 @@ async function startServer() {
 
         if (response && response.text) {
           return res.json({
-            reply: response.text,
+            reply: cleanBotReply(response.text),
             grounded: isGrounded,
             searchQueries,
             sources
@@ -1685,83 +1874,350 @@ async function startServer() {
         }
       }
 
-      // Comprehensive Offline & Fallback Knowledge Engine
+      // Live Web Research Engine: For general knowledge, current affairs, history, science, geography
+      const isIOISSpecific = /plan|प्ला|payout|पेआउट|रजिस्टर|register|login|लॉगिन|पासवर्ड|password|id card|कार्ड|rtps|assessment|असेसमेंट|interview|इंटरव्यू|chintu|चिंटू|bal\s*vikas|balvikas|बाल\s*विकास|whatsapp|helpdesk/i.test(lower);
+
+      if (!isIOISSpecific) {
+        const liveResearch = await performLiveWebResearch(trimmedMsg);
+        if (liveResearch) {
+          return res.json(liveResearch);
+        }
+      }
+
+      // Comprehensive Offline & Fallback Knowledge Engine with Active Navigation Links
       let fallbackReply = "";
 
-      // 0. National GK: Capital of India & States (भारत की राजधानी, राज्य, आदि)
-      if (lower.includes("भारत की राजधानी") || lower.includes("capital of india") || lower.includes("bharat ki rajdhani") || (lower.includes("राजधानी") && (lower.includes("भारत") || lower.includes("india") || lower.includes("दिल्ली")))) {
-        fallbackReply = `🇮🇳 **भारत की राजधानी: नई दिल्ली (New Delhi)**\n\n• **आधिकारिक नाम:** राष्ट्रीय राजधानी क्षेत्र दिल्ली (NCT of Delhi)\n• **घोषणा वर्ष:** 12 दिसंबर 1911 को किंग जॉर्ज पंचम द्वारा कोलकाता (कलकत्ता) से दिल्ली स्थानांतरित करने की घोषणा हुई थी।\n• **उद्घाटन:** 13 फरवरी 1931 को लॉर्ड इरविन द्वारा आधिकारिक तौर पर नई दिल्ली का राजधानी के रूप में उद्घाटन हुआ।\n• **प्रमुख प्रशासनिक केंद्र:** राष्ट्रपति भवन, नया संसद भवन (संसद भवन), इंडिया गेट, सर्वोच्च न्यायालय (Supreme Court of India) और केंद्रीय सचिवालय।\n\n📌 *कुछ प्रमुख राज्यों की राजधानियाँ:*\n- **बिहार:** पटना (Patna)\n- **उत्तर प्रदेश:** लखनऊ (Lucknow)\n- **महाराष्ट्र:** मुंबई (Mumbai)\n- **पश्चिम बंगाल:** कोलकाता (Kolkata)\n- **मध्य प्रदेश:** भोपाल (Bhopal)\n- **राजस्थान:** जयपुर (Jaipur)`;
+      // 0. Bal Vikas & Chintu AI (ioisplatform.github.io/balvikas)
+      if (lower.includes("bal vikas") || lower.includes("balvikas") || lower.includes("बाल विकास") || lower.includes("chintu") || lower.includes("चिंटू") || lower.includes("700") || lower.includes("पेंसिल ट्रेसिंग") || lower.includes("वर्णमाला")) {
+        fallbackReply = `IOIS बाल विकास (ioisplatform.github.io/balvikas) बच्चों की संपूर्ण प्रारंभिक शिक्षा और डिजिटल विकास का आधुनिक मंच है।
+
+मुख्य विशेषताएं:
+• 700+ पृष्ठों की सम्पूर्ण डिजिटल पुस्तक: अ से ज्ञ वर्णमाला, बारहखड़ी, शब्द ज्ञान व सचित्र ज्ञानकोश।
+• चिंटू AI लाइव शिक्षक: बोलकर और समझाकर बच्चों को खेल-खेल में सिखाने वाला इंटरएक्टिव शिक्षक।
+• 3D मानव शरीर रचना: आँख, कान, नाक, दिल, फेफड़े और मस्तिष्क के 3D मॉडल व आवाज़।
+• डिजिटल पेंसिल ट्रेसिंग: डिजिटल स्लेट पर उंगली या माउस से अक्षर व अंक लिखने का अभ्यास।
+• गणित किट: 1 से 100 गिनती, 1 से 20 पहाड़े, जोड़ व घटाव।
+• गुड इंग्लिश व फ़ोनिक्स: A to Z Phonics ध्वनि व शब्द उच्चारण।
+• कीमत व पेआउट: यह संपूर्ण किट IOIS Plan 01 में मात्र ₹10 में लाइफटाइम उपलब्ध है, जिसपर ₹7 (70%) का तुरंत पेआउट मिलता है।
+
+[[NAV:plan:1|Plan 01 (₹10) बाल विकास चुनें]]
+[[NAV:external:https://ioisplatform.github.io/balvikas/|बाल विकास पोर्टल खोलें]]
+[[NAV:page:plans|7 मास्टर प्लांस देखें]]`;
+      }
+      // 0.1 National GK: Capital of India & States
+      else if (lower.includes("भारत की राजधानी") || lower.includes("capital of india") || lower.includes("bharat ki rajdhani") || (lower.includes("राजधानी") && (lower.includes("भारत") || lower.includes("india") || lower.includes("दिल्ली")))) {
+        fallbackReply = `भारत की राजधानी नई दिल्ली (New Delhi) है।
+
+• आधिकारिक नाम: राष्ट्रीय राजधानी क्षेत्र दिल्ली (NCT of Delhi)
+• घोषणा वर्ष: 12 दिसंबर 1911 को किंग जॉर्ज पंचम द्वारा राजधानी को कोलकाता से दिल्ली स्थानांतरित करने की घोषणा की गई थी।
+• उद्घाटन: 13 फरवरी 1931 को नई दिल्ली का औपचारिक उद्घाटन हुआ था।
+• प्रमुख केंद्र: राष्ट्रपति भवन, नया संसद भवन, इंडिया गेट, सर्वोच्च न्यायालय (Supreme Court) और केंद्रीय सचिवालय।
+
+प्रमुख राज्यों की राजधानियाँ:
+• बिहार: पटना (Patna)
+• उत्तर प्रदेश: लखनऊ (Lucknow)
+• महाराष्ट्र: मुंबई (Mumbai)
+• पश्चिम बंगाल: कोलकाता (Kolkata)
+• मध्य प्रदेश: भोपाल (Bhopal)
+• राजस्थान: जयपुर (Jaipur)
+
+[[NAV:page:student-study|विद्यार्थी सामान्य ज्ञान व अध्ययन नोट्स खोलें]]`;
       }
       else if (lower.includes("बिहार की राजधानी") || lower.includes("capital of bihar") || lower.includes("bihar ki rajdhani")) {
-        fallbackReply = `🏛️ **बिहार की राजधानी: पटना (Patna)**\n\n• **ऐतिहासिक नाम:** पाटलिपुत्र (Patliputra), कुसुमपुर, पुष्पपुर व अजीमाबाद।\n• **महत्व:** यह गंगा नदी के दक्षिणी तट पर स्थित प्राचीन और ऐतिहासिक नगर है, जो मौर्य और गुप्त साम्राज्य की राजधानी रहा है।\n• **प्रमुख स्थल:** गोलघर, पटना साहिब गुरुद्वारा, बिहार संग्रहालय, तख्त श्री हरिमंदिर जी और नालंदा/वैशाली निकटवर्ती केंद्र।`;
+        fallbackReply = `बिहार की राजधानी पटना (Patna) है।
+
+• ऐतिहासिक नाम: पाटलिपुत्र (Patliputra), कुसुमपुर, पुष्पपुर व अजीमाबाद।
+• महत्व: यह गंगा नदी के दक्षिणी तट पर स्थित प्राचीन और ऐतिहासिक नगर है।
+• प्रमुख स्थल: गोलघर, पटना साहिब गुरुद्वारा, बिहार संग्रहालय, तख्त श्री हरिमंदिर जी और नालंदा/वैशाली निकटवर्ती केंद्र।
+
+[[NAV:page:student-study|विद्यार्थी शिक्षा व अध्ययन हब खोलें]]`;
       }
-      else if (lower.includes("राष्ट्रपति") || lower.includes("president of india") || lower.includes("droupadi murmu")) {
-        fallbackReply = `🇮🇳 **भारत की वर्तमान राष्ट्रपति:**\n\n• **माननीया श्रीमती द्रौपदी मुर्मू (Smt. Droupadi Murmu)**\n• वे भारत की **15वीं राष्ट्रपति** हैं तथा भारत की प्रथम आदिवासी महिला राष्ट्रपति हैं।\n• **प्रथम राष्ट्रपति:** डॉ. राजेंद्र प्रसाद (Dr. Rajendra Prasad)`;
+      else if (lower.includes("मुख्यमंत्री") || lower.includes("chief minister of bihar") || lower.includes("cm of bihar") || lower.includes("nitish kumar") || lower.includes("नीतीश कुमार")) {
+        fallbackReply = `बिहार के वर्तमान मुख्यमंत्री श्री नीतीश कुमार (Shri Nitish Kumar) हैं।
+
+• उप-मुख्यमंत्री: श्री सम्राट चौधरी और श्री विजय कुमार सिन्हा
+• राज्यपाल: श्री राजेंद्र विश्वनाथ आर्लेकर
+• राजधानी: पटना (Patna)
+
+[[NAV:page:student-study|विद्यार्थी सामान्य ज्ञान अध्ययन हब खोलें]]`;
       }
-      else if (lower.includes("प्रधानमंत्री") || lower.includes("prime minister of india") || lower.includes("narendra modi")) {
-        fallbackReply = `🇮🇳 **भारत के वर्तमान प्रधानमंत्री:**\n\n• **श्री नरेंद्र मोदी (Shri Narendra Modi)**\n• वे 26 मई 2014 से भारत के प्रधानमंत्री हैं।\n• **प्रथम प्रधानमंत्री:** पंडित जवाहरलाल नेहरू (Pt. Jawaharlal Nehru)`;
+      else if (lower.includes("राष्ट्रपति") || lower.includes("president of india") || lower.includes("droupadi murmu") || lower.includes("द्रौपदी मुर्मू")) {
+        fallbackReply = `भारत की वर्तमान राष्ट्रपति माननीया श्रीमती द्रौपदी मुर्मू (Smt. Droupadi Murmu) हैं।
+
+• वे भारत की 15वीं राष्ट्रपति हैं तथा देश की प्रथम आदिवासी महिला राष्ट्रपति हैं।
+• भारत के प्रथम राष्ट्रपति: डॉ. राजेंद्र प्रसाद (Dr. Rajendra Prasad)
+
+[[NAV:page:student-study|विद्यार्थी सामान्य ज्ञान अध्ययन हब खोलें]]`;
       }
-      // 1. River & Indian Geography Q&A (Godavari, Ganga, Yamuna, etc.)
-      if (lower.includes("godavari") || lower.includes("गोदावरी") || (lower.includes("नदी") && lower.includes("उद्गम")) || (lower.includes("river") && lower.includes("origin"))) {
-        fallbackReply = `🌊 **गोदावरी नदी की विस्तृत जानकारी:**\n\n• **उद्गम स्थल:** गोदावरी नदी का उद्गम **महाराष्ट्र राज्य के नासिक जिले में स्थित त्र्यंबकेश्वर (Trimbakeshwar / ब्रह्मगिरि पर्वत)** से होता है।\n• **उपनाम:** इसे **'दक्षिण गंगा' (Ganges of the South)** और **'वृद्ध गंगा'** भी कहा जाता है।\n• **कुल लंबाई:** 1,465 किलोमीटर (यह भारत की दूसरी सबसे लंबी नदी है)।\n• **प्रवाह क्षेत्र:** महाराष्ट्र, तेलंगाना, आंध्र प्रदेश, छत्तीसगढ़ और ओडिशा।\n• **समागम / मुहाना:** यह पूर्व की ओर बहते हुए **बंगाल की खाड़ी** (आंध्र प्रदेश के निकट) में जाकर मिलती है।\n• **प्रमुख सहायक नदियाँ:** प्राणहिता, इंद्रावती, मंजीरा, प्रवरा और वैनगंगा।\n\n📌 *अन्य प्रमुख नदियों के उद्गम:*\n- **गंगा नदी:** गंगोत्री हिमनद (भागीरथी), उत्तराखंड\n- **यमुना नदी:** यमुनोत्री हिमनद, उत्तराखंड\n- **नर्मदा नदी:** अमरकंटक, मध्य प्रदेश\n- **कृष्णा नदी:** महाबलेश्वर, महाराष्ट्र`;
+      else if (lower.includes("प्रधानमंत्री") || lower.includes("prime minister of india") || lower.includes("narendra modi") || lower.includes("नरेंद्र मोदी")) {
+        fallbackReply = `भारत के वर्तमान प्रधानमंत्री श्री नरेंद्र मोदी (Shri Narendra Modi) हैं।
+
+• वे 26 मई 2014 से लगातार भारत के प्रधानमंत्री हैं।
+• भारत के प्रथम प्रधानमंत्री: पंडित जवाहरलाल नेहरू (Pt. Jawaharlal Nehru)
+
+[[NAV:page:student-study|विद्यार्थी अध्ययन हब खोलें]]`;
+      }
+      else if (lower.includes("प्रकाश संश्लेषण") || lower.includes("photosynthesis")) {
+        fallbackReply = `प्रकाश संश्लेषण (Photosynthesis) वह प्रक्रिया है जिससे हरे पौधे अपना भोजन बनाते हैं:
+
+• पौधे सूर्य का प्रकाश, कार्बन डाइऑक्साइड (CO2) और जल (H2O) लेकर ग्लूकोज (C6H12O6) बनाते हैं और ऑक्सीजन (O2) गैस छोड़ते हैं।
+• रासायनिक समीकरण: 6CO2 + 6H2O + सूर्य का प्रकाश -> C6H12O6 + 6O2
+• यह प्रक्रिया पत्तियों में मौजूद हरित लवक (क्लोरोफिल) के भीतर संपन्न होती है।
+
+[[NAV:page:student-study|विद्यार्थी विज्ञान व नोट्स हब खोलें]]`;
+      }
+      // 1. River & Indian Geography Q&A
+      else if (lower.includes("godavari") || lower.includes("गोदावरी") || (lower.includes("नदी") && lower.includes("उद्गम")) || (lower.includes("river") && lower.includes("origin"))) {
+        fallbackReply = `गोदावरी नदी का उद्गम महाराष्ट्र राज्य के नासिक जिले में स्थित त्र्यंबकेश्वर (Trimbakeshwar / ब्रह्मगिरि पर्वत) से होता है।
+
+• उपनाम: इसे 'दक्षिण गंगा' (Ganges of the South) और 'वृद्ध गंगा' भी कहा जाता है।
+• कुल लंबाई: 1,465 किलोमीटर (यह भारत की दूसरी सबसे लंबी नदी है)।
+• प्रवाह क्षेत्र: महाराष्ट्र, तेलंगाना, आंध्र प्रदेश, छत्तीसगढ़ और ओडिशा।
+• मुहाना: यह पूर्व की ओर बहते हुए बंगाल की खाड़ी (आंध्र प्रदेश के निकट) में जाकर मिलती है।
+
+अन्य प्रमुख नदियों के उद्गम:
+• गंगा नदी: गंगोत्री हिमनद (भागीरथी), उत्तराखंड
+• यमुना नदी: यमुनोत्री हिमनद, उत्तराखंड
+• नर्मदा नदी: अमरकंटक, मध्य प्रदेश
+• कृष्णा नदी: महाबलेश्वर, महाराष्ट्र
+
+[[NAV:page:student-study|विद्यार्थी शिक्षा व भूगोल नोट्स खोलें]]`;
       } 
       // 2. 15-Questions Skill Assessment & Interview Guide
       else if (lower.includes("15") && (lower.includes("प्रश्नों") || lower.includes("प्रश्न") || lower.includes("सवाल") || lower.includes("ans") || lower.includes("उत्तर") || lower.includes("test") || lower.includes("इंटरव्यू") || lower.includes("interview") || lower.includes("असेसमेंट"))) {
-        fallbackReply = `🎯 **15-सवाल कौशल साक्षात्कार (Skill Assessment Test) में उत्तर देने की पूरी गाइड:**\n\nमेन्यू में **'15-सवाल करियर असेसमेंट'** पर क्लिक करके आप यह टेस्ट 2 मिनट में पूरा कर सकते हैं।\n\n**15 प्रश्नों को 4 मुख्य श्रेणियों में बांटा गया है:**\n1. **डिजिटल साक्षरता (प्रश्न 1-4):** स्मार्टफोन व कंप्यूटर का उपयोग, सोशल मीडिया, ऑनलाइन पेमेंट (UPI) से जुड़े प्रश्न।\n   - *उत्तर टिप:* अपने अनुभव के अनुसार 'नियमित रूप से' या 'बुनियादी ज्ञान' चुनें।\n2. **संचार व व्यवहार कौशल (प्रश्न 5-8):** टीम में काम करना, लोगों को प्लान समझाना और ग्राहक सहायता।\n   - *उत्तर टिप:* 'सकारात्मक व सहयोगी' विकल्प चुनें।\n3. **समस्या निवारण व तर्कशक्ति (प्रश्न 9-12):** निर्णय लेने की क्षमता व समय प्रबंधन।\n   - *उत्तर टिप:* 'व्यवस्थित व सटीक' समाधान चुनें।\n4. **करियर व आय लक्ष्य (प्रश्न 13-15):** आपका मासिक आय लक्ष्य (₹10k से ₹50k+) और आप कितना समय दे सकते हैं।\n\n🏆 **स्कोरिंग व प्लान अनुशंसा:**\n• **13-15 अंक (उत्कृष्ट):** Plan 07 (Master Lifetime - ₹999 / ₹499 पेआउट) या Plan 06 (Agency Reseller)\n• **10-12 अंक (अच्छा):** Plan 05 (Student Elite - ₹299) या Plan 03 (Career & Job - ₹99)\n• **6-9 अंक (शुरुआती):** Plan 02 (Youth Skill - ₹49) या Plan 01 (Bal Vikas - ₹10)\n\nटेस्ट समाप्त होते ही सिस्टम आपके स्कोर के अनुसार आपका प्रमाण-पत्र व सर्वोत्तम प्लान सक्रिय करने की सलाह देगा!`;
+        fallbackReply = `15-सवाल कौशल साक्षात्कार (Skill Assessment Test) में उत्तर देने की पूरी गाइड:
+
+आप सीधे नीचे दिए गए बटन से टेस्ट शुरू कर सकते हैं:
+
+15 प्रश्नों को 4 मुख्य श्रेणियों में बांटा गया है:
+1. डिजिटल साक्षरता (प्रश्न 1-4): स्मार्टफोन व कंप्यूटर का उपयोग, सोशल मीडिया, ऑनलाइन पेमेंट (UPI)।
+   • उत्तर सुझाव: अपने अनुभव के अनुसार 'नियमित रूप से' या 'बुनियादी ज्ञान' चुनें।
+2. संचार व व्यवहार कौशल (प्रश्न 5-8): टीम में काम करना, लोगों को प्लान समझाना और ग्राहक सहायता।
+   • उत्तर सुझाव: 'सकारात्मक व सहयोगी' विकल्प चुनें।
+3. समस्या निवारण व तर्कशक्ति (प्रश्न 9-12): निर्णय लेने की क्षमता व समय प्रबंधन।
+   • उत्तर सुझाव: 'व्यवस्थित व सटीक' समाधान चुनें।
+4. करियर व आय लक्ष्य (प्रश्न 13-15): आपका मासिक आय लक्ष्य और उपलब्ध समय।
+
+स्कोरिंग व प्लान अनुशंसा:
+• 13-15 अंक (उत्कृष्ट): Plan 07 (Master Lifetime - ₹999 / ₹499 पेआउट) या Plan 06 (Agency Reseller)
+• 10-12 अंक (अच्छा): Plan 05 (Student Elite - ₹299) या Plan 03 (Career & Job - ₹99)
+• 6-9 अंक (शुरुआती): Plan 02 (Youth Skill - ₹49) या Plan 01 (Bal Vikas - ₹10)
+
+[[NAV:page:assessment|15-सवाल कौशल असेसमेंट शुरू करें]]
+[[NAV:page:plans|7 मास्टर प्लांस देखें]]`;
       }
       // 3. Student Study Portal, Notes, Formulas & Classes
       else if (lower.includes("study") || lower.includes("पढ़ाई") || lower.includes("formula") || lower.includes("सूत्र") || lower.includes("कक्षा") || lower.includes("class") || lower.includes("subject") || lower.includes("नोट्स") || lower.includes("notes") || lower.includes("math")) {
-        fallbackReply = `📚 **विद्यार्थी शिक्षा व अध्ययन केंद्र (IOIS Student Portal):**\n\nहमने विद्यार्थियों के लिए विशेष **'विद्यार्थी शिक्षा व करियर पोर्टल'** तैयार किया है जहाँ निम्न सुविधाएँ 100% मुफ्त हैं:\n\n1. **कक्षा 1 से 12 व स्नातक (BA/BSc/BCom) विषय नोट्स:**\n   - NCERT पाठ्यपुस्तक सारांश, महत्वपूर्ण प्रश्न-उत्तर व पिछले 10 वर्षों के बोर्ड पेपर्स।\n2. **गणित के सभी महत्वपूर्ण फॉर्मूला (Math Formula Sheets):**\n   - बीजगणित (Algebra: $(a+b)^2$, द्विघात समीकरण $x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$)\n   - त्रिकोणमिति (Trigonometry: $\\sin^2\\theta + \\cos^2\\theta = 1$, मान सारणी)\n   - क्षेत्रमिति व ज्यामिति (Mensuration: वृत्त, बेलन, शंकु, गोला के आयतन व क्षेत्रफल सूत्र)\n   - कलन (Calculus: अवकलन $\\frac{d}{dx}$ व समाकलन $\\int f(x)dx$ सूत्र)\n3. **मुफ्त अध्ययन सामग्री लिंक्स:**\n   - NCERT e-Books, DIKSHA पोर्टल, SWAYAM IIT कोर्सेज, नेशनल डिजिटल लाइब्रेरी (NDLI)।\n\nमेन्यू में **'विद्यार्थी शिक्षा व करियर'** पेज खोलकर आप सभी नोट्स व फॉर्मूला PDF डाउनलोड कर सकते हैं!`;
+        fallbackReply = `विद्यार्थी शिक्षा व अध्ययन केंद्र (IOIS Student Portal):
+
+विद्यार्थियों के लिए विशेष विद्यार्थी शिक्षा व अध्ययन हब तैयार किया गया है:
+
+1. कक्षा 1 से 12 व स्नातक (BA/BSc/BCom) विषय नोट्स:
+   • NCERT पाठ्यपुस्तक सारांश, महत्वपूर्ण प्रश्न-उत्तर व बोर्ड मॉडल पेपर्स।
+2. गणित के सभी महत्वपूर्ण फॉर्मूला (Math Formula Sheets):
+   • बीजगणित: (a+b)^2 = a^2 + 2ab + b^2, द्विघात सूत्र
+   • त्रिकोणमिति: sin^2 θ + cos^2 θ = 1, कोण मान तालिका
+   • क्षेत्रमिति: वृत्त, बेलन, शंकु, गोला के सूत्र
+   • कलन: अवकलन d/dx व समाकलन ∫ f(x)dx
+3. मुफ्त अध्ययन सामग्री:
+   • NCERT e-Books, DIKSHA पोर्टल, SWAYAM IIT कोर्सेज, नेशनल डिजिटल लाइब्रेरी (NDLI)।
+
+[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स हब खोलें]]`;
       }
-      // 4. Career Guidance (Doctor, Engineer, IAS, Banking, Defense)
+      // 4. Career Guidance
       else if (lower.includes("doctor") || lower.includes("डॉक्टर") || lower.includes("engineer") || lower.includes("इंजीनियर") || lower.includes("ias") || lower.includes("upsc") || lower.includes("neet") || lower.includes("jee") || lower.includes("career") || lower.includes("करियर") || lower.includes("नौकरी")) {
-        fallbackReply = `🎓 **करियर चयन व मार्गदर्शन (Career Roadmap Guide):**\n\n• **डॉक्टर (Medical / MBBS / BDS):**\n  - 10वीं के बाद: 11वीं-12वीं में **PCB (Physics, Chemistry, Biology)** विषय लें।\n  - प्रवेश परीक्षा: **NEET-UG** परीक्षा उत्तीर्ण करें। AIIMS, सरकारी मेडिकल कॉलेजों में MBBS प्रवेश।\n\n• **इंजीनियर (Engineering / Software / AI / Civil / Mech):**\n  - 10वीं के बाद: 11वीं-12वीं में **PCM (Physics, Chemistry, Mathematics)** लें।\n  - प्रवेश परीक्षा: **JEE Main व JEE Advanced**। IITs, NITs और शीर्ष इंजीनियरिंग कॉलेजों में B.Tech।\n\n• **प्रशासनिक सेवा (IAS / IPS / IFS / BPSC / UPPSC):**\n  - योग्यता: किसी भी मान्यता प्राप्त विषय (Arts/Science/Commerce) में **स्नातक (Graduation)**।\n  - तैयारी: NCERT 6th-12th कक्षा का आधारभूत अध्ययन, दैनिक अखबार/Current Affairs, UPSC Civil Services परीक्षा (Prelims, Mains, Interview)।\n\n• **रक्षा सेवा (NDA / CDS / वायु सेना / नौसेना):**\n  - 12वीं (PCM) के बाद **NDA (National Defence Academy)** परीक्षा व SSB इंटरव्यू।\n\n• **बैंकिंग व वित्त (Bank PO / Clerk / CA):**\n  - IBPS PO, SBI PO, RBI Grade B या 12वीं के बाद ICAI द्वारा आयोजित CA Foundation।`;
+        fallbackReply = `करियर चयन व मार्गदर्शन (Career Roadmap Guide):
+
+• डॉक्टर (Medical / MBBS / BDS):
+  - 10वीं के बाद: 11वीं-12वीं में PCB (Physics, Chemistry, Biology) विषय लें।
+  - प्रवेश परीक्षा: NEET-UG परीक्षा उत्तीर्ण करें। AIIMS व सरकारी मेडिकल कॉलेजों में MBBS प्रवेश।
+
+• इंजीनियर (Engineering / Software / AI / Civil / Mech):
+  - 10वीं के बाद: 11वीं-12वीं में PCM (Physics, Chemistry, Mathematics) लें।
+  - प्रवेश परीक्षा: JEE Main व JEE Advanced। IITs व NITs में B.Tech।
+
+• प्रशासनिक सेवा (IAS / IPS / IFS / BPSC / UPPSC):
+  - योग्यता: किसी भी मान्यता प्राप्त विषय में स्नातक (Graduation)।
+  - तैयारी: NCERT 6th-12th का आधारभूत अध्ययन, दैनिक अखबार/Current Affairs, UPSC परीक्षा।
+
+• रक्षा सेवा (NDA / CDS / वायु सेना / नौसेना):
+  - 12वीं (PCM) के बाद NDA (National Defence Academy) परीक्षा व SSB इंटरव्यू।
+
+[[NAV:page:student-study|विद्यार्थी करियर गाइड खोलें]]
+[[NAV:page:jobs|सरकारी व प्राइवेट जॉब अलर्ट देखें]]`;
       }
       // 5. Scholarship & Bonafide Certificate
       else if (lower.includes("scholarship") || lower.includes("छात्रवृत्ति") || lower.includes("स्कॉलरशिप") || lower.includes("bonafide") || lower.includes("बोनाफाइड") || lower.includes("medhasoft") || lower.includes("pms")) {
-        fallbackReply = `🏛️ **छात्रवृत्ति व बोनाफाइड सर्टिफिकेट (Bonafide Certificate) गाइड:**\n\n**1. बोनाफाइड सर्टिफिकेट क्या है?**\nयह आपके स्कूल/कॉलेज द्वारा जारी किया जाने वाला आधिकारिक प्रमाण पत्र है, जो प्रमाणित करता है कि आप उस संस्थान के नियमित छात्र/छात्रा हैं। यह पोस्ट-मैट्रिक PMS व NSP स्कॉलरशिप के लिए अनिवार्य है।\n\n**2. प्रमुख छात्रवृत्ति पोर्टल्स व आवेदन प्रक्रिया:**\n• **नेशनल स्कॉलरशिप पोर्टल (NSP):** scholarships.gov.in\n• **बिहार पोस्ट-मैट्रिक स्कॉलरशिप (PMS):** pmsonline.bih.nic.in (SC, ST, BC, EBC छात्रों के लिए)\n• **मुख्यमंत्री कन्या उत्थान योजना (Medhasoft):** medhasoft.bih.nic.in\n  - 10वीं फर्स्ट डिवीजन: ₹10,000\n  - 12वीं उत्तीर्ण (अविवाहित कन्या): ₹25,000\n  - स्नातक उत्तीर्ण छात्रा: ₹50,000\n\n**3. आवश्यक दस्तावेज:**\n1. आधार कार्ड, 2. जाति/आय/निवास प्रमाण पत्र, 3. बोनाफाइड सर्टिफिकेट, 4. फीस रसीद, 5. बैंक पासबुक (Aadhaar NPCI लिंक्ड)।`;
+        fallbackReply = `छात्रवृत्ति व बोनाफाइड सर्टिफिकेट (Bonafide Certificate) गाइड:
+
+1. बोनाफाइड सर्टिफिकेट क्या है?
+यह आपके स्कूल या कॉलेज द्वारा जारी आधिकारिक प्रमाण पत्र है, जो प्रमाणित करता है कि आप उस संस्थान के नियमित छात्र/छात्रा हैं। यह पोस्ट-मैट्रिक PMS व NSP स्कॉलरशिप के लिए अनिवार्य है।
+
+2. प्रमुख छात्रवृत्ति पोर्टल्स:
+• नेशनल स्कॉलरशिप पोर्टल (NSP): scholarships.gov.in
+• बिहार पोस्ट-मैट्रिक स्कॉलरशिप (PMS): pmsonline.bih.nic.in (SC, ST, BC, EBC छात्रों हेतु)
+• मुख्यमंत्री कन्या उत्थान योजना (Medhasoft): medhasoft.bih.nic.in
+  - 10वीं प्रथम श्रेणी: ₹10,000
+  - 12वीं उत्तीर्ण (अविवाहित कन्या): ₹25,000
+  - स्नातक उत्तीर्ण छात्रा: ₹50,000
+
+3. आवश्यक दस्तावेज:
+• आधार कार्ड, जाति/आय/निवास प्रमाण पत्र, बोनाफाइड सर्टिफिकेट, फीस रसीद, आधार-लिंक्ड बैंक खाता।
+
+[[NAV:page:student-study|स्कॉलरशिप व बोनाफाइड जनरेटर खोलें]]
+[[NAV:page:rtps-services|जाति/आय/निवास (RTPS) आवेदन करें]]`;
       }
       // 6. IOIS Plans
       else if (lower.includes("plan") || lower.includes("प्लान") || lower.includes("रेट") || lower.includes("कीमत") || lower.includes("price")) {
-        fallbackReply = `IOIS प्लेटफॉर्म पर कुल 7 मुख्य प्लांस उपलब्ध हैं:\n\n1. **Plan 01: Bal Vikas (₹10)** - ₹7 इंस्टेंट पेआउट (70%)\n2. **Plan 02: Youth Skill (₹49)** - ₹34 इंस्टेंट पेआउट (70%)\n3. **Plan 03: Career & Job (₹99)** - ₹64 इंस्टेंट पेआउट (65%)\n4. **Plan 04: Family VIP (₹199)** - ₹119 इंस्टेंट पेआउट (60%)\n5. **Plan 05: Student Elite (₹299)** - ₹179 इंस्टेंट पेआउट (60%)\n6. **Plan 06: Agency Reseller (₹499)** - ₹274 इंस्टेंट पेआउट (55%)\n7. **Plan 07: Master Lifetime (₹999)** - ₹499 इंस्टेंट पेआउट (50%)\n\nरजिस्ट्रेशन करने के लिए होमपेज पर 'नया सदस्य रजिस्ट्रेशन' पर क्लिक करें!`;
+        fallbackReply = `IOIS के सभी 7 मास्टर प्लांस व इंस्टेंट पेआउट सूची:
+
+1. Plan 01: Bal Vikas (₹10) - ₹7 इंस्टेंट पेआउट (70% Payout)
+2. Plan 02: Youth Skill (₹49) - ₹34 इंस्टेंट पेआउट (70% Payout)
+3. Plan 03: Career & Job (₹99) - ₹64 इंस्टेंट पेआउट (65% Payout)
+4. Plan 04: Family VIP (₹199) - ₹119 इंस्टेंट पेआउट (60% Payout)
+5. Plan 05: Student Elite (₹299) - ₹179 इंस्टेंट पेआउट (60% Payout)
+6. Plan 06: Agency Reseller (₹499) - ₹274 इंस्टेंट पेआउट (55% Payout)
+7. Plan 07: Master Lifetime (₹999) - ₹499 इंस्टेंट पेआउट (50% Payout)
+
+सभी प्लांस में लाइफटाइम एक्सेस व 5-मिनट एडमिन अप्रूवल मिलता है!
+
+[[NAV:page:plans|7 मास्टर प्लांस विवरण देखें]]
+[[NAV:page:register|नया रजिस्ट्रेशन पोर्टल खोलें]]`;
       } 
       // 7. Registration
       else if (lower.includes("register") || lower.includes("रजिस्ट्रेशन") || lower.includes("खाता") || lower.includes("join") || lower.includes("जुड़ें")) {
-        fallbackReply = `रजिस्ट्रेशन प्रक्रिया (5 आसान स्टेप्स):\n1. मेन्यू या होमपेज पर **'नया सदस्य रजिस्ट्रेशन'** (Registration) बटन दबाएं।\n2. अपना नाम, मोबाइल और पासवर्ड भरें।\n3. 7 में से अपना मनपसंद प्लान चुनें।\n4. आधिकारिक UPI ID **8877490845@spicepay** (Vikas Kumar) पर भुगतान करें।\n5. 12-अंकों का UTR नंबर दर्ज करें व पेमेंट स्क्रीनशॉट अपलोड करें।\n6. सबमिट करें, 5 मिनट में एडमिन द्वारा अप्रूवल मिल जाएगा!`;
+        fallbackReply = `IOIS नया सदस्य रजिस्ट्रेशन प्रक्रिया (5 आसान स्टेप्स):
+
+1. नीचे दिए गए 'नया रजिस्ट्रेशन फॉर्म खोलें' बटन पर क्लिक करें।
+2. अपना पूरा नाम, मोबाइल नंबर और एक सुरक्षित पासवर्ड भरें।
+3. 7 में से अपना मनपसंद डिजिटल प्लान चुनें।
+4. आधिकारिक UPI ID 8877490845@spicepay (Vikas Kumar) पर स्कैन या ट्रांसफर करके भुगतान करें।
+5. भुगतान का 12-अंकों का UTR / Ref नंबर दर्ज करें और स्क्रीनशॉट अपलोड करें।
+6. सबमिट करें — 5 मिनट में एडमिन द्वारा आपकी ID एक्टिवेट कर दी जाएगी!
+
+[[NAV:page:register|नया रजिस्ट्रेशन फॉर्म खोलें]]
+[[NAV:page:plans|7 मास्टर प्लांस देखें]]`;
       } 
       // 8. ID Card
       else if (lower.includes("id card") || lower.includes("आईडी कार्ड") || lower.includes("कार्ड")) {
-        fallbackReply = `आधिकारिक डिजिटल ID कार्ड:\n• मेन्यू में **'डिजिटल ID कार्ड' (ID Card)** सेक्शन पर जाएं।\n• यहाँ आपका 256-बिट एन्क्रिप्टेड और QR कोड वेरिफाइड स्मार्ट डिजिटल कार्ड दिखेगा।\n• आप **'HD PNG डाउनलोड'** या **'प्रिंट'** बटन दबाकर तुरंत इसे अपने फोन या कंप्यूटर में सेव कर सकते हैं।`;
+        fallbackReply = `आधिकारिक स्मार्ट डिजिटल ID कार्ड:
+
+• IOIS सदस्यों को 256-बिट एन्क्रिप्टेड और QR कोड वेरिफाइड स्मार्ट डिजिटल कार्ड दिया जाता है।
+• इसमें आपकी फोटो, User ID, एक्टिव प्लान, ब्लड ग्रुप व जारी होने की तिथि अंकित होती है।
+• आप 'HD PNG डाउनलोड' या 'प्रिंट' बटन दबाकर तुरंत इसे अपने फोन या कंप्यूटर में सेव कर सकते हैं।
+
+[[NAV:page:idcard|डिजिटल ID कार्ड पेज खोलें]]
+[[NAV:login:login|सदस्य लॉगिन करें]]`;
       } 
       // 9. RTPS Services
-      else if (lower.includes("rtps") || lower.includes("जाति") || lower.includes("आय") || lower.includes("निवास")) {
-        fallbackReply = `RTPS सेवाएँ (जाति, आय, निवास प्रमाण पत्र):\n• आधिकारिक पोर्टल: serviceonline.bihar.gov.in\n• यह सेवा 100% निशुल्क है।\n• आवश्यक दस्तावेज: आधार कार्ड, पासपोर्ट फोटो, मोबाइल नंबर और स्व-घोषणा। प्रमाण पत्र 10-14 कार्य दिवसों में ऑनलाइन बन जाता है।`;
+      else if (lower.includes("rtps") || lower.includes("जाति") || lower.includes("आय") || lower.includes("निवास") || lower.includes("obc") || lower.includes("ews")) {
+        fallbackReply = `RTPS नागरिक सेवाएं (जाति, आय, निवास प्रमाण पत्र):
+
+• आधिकारिक पोर्टल: serviceonline.bihar.gov.in (100% निशुल्क)
+• प्रमाण पत्र:
+  - निवास प्रमाण पत्र (Residential / Domicile Certificate)
+  - जाति प्रमाण पत्र (Caste Certificate - SC/ST/EBC/BC)
+  - आय प्रमाण पत्र (Income Certificate)
+  - OBC गैर-क्रीमी लेयर (NCL) व EWS प्रमाण पत्र
+• आवश्यक दस्तावेज: आधार कार्ड, पासपोर्ट साइज फोटो, आधार लिंक्ड मोबाइल नंबर।
+• अवधि: 10 से 14 कार्य दिवसों में ऑनलाइन जारी।
+
+[[NAV:page:rtps-services|RTPS नागरिक सेवाएं पोर्टल खोलें]]`;
       } 
       // 10. Land Mutation / Dakhil Kharij
-      else if (lower.includes("दाखिल खारिज") || lower.includes("mutation") || lower.includes("जमीन") || lower.includes("parimarjan")) {
-        fallbackReply = `बिहार भूमि व दाखिल खारिज (Mutation):\n• आधिकारिक पोर्टल: biharbhumi.bihar.gov.in\n• रजिस्ट्री (केवाला) की PDF कॉपी, लगान रसीद और आधार कार्ड अपलोड करके ऑनलाइन आवेदन करें।\n• 35 से 45 दिनों में शुद्धिकरण व शुद्धि पत्र निर्गत हो जाता है।`;
+      else if (lower.includes("दाखिल खारिज") || lower.includes("mutation") || lower.includes("जमीन") || lower.includes("parimarjan") || lower.includes("bhumi") || lower.includes("jamabandi")) {
+        fallbackReply = `बिहार भूमि दाखिल खारिज (Mutation) व जमीन सुधार गाइड:
+
+• आधिकारिक पोर्टल: biharbhumi.bihar.gov.in
+• दाखिल खारिज (Online Mutation):
+  1. पोर्टल पर रजिस्ट्रेशन करके लॉगिन करें।
+  2. अपना जिला, अंचल व मौजा चुनें।
+  3. रजिस्ट्री (केवाला) की PDF कॉपी व लगान रसीद अपलोड करें।
+  4. 35-45 दिनों में कर्मचारी व CO जांच के बाद शुद्धि पत्र जारी होता है।
+• परिमार्जन प्लस (Parimarjan Plus): पुरानी जमाबंदी में खाता, खेसरा, रकबा या नाम सुधारने के लिए ऑनलाइन आवेदन करें।
+
+[[NAV:page:rtps-services|जमीन दाखिल खारिज व सुधार पोर्टल खोलें]]`;
       } 
       // 11. Free e-PAN
       else if (lower.includes("pan") || lower.includes("पैन कार्ड")) {
-        fallbackReply = `10-मिनट में फ्री e-PAN कार्ड:\n• आधिकारिक आयकर पोर्टल: eportal.incometax.gov.in -> Instant e-PAN पर जाएं।\n• 12 अंकों का आधार नंबर दर्ज करें और आधार OTP सत्यापित करें।\n• 10 मिनट में डिजिटल e-PAN PDF मुफ्त में डाउनलोड करें।`;
+        fallbackReply = `10-मिनट में फ्री Instant e-PAN कार्ड:
+
+• आधिकारिक पोर्टल: eportal.incometax.gov.in -> Instant e-PAN
+• शर्त: आधार कार्ड से मोबाइल नंबर लिंक होना चाहिए और पहले से कोई पैन न बना हो।
+• प्रक्रिया: 12 अंकों का आधार नंबर डालें -> OTP दर्ज करें -> 10 मिनट में डिजिटल e-PAN PDF डाउनलोड करें!
+• यह पैन कार्ड भौतिक पैन कार्ड के समान 100% वैध है।
+
+[[NAV:page:rtps-services|इंस्टेंट e-PAN पोर्टल खोलें]]`;
       } 
       // 12. About IOIS
       else if (lower.includes("iois") || lower.includes("क्या है") || lower.includes("about") || lower.includes("काम")) {
-        fallbackReply = `**IOIS (Indian Online Income Supporting System)** भारत का प्रमुख डिजिटल लर्निंग और सपोर्टिंग प्लेटफॉर्म है। यहाँ आपको NCERT बुक्स, प्रोफेशनल CV टेम्प्लेट्स, AI प्रॉम्ट गाइड्स, सरकारी योजनाओं की सही जानकारी मिलती है और हर रेफरल पर 50% से 70% तक डायरेक्ट **इंस्टेंट पेआउट** मिलता है।\n\nआधिकारिक संपर्क:\n- व्हाट्सएप: +91 8877490845\n- टेलीग्राम: @ioisplatform\n- UPI ID: 8877490845@spicepay (Vikas Kumar)`;
+        fallbackReply = `IOIS (Indian Online Income Supporting System) क्या है?
+
+IOIS भारत का डिजिटल शिक्षा, बाल विकास, नागरिक सेवा मार्गदर्शन व आजीविका सहायता मंच है।
+
+मुख्य विशेषताएं:
+1. बाल विकास (Plan 01 ₹10): 700+ पृष्ठों की डिजिटल पुस्तक, चिंटू AI शिक्षक, 3D शरीर मॉडल व पेंसिल ट्रेसिंग।
+2. विद्यार्थी हब: कक्षा 1-12 NCERT नोट्स, मैथ फॉर्मूला, स्कॉलरशिप व बोनाफाइड जनरेटर।
+3. 15-सवाल कौशल साक्षात्कार: आपकी प्रतिभा पहचान कर सही करियर व प्लान मार्गदर्शन।
+4. 7 डिजिटल प्लांस: ₹10 से ₹999 में लाइफटाइम एक्सेस व 50%-70% इंस्टेंट पेआउट।
+5. नागरिक सेवाएं: RTPS जाति/आय/निवास, जमीन दाखिल खारिज, 10-मिनट e-PAN।
+
+[[NAV:page:plans|7 मास्टर प्लांस देखें]]
+[[NAV:page:register|नया रजिस्ट्रेशन करें]]
+[[NAV:page:assessment|15-सवाल टेस्ट दें]]`;
       } 
       // 13. Instant Payout
-      else if (lower.includes("payout") || lower.includes("पेआउट") || lower.includes("पैसे") || lower.includes("रुपये") || lower.includes("कमीशन")) {
-        fallbackReply = `IOIS में **स्मार्ट इंस्टेंट पेआउट प्रोटोकॉल** है। जब भी आपके द्वारा कोई नया यूजर किसी प्लान में वेरिफाई होता है, उसका इंसेंटिव (जैसे Plan 01 में ₹7, Plan 07 में ₹499) तुरंत आपके खाते/UPI में बिना किसी देरी के ट्रांसफर हो जाता है।`;
+      else if (lower.includes("payout") || lower.includes("पेआउट") || lower.includes("पैसे") || lower.includes("रुपये") || lower.includes("कमीशन") || lower.includes("earning")) {
+        fallbackReply = `IOIS 50%-70% इंस्टेंट पेआउट सिस्टम:
+
+IOIS में स्मार्ट इंस्टेंट पेआउट प्रोटोकॉल कार्यरत है:
+• Plan 01 (₹10): ₹7 इंस्टेंट पेआउट (70%)
+• Plan 02 (₹49): ₹34 इंस्टेंट पेआउट (70%)
+• Plan 03 (₹99): ₹64 इंस्टेंट पेआउट (65%)
+• Plan 04 (₹199): ₹119 इंस्टेंट पेआउट (60%)
+• Plan 05 (₹299): ₹179 इंस्टेंट पेआउट (60%)
+• Plan 06 (₹499): ₹274 इंस्टेंट पेआउट (55%)
+• Plan 07 (₹999): ₹499 इंस्टेंट पेआउट (50%)
+
+जब भी आपका कोई साथी आपके रेफरल से एक्टिवेट होता है, एडमिन वेरिफिकेशन होते ही पेआउट सीधे आपके UPI में ट्रांसफर कर दिया जाता है!
+
+[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]
+[[NAV:page:plans|सभी प्लांस देखें]]`;
       } 
-      // 14. Official Contact
-      else if (lower.includes("contact") || lower.includes("संपर्क") || lower.includes("whatsapp") || lower.includes("help") || lower.includes("फोन")) {
-        fallbackReply = `IOIS 24x7 आधिकारिक सहायता केंद्र:\n- **व्हाट्सएप सपोर्ट:** +91 8877490845\n- **आधिकारिक टेलीग्राम:** @ioisplatform\n- **ईमेल:** ioisplatform@gmail.com\n- **UPI ID:** 8877490845@spicepay (Vikas Kumar)`;
+      // 14. Forgot Password / ID Recovery / Login
+      else if (lower.includes("password") || lower.includes("पासवर्ड") || lower.includes("login") || lower.includes("लॉगिन") || lower.includes("user id") || lower.includes("आईडी भूल")) {
+        fallbackReply = `सदस्य लॉगिन, पासवर्ड रीसेट व User ID रिकवरी:
+
+• लॉगिन: यदि आपके पास User ID व पासवर्ड है, तो लॉगिन करें।
+• पासवर्ड भूल गए: 2-स्टेप सुरक्षित OTP वेरिफिकेशन (मोबाइल नंबर + रजिस्टर्ड नाम के पहले 2 अक्षर) से नया पासवर्ड बनाएं।
+• User ID भूल गए: अपने रजिस्टर्ड मोबाइल नंबर व नाम वेरिफिकेशन से अपनी User ID प्राप्त करें।
+
+[[NAV:login:login|सदस्य लॉगिन पोर्टल खोलें]]
+[[NAV:login:forgot_password|पासवर्ड रीसेट करें]]
+[[NAV:login:forgot_user_id|User ID खोजें]]`;
+      }
+      // 15. Official Contact
+      else if (lower.includes("contact") || lower.includes("संपर्क") || lower.includes("whatsapp") || lower.includes("help") || lower.includes("फोन") || lower.includes("helpdesk")) {
+        fallbackReply = `IOIS 24x7 आधिकारिक सहायता केंद्र:
+
+• व्हाट्सएप सपोर्ट: +91 8877490845
+• आधिकारिक टेलीग्राम: @ioisplatform
+• ईमेल: ioisplatform@gmail.com
+• UPI ID: 8877490845@spicepay (Vikas Kumar)
+
+[[NAV:whatsapp:918877490845|व्हाट्सएप पर सीधी चैट शुरू करें]]
+[[NAV:external:https://t.me/ioisplatform|टेलीग्राम चैनल से जुड़ें]]`;
       } 
-      // 15. General Helpful Assistant Fallback
+      // 16. General Research & Assistant Fallback
       else {
+        const finalResearch = await performLiveWebResearch(trimmedMsg);
+        if (finalResearch) {
+          return res.json(finalResearch);
+        }
+
         const unanswered = loadUnansweredFromDisk();
         const alreadyLogged = unanswered.some((u) => u.question.toLowerCase() === lower);
-        if (!alreadyLogged && trimmedMsg.length > 5) {
+        if (!alreadyLogged && trimmedMsg.length > 3) {
           unanswered.unshift({
             id: `unans-${Date.now()}`,
             question: trimmedMsg,
@@ -1772,10 +2228,22 @@ async function startServer() {
           sendTelegramUnansweredQuestionAlert(trimmedMsg);
         }
 
-        fallbackReply = `नमस्ते! मैं IOIS AI हेल्पलाइन व शैक्षिक सहायक हूँ।\n\nआप मुझसे निम्न विषयों पर पूछ सकते हैं:\n• **सामान्य ज्ञान (GK) व नदियाँ** (जैसे गोदावरी नदी का उद्गम, भारतीय भूगोल)\n• **15-सवाल साक्षात्कार टेस्ट** में उत्तर देने का तरीका व स्कोरिंग\n• **कक्षा 1 से 12 व स्नातक (BA/BSc) अध्ययन नोट्स, गणित फॉर्मूला**\n• **करियर मार्गदर्शन:** डॉक्टर, इंजीनियर, IAS, बैंकिंग, डिफेंस कैसे बनें\n• **स्कॉलरशिप व कॉलेज बोनाफाइड सर्टिफिकेट** आवेदन प्रक्रिया\n• **IOIS के 7 मास्टर प्लांस, रजिस्ट्रेशन, ID कार्ड व 70% इंस्टेंट पेआउट**\n\nतत्काल व्यक्तिगत सहायता हेतु व्हाट्सएप सपोर्ट **+91 8877490845** पर संपर्क करें!`;
+        fallbackReply = `आपके प्रश्न "${trimmedMsg}" पर अधिक सटीक जानकारी प्राप्त करने के लिए कृपया मुख्य कीवर्ड या विषय स्पष्ट लिखें।
+
+आप हमसे सामान्य ज्ञान, बिहार का इतिहास, देश-दुनिया के तथ्य, बाल विकास या IOIS सेवाओं पर कोई भी सवाल पूछ सकते हैं:
+• बाल विकास (Plan 01 ₹10): 700+ पृष्ठों की पुस्तक, चिंटू AI व 3D शरीर
+• 15-सवाल कौशल टेस्ट: टेस्ट व प्लान गाइड
+• 7 डिजिटल प्लांस: ₹10 से ₹999 में लाइफटाइम एक्सेस व 70% पेआउट
+• विद्यार्थी शिक्षा हब: NCERT नोट्स, मैथ फॉर्मूला व स्कॉलरशिप
+• नागरिक सेवाएं: RTPS जाति/आय/निवास, जमीन दाखिल खारिज, Instant e-PAN
+
+[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स खोलें]]
+[[NAV:page:assessment|15-सवाल असेसमेंट दें]]
+[[NAV:page:plans|7 मास्टर प्लांस देखें]]
+[[NAV:whatsapp:918877490845|व्हाट्सएप हेल्पलाइन (+91 8877490845)]]`;
       }
 
-      return res.json({ reply: fallbackReply, grounded: false });
+      return res.json({ reply: cleanBotReply(fallbackReply), grounded: false });
     } catch (err: any) {
       console.error("Chat API Error:", err);
       return res.status(500).json({

@@ -561,6 +561,10 @@ export default function App() {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         initialQuery={chatInitialQuery}
+        onNavigate={navigateTo}
+        onOpenLogin={handleOpenLogin}
+        onSelectPlanForRegister={handleSelectPlanForRegister}
+        currentUser={currentUser}
       />
 
       {/* 7. Auth Modal (Login / Forgot ID / Forgot Password) */}
