@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { UserProfile, HelpTicket } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_EMAIL } from '../data/plansData';
-import { updateUserProfile, createHelpTicket, getHelpTickets, logoutUser } from '../services/userService';
+import { createHelpTicket, getHelpTickets, logoutUser } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
+import { ProfileEditSection } from './ProfileEditSection';
 import { 
   User, 
   CreditCard, 
@@ -41,26 +42,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onLogout,
   onScrollToCard,
 }) => {
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [fullName, setFullName] = useState<string>(user.fullName);
-  const [mobileNumber, setMobileNumber] = useState<string>(user.mobileNumber);
-  const [email, setEmail] = useState<string>(user.email);
-  const [address, setAddress] = useState<string>(user.address || '');
-  const [payoutUpi, setPayoutUpi] = useState<string>(user.payoutUpi || '');
-  const [sponsorId, setSponsorId] = useState<string>(user.sponsorId || 'IOIS999VK01');
-  const [selectedPlanId, setSelectedPlanId] = useState<number>(user.selectedPlanId);
-  const [role, setRole] = useState<string>(user.role);
-  const [password, setPassword] = useState<string>(user.password || '');
-  const [photoUrl, setPhotoUrl] = useState<string>(user.photoUrl);
-  const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>(user.googleDrivePhotoLink || '');
-
-  // Payment update state (if user needs to update screenshot)
-  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string>(user.paymentScreenshotUrl || '');
-  const [googleDrivePaymentLink, setGoogleDrivePaymentLink] = useState<string>(user.googleDrivePaymentLink || '');
-  const [paymentUtr, setPaymentUtr] = useState<string>(user.paymentUtr || '');
-
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
-
   // Help & Support Tickets
   const [ticketSubject, setTicketSubject] = useState<string>('');
   const [ticketDesc, setTicketDesc] = useState<string>('');
@@ -72,34 +53,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   });
 
   const selectedPlan = PLANS.find((p) => p.id === user.selectedPlanId) || PLANS[0];
-
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    const updated: UserProfile = {
-      ...user,
-      fullName: fullName.trim(),
-      mobileNumber: mobileNumber.trim(),
-      email: email.trim(),
-      address: address.trim(),
-      payoutUpi: payoutUpi.trim(),
-      sponsorId: sponsorId.trim().toUpperCase() || user.sponsorId,
-      selectedPlanId,
-      role,
-      password: password.trim(),
-      photoUrl,
-      googleDrivePhotoLink: googleDrivePhotoLink.trim() || undefined,
-      paymentScreenshotUrl: paymentScreenshotUrl || undefined,
-      googleDrivePaymentLink: googleDrivePaymentLink.trim() || undefined,
-      paymentUtr: paymentUtr.trim() || undefined,
-      // userId remains strictly immutable
-    };
-
-    const saved = updateUserProfile(updated);
-    onUserUpdated(saved);
-    setIsEditing(false);
-    setSaveSuccessMsg('आपकी प्रोफाइल व विवरण सफलतापूर्वक अपडेट कर दिया गया है!');
-    setTimeout(() => setSaveSuccessMsg(''), 4000);
-  };
 
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,199 +156,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
           </div>
         )}
-
-        {saveSuccessMsg && (
-          <div className="mt-4 p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-2xl text-emerald-300 text-xs flex items-center gap-2 font-bold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>{saveSuccessMsg}</span>
-          </div>
-        )}
       </div>
 
       {/* Main Grid: Profile Edit Left, Help Desk Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Left: User Profile Details (Editable except User ID) */}
-        <div className="lg:col-span-7 glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <User className="w-4 h-4 text-amber-400" />
-              <span>सदस्य प्रोफाइल विवरण (Member Profile & Settings)</span>
-            </h3>
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className={`text-xs font-black px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer ${
-                isEditing
-                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-              }`}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>{isEditing ? 'रद्द करें (Cancel)' : 'डिटेल्स एडिट करें (Edit)'}</span>
-            </button>
-          </div>
-
-          <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
-            
-            {/* Non-Editable User ID Box */}
-            <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-amber-400">आधिकारिक User ID (Non-Editable):</span>
-                <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Permanent Code
-                </span>
-              </div>
-              <div className="text-lg font-black text-white font-mono tracking-wider">
-                {user.userId}
-              </div>
-              <p className="text-[10px] text-slate-400">
-                (यह कोड आपके प्लान, नाम और क्रम संख्या के आधार पर स्थायी रूप से लॉक है।)
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">पूरा नाम (Full Name):</label>
-                <input
-                  type="text"
-                  disabled={!isEditing}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">मोबाइल / WhatsApp नंबर:</label>
-                <input
-                  type="text"
-                  disabled={!isEditing}
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">ईमेल पता (Email):</label>
-                <input
-                  type="email"
-                  disabled={!isEditing}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">पासवर्ड (Password):</label>
-                <input
-                  type="password"
-                  disabled={!isEditing}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">शहर / पता (Address):</label>
-                <input
-                  type="text"
-                  disabled={!isEditing}
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="उदा. पटना, बिहार"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">पेआउट प्राप्त करने का UPI ID:</label>
-                <input
-                  type="text"
-                  disabled={!isEditing}
-                  maxLength={50}
-                  value={payoutUpi}
-                  onChange={(e) => setPayoutUpi(e.target.value.replace(/\s+/g, '').slice(0, 50))}
-                  placeholder="name@upi"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">Sponsor ID (स्पॉन्सर आईडी):</label>
-                <input
-                  type="text"
-                  disabled={!isEditing}
-                  value={sponsorId}
-                  onChange={(e) => setSponsorId(e.target.value.toUpperCase())}
-                  placeholder="IOIS999VK01"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-white font-mono rounded-xl px-3.5 py-2.5 outline-none transition"
-                />
-              </div>
-            </div>
-
-            {/* Payout Security Notice */}
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[11px] text-amber-300 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                <strong>पेआउट पता चेतावनी:</strong> सुनिश्चित करें कि आपका पेआउट UPI ID (<strong>{payoutUpi || 'दर्ज नहीं'}</strong>) 100% सही है। आपके योजना अनुसार 50% से 70% रेफरल इंसेंटिव सीधे इसी पते पर ट्रांसफर किए जाते हैं।
-              </span>
-            </div>
-
-            {/* Smart Photo Upload if editing */}
-            {isEditing && (
-              <div className="pt-2">
-                <SmartFileUpload
-                  label="प्रोफ़ाइल फोटो अपडेट करें (Profile Photo)"
-                  sublabel="25MB तक सीधे अपलोड करें या Google Drive लिंक दें।"
-                  fileValue={photoUrl}
-                  driveLinkValue={googleDrivePhotoLink}
-                  onFileChange={setPhotoUrl}
-                  onDriveLinkChange={setGoogleDrivePhotoLink}
-                />
-              </div>
-            )}
-
-            {/* Payment Proof Update (If user needs to re-upload) */}
-            {isEditing && (
-              <div className="pt-2 border-t border-slate-800">
-                <SmartFileUpload
-                  label="पेमेंट स्क्रीनशॉट अपडेट करें (Payment Screenshot Proof)"
-                  sublabel="यदि पुराना स्क्रीनशॉट गलत था तो यहाँ नया अपलोड करें।"
-                  fileValue={paymentScreenshotUrl}
-                  driveLinkValue={googleDrivePaymentLink}
-                  onFileChange={setPaymentScreenshotUrl}
-                  onDriveLinkChange={setGoogleDrivePaymentLink}
-                />
-
-                <div className="mt-2">
-                  <label className="block text-slate-300 font-bold mb-1">UTR नंबर:</label>
-                  <input
-                    type="text"
-                    value={paymentUtr}
-                    onChange={(e) => setPaymentUtr(e.target.value)}
-                    placeholder="उदा. 4239XXXXXXXX"
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2 outline-none font-mono"
-                  />
-                </div>
-              </div>
-            )}
-
-            {isEditing && (
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>अपडेट सुरक्षित करें (SAVE PROFILE)</span>
-                </button>
-              </div>
-            )}
-
-          </form>
+        <div className="lg:col-span-7 glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30">
+          <ProfileEditSection
+            user={user}
+            onUserUpdated={onUserUpdated}
+          />
         </div>
 
         {/* Right: In-App Help & Ticket Section (No third-party app needed) */}

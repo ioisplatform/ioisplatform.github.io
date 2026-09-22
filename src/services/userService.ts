@@ -1144,7 +1144,7 @@ export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatu
 export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   const users = getAllUsers();
 
-  // Prevent duplicate mobile or email across other users
+  // Prevent duplicate mobile or email across other users (exclude current user)
   const cleanDigits = (updatedProfile.mobileNumber || '').replace(/\D/g, '');
   const cleanEmail = (updatedProfile.email || '').trim().toLowerCase();
   const conflict = users.find((u) => {
@@ -1156,36 +1156,47 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   });
 
   if (conflict) {
-    throw new Error('यह मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है।');
+    throw new Error('यह मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है। कृपया अपना सही विवरण दर्ज करें।');
   }
 
+  const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
   const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
+  
+  let finalizedUser: UserProfile;
   if (index !== -1) {
-    const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
-    users[index] = {
+    finalizedUser = {
+      ...users[index],
       ...updatedProfile,
       payoutUpi: sanitizedUpi,
-      userId: users[index].userId, // Immutable
+      userId: users[index].userId, // Strictly immutable User ID
     };
-    saveUsers(users);
-    
-    // Update active session if this is the logged in user
-    const current = getCurrentUser();
-    if (current && current.userId.toUpperCase() === updatedProfile.userId.toUpperCase()) {
-      setCurrentUser(users[index]);
-    }
-
-    // Sync with Firestore and server
-    syncUserToFirestore(users[index]);
-    fetch(`/api/users/${encodeURIComponent(updatedProfile.userId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(users[index]),
-    }).catch((e) => console.warn('Background update sync note:', e));
-
-    return users[index];
+    users[index] = finalizedUser;
+  } else {
+    finalizedUser = {
+      ...updatedProfile,
+      payoutUpi: sanitizedUpi,
+      userId: updatedProfile.userId.trim().toUpperCase(),
+    };
+    users.push(finalizedUser);
   }
-  return updatedProfile;
+
+  saveUsers(users);
+  
+  // Update active session if this is the logged in user
+  const current = getCurrentUser();
+  if (!current || current.userId.toUpperCase() === finalizedUser.userId.toUpperCase()) {
+    setCurrentUser(finalizedUser);
+  }
+
+  // Sync with Firestore and server
+  syncUserToFirestore(finalizedUser).catch(() => {});
+  fetch(`/api/users/${encodeURIComponent(finalizedUser.userId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(finalizedUser),
+  }).catch((e) => console.warn('Background update sync note:', e));
+
+  return finalizedUser;
 };
 
 /**
