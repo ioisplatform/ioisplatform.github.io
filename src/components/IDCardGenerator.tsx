@@ -721,7 +721,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                     </div>
                     <div className="flex items-start gap-1.5">
                       <span className="text-amber-400 font-bold">•</span>
-                      <p>प्लान 01 से 07 तक की सभी डिजिटल सामग्री व 70% दैनिक इंसेंटिव इस यूजर आईडी से सुरक्षित हैं।</p>
+                      <p>प्लान 01 से 07 तक की सभी डिजिटल सामग्री व 50% से 70% तक दैनिक इंसेंटिव इस यूजर आईडी से सुरक्षित हैं।</p>
                     </div>
                     <div className="flex items-start gap-1.5">
                       <span className="text-amber-400 font-bold">•</span>
@@ -880,7 +880,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
 
                   <div className="space-y-2 text-[8px] text-slate-300 text-left my-auto leading-relaxed bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
                     <p>• यह आईडी कार्ड IOIS सपोर्टिंग सिस्टम का आधिकारिक डिजिटल पहचान पत्र है।</p>
-                    <p>• 70% इंसेंटिव व डिजिटल लाइब्रेरी का अधिकार इस यूजर आईडी से संबद्ध है।</p>
+                    <p>• योजना अनुसार 50% से 70% इंसेंटिव व डिजिटल लाइब्रेरी का अधिकार इस यूजर आईडी से संबद्ध है।</p>
                     <p>• किसी भी सहायता या सत्यापन हेतु आधिकारिक हेल्पलाइन पर 24x7 संपर्क करें।</p>
                   </div>
 

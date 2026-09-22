@@ -53,19 +53,19 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
   };
 
   const serviceCategories = [
-    { id: 'all', label: '⭐ सभी सेवाएं (All)' },
-    { id: 'citizen', label: '🏛️ नागरिक व शिक्षा' },
-    { id: 'income', label: '💼 7 प्लांस व आय' },
-    { id: 'daily', label: '🌤️ मौसम व दैनिक' },
-    { id: 'safety', label: '🛡️ सहायता व सुरक्षा' },
+    { id: 'all', label: 'सभी सेवाएं' },
+    { id: 'citizen', label: 'नागरिक व शिक्षा' },
+    { id: 'income', label: '7 प्लांस व आय' },
+    { id: 'daily', label: 'मौसम व दैनिक' },
+    { id: 'safety', label: 'सहायता व सुरक्षा' },
   ];
 
   const serviceList = [
     {
       id: 'home' as PageType,
       category: 'citizen',
-      title: 'मुख्य होम पेज (Clean Chrome Surface)',
-      subtitle: 'IOIS परिचय, सर्च असिस्टेंट व इंटरव्यू तैयारी',
+      title: 'मुख्य होम पेज',
+      subtitle: 'IOIS परिचय, सर्च असिस्टेंट व साक्षात्कार तैयारी',
       badge: 'केंद्रीय पोर्टल',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
       icon: Home,
@@ -76,8 +76,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'student-study' as PageType,
       category: 'citizen',
-      title: 'विद्यार्थी शिक्षा व करियर पोर्टल (Student Portal)',
-      subtitle: 'Class 1-12 NCERT नोट्स, गणित फॉर्मूला, बोनाफाइड सर्टिफिकेट व करियर रोडमैप',
+      title: 'विद्यार्थी शिक्षा व करियर पोर्टल',
+      subtitle: 'Class 1-12 NCERT नोट्स, गणित सूत्र, बोनाफाइड सर्टिफिकेट व रोडमैप',
       badge: '100% फ्री अध्ययन',
       badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
       icon: GraduationCap,
@@ -88,8 +88,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'rtps-services' as PageType,
       category: 'citizen',
-      title: 'RTPS व जमीन सुधार पोर्टल (Land & RTPS)',
-      subtitle: 'जाति, आय, निवास, दाखिल खारिज, परिमार्जन, LPC, instant e-PAN व छात्रवृत्ति',
+      title: 'RTPS व जमीन सुधार पोर्टल',
+      subtitle: 'जाति, आय, निवास, दाखिल खारिज, परिमार्जन, LPC व instant e-PAN',
       badge: 'नागरिक सेवा केंद्र',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
       icon: FileText,
@@ -100,8 +100,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'plans' as PageType,
       category: 'income',
-      title: '7 मास्टर प्लांस (IOIS 7 Master Plans)',
-      subtitle: '₹10 से ₹999 तक के सभी आधिकारिक प्लांस, 70% इंसेंटिव व डिजिटल संसाधन',
+      title: '7 मास्टर प्लांस',
+      subtitle: '₹10 से ₹999 तक के आधिकारिक प्लांस, 50% से 70% इंसेंटिव व डिजिटल संसाधन',
       badge: '70% सीधा इंसेंटिव',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
       icon: Crown,
@@ -112,8 +112,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'register' as PageType,
       category: 'income',
-      title: 'नया सदस्य रजिस्ट्रेशन (In-App Registration)',
-      subtitle: 'डायरेक्ट इन-ऐप फॉर्म, 25MB+ पेमेंट प्रूफ अपलोड व यूनिक User ID',
+      title: 'नया सदस्य रजिस्ट्रेशन',
+      subtitle: 'डायरेक्ट इन-ऐप फॉर्म, पेमेंट प्रूफ अपलोड व यूनिक User ID',
       badge: 'इन-ऐप रजिस्ट्रेशन',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
       icon: UserPlus,
@@ -124,8 +124,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'idcard' as PageType,
       category: 'income',
-      title: 'डिजिटल स्मार्ट ID कार्ड (Digital ID Card)',
-      subtitle: '256-Bit एन्क्रिप्टेड स्मार्ट पहचान पत्र, आगे-पीछे का प्रिव्यू व HD PNG डाउनलोड',
+      title: 'डिजिटल स्मार्ट ID कार्ड',
+      subtitle: '256-Bit एन्क्रिप्टेड स्मार्ट पहचान पत्र, प्रिव्यू व HD PNG डाउनलोड',
       badge: 'स्मार्ट कार्ड',
       badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
       icon: CreditCard,
@@ -136,8 +136,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'calculator' as PageType,
       category: 'income',
-      title: 'इंसेंटिव व अर्निंग कैलकुलेटर (Earnings Simulator)',
-      subtitle: '70% दैनिक, साप्ताहिक व मासिक रेफरल आय का लाइव सिमुलेटर',
+      title: 'इंसेंटिव व अर्निंग कैलकुलेटर',
+      subtitle: '50% से 70% दैनिक, साप्ताहिक व मासिक रेफरल आय का लाइव सिमुलेटर',
       badge: 'लाइव सिमुलेटर',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
       icon: Calculator,
@@ -148,7 +148,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'weather' as PageType,
       category: 'daily',
-      title: 'लाइव मौसम व वर्षा अलर्ट (Live Weather)',
+      title: 'लाइव मौसम व वर्षा अलर्ट',
       subtitle: 'सटीक तापमान, हवा, नमी, बादलों की स्थिति व 7-दिवसीय पूर्वानुमान',
       badge: 'लाइव सैटेलाइट डेटा',
       badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
@@ -160,7 +160,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'news' as PageType,
       category: 'daily',
-      title: 'लाइव टीवी न्यूज़ व ई-अखबार (Live TV News)',
+      title: 'लाइव टीवी न्यूज़ व ई-अखबार',
       subtitle: '24x7 राष्ट्रीय न्यूज़ चैनल व प्रमुख डिजिटल ई-अखबार',
       badge: '24x7 लाइव स्ट्रीम',
       badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
@@ -172,9 +172,9 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'entertainment' as PageType,
       category: 'daily',
-      title: 'मनोरंजन, लाइव चैट व फ्री AI टूल्स (Entertainment Hub)',
-      subtitle: 'बिना Ads वीडियो व प्लेलिस्ट, कम्युनिटी फोटो/वॉइस/वीडियो चैट और गूगल व ChatGPT टूल्स',
-      badge: '🔥 नया हब',
+      title: 'मनोरंजन, लाइव चैट व AI टूल्स',
+      subtitle: 'बिना Ads वीडियो व प्लेलिस्ट, कम्युनिटी चैट और गूगल व ChatGPT टूल्स',
+      badge: 'मनोरंजन हब',
       badgeColor: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
       icon: Film,
       iconColor: 'text-pink-400',
@@ -184,7 +184,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'panchang-rashifal' as PageType,
       category: 'daily',
-      title: 'दैनिक पंचांग व 12 राशि भविष्य (Panchang & Rashifal)',
+      title: 'दैनिक पंचांग व 12 राशि भविष्य',
       subtitle: 'शुभ मुहूर्त, राहु काल, अमृत चौघड़िया व सभी 12 राशियों का दैनिक भविष्य',
       badge: 'वैदिक ज्योतिष',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
@@ -196,7 +196,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'mandi-market' as PageType,
       category: 'daily',
-      title: 'लाइव मंडी भाव व 24K सोना-चांदी (Mandi & Bullion)',
+      title: 'लाइव मंडी भाव व सोना-चांदी',
       subtitle: 'गेहूं, धान, मक्का, सरसों मंडी भाव व 24K/22K सर्राफा सोना-चांदी दर',
       badge: 'दैनिक मंडी व सर्राफा',
       badgeColor: 'bg-green-500/20 text-green-300 border-green-500/40',
@@ -208,9 +208,9 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'govt-schemes' as PageType,
       category: 'citizen',
-      title: 'सरकारी वेबसाइट्स व योजना डायरेक्टरी (Govt Schemes)',
+      title: 'सरकारी वेबसाइट्स व योजना डायरेक्टरी',
       subtitle: 'आधार, पैन, वोटर, राशन, आयुष्मान भारत व PF आधिकारिक लिंक्स',
-      badge: '100% आधिकारिक लिंक्स',
+      badge: 'आधिकारिक लिंक्स',
       badgeColor: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
       icon: Building2,
       iconColor: 'text-teal-400',
@@ -220,8 +220,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'jobs' as PageType,
       category: 'safety',
-      title: 'लाइव जॉब अलर्ट्स व रोजगार (Jobs Directory)',
-      subtitle: 'SSC, रेलवे, बैंक, पुलिस सरकारी भर्तियां व प्राइवेट WFH जॉब्स',
+      title: 'लाइव जॉब अलर्ट्स व रोजगार',
+      subtitle: 'SSC, रेलवे, बैंक, पुलिस सरकारी भर्तियां व प्राइवेट नौकरियां',
       badge: 'रोजगार डायरेक्टरी',
       badgeColor: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
       icon: Briefcase,
@@ -232,7 +232,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'assessment' as PageType,
       category: 'safety',
-      title: '15-सवाल करियर व स्किल असेसमेंट (Skill Test)',
+      title: '15-सवाल करियर असेसमेंट',
       subtitle: '2 मिनट स्मार्ट टेस्ट, अंक मूल्यांकन व व्यक्तिगत करियर सुझाव',
       badge: 'कौशल मूल्यांकन',
       badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
@@ -244,7 +244,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'parents' as PageType,
       category: 'safety',
-      title: 'अभिभावक सुरक्षा व नीतियां (Parents Portal)',
+      title: 'अभिभावक सुरक्षा व नीतियां',
       subtitle: '100% सुरक्षित डिजिटल वातावरण, NCERT पाठ्यक्रम व बाल सुरक्षा नीतियां',
       badge: '100% चाइल्ड सेफ',
       badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
@@ -256,8 +256,8 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'contact' as PageType,
       category: 'safety',
-      title: '24x7 हेल्पलाइन व अक्सर पूछे जाने वाले सवाल (Support/FAQ)',
-      subtitle: 'WhatsApp, Telegram सपोर्ट व आपके सभी संशयों का त्वरित समाधान',
+      title: '24x7 हेल्पलाइन व FAQ',
+      subtitle: 'WhatsApp, Telegram सपोर्ट व आपके सभी प्रश्नों का त्वरित समाधान',
       badge: '24x7 हेल्पलाइन',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
       icon: PhoneCall,
@@ -268,7 +268,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
     {
       id: 'admin' as PageType,
       category: 'safety',
-      title: 'आधिकारिक एडमिन वेरिफिकेशन पैनल (Admin Panel)',
+      title: 'एडमिन वेरिफिकेशन पैनल',
       subtitle: 'मास्टर पिन से सदस्य वेरिफिकेशन, पेमेंट प्रूफ अप्रूवल व हेल्पडेस्क',
       badge: 'मास्टर पिन सुरक्षित',
       badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
@@ -311,7 +311,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg sm:text-xl font-black text-white">
-                  IOIS आधिकारिक सेवाएं व मेन्यू (All Services)
+                  IOIS आधिकारिक सेवाएं
                 </h3>
                 <span className="bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                   17+ सर्विसेज

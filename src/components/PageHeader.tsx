@@ -17,12 +17,14 @@ import {
   Scale,
   Building2,
   Briefcase,
-  FileText
+  FileText,
+  Grid
 } from 'lucide-react';
 
 interface PageHeaderProps {
   currentPage: PageType;
   onNavigate: (page: PageType) => void;
+  onOpenServices?: () => void;
   title: string;
   subtitle?: string;
 }
@@ -30,6 +32,7 @@ interface PageHeaderProps {
 export const PageHeader: React.FC<PageHeaderProps> = ({
   currentPage,
   onNavigate,
+  onOpenServices,
   title,
   subtitle,
 }) => {
@@ -50,23 +53,36 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   ];
 
   return (
-    <div className="w-full space-y-3 sm:space-y-4 pb-3 sm:pb-5 border-b border-slate-800/80">
+    <div className="w-full space-y-3 sm:space-y-4 pb-3 sm:pb-5 border-b border-slate-800">
       {/* Top Navigation Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
-        {/* Back to Home Button */}
-        <button
-          onClick={() => {
-            onNavigate('home');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 px-3.5 sm:px-4 py-2 rounded-xl sm:rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition transform hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-        >
-          <ArrowLeft className="w-4 h-4 stroke-[3]" />
-          <span>← मुख्य होम पेज पर वापस जाएं</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Back to Home Button */}
+          <button
+            onClick={() => {
+              onNavigate('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 px-3.5 sm:px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow transition cursor-pointer shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+            <span>होम पेज</span>
+          </button>
+
+          {/* All Services Dialog Trigger */}
+          {onOpenServices && (
+            <button
+              onClick={onOpenServices}
+              className="inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-3 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0"
+            >
+              <Grid className="w-3.5 h-3.5 text-amber-400" />
+              <span>सभी सेवाएं</span>
+            </button>
+          )}
+        </div>
 
         {/* Quick Switcher Pills for other pages */}
-        <div className="w-full sm:w-auto flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 scrollbar-none bg-slate-950 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-800 text-[11px]">
+        <div className="w-full sm:w-auto flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 scrollbar-none bg-slate-950 p-1 sm:p-1.5 rounded-xl border border-slate-800 text-[11px]">
           {quickLinks.map((link) => {
             const Icon = link.icon;
             const isActive = currentPage === link.id;

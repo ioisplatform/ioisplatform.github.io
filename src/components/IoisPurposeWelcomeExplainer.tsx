@@ -60,11 +60,11 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
       borderColor: 'border-amber-400',
       activeBg: 'bg-amber-500/15 text-amber-300',
       welcomeTitle: 'नमस्ते उद्यमी! आपका लक्ष्य: घर बैठे सुरक्षित डिजिटल आय',
-      welcomeDesc: 'IOIS आपको बिना किसी धोखाधड़ी के 100% पारदर्शी डिजिटल संसाधन, ई-बुक्स, कोडिंग बंडल व 70% सीधा इंसेंटिव मॉडल प्रदान करता है।',
+      welcomeDesc: 'IOIS आपको बिना किसी धोखाधड़ी के 100% पारदर्शी डिजिटल संसाधन, ई-बुक्स, कोडिंग बंडल व 50% से 70% सीधा इंसेंटिव मॉडल प्रदान करता है।',
       steps: [
         'नीचे दिए गए 7 मास्टर प्लांस (₹10 से ₹999) में से अपनी पसंद का प्लान चुनें।',
         'सीधा इन-ऐप रजिस्ट्रेशन फॉर्म भरें और अपना यूनिक User ID प्राप्त करें।',
-        'डिजिटल संसाधन डाउनलोड करें, दोस्तों व सोशल मीडिया पर साझा करें और प्रति रेफरल ₹7 से ₹699 तक सीधा 70% इंसेंटिव कमाएं!',
+        'डिजिटल संसाधन डाउनलोड करें, दोस्तों व सोशल मीडिया पर साझा करें और प्रति रेफरल ₹7 से ₹499 तक सीधा 50% से 70% इंसेंटिव कमाएं!',
       ],
       primaryBtnText: '7 मास्टर प्लांस देखें व चुनें',
       primaryTarget: 'plans' as PageType,
@@ -192,7 +192,7 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
     },
     {
       q: 'कमाई का पैसा (Payout) कैसे और कब मिलता है?',
-      a: 'जैसे ही आपका रेफरल सदस्य वेरीफाई होता है, 70% इंसेंटिव तुरंत आपके खाते/UPI में ट्रांसफर कर दिया जाता है। किसी तीसरे पक्ष या देरी की कोई झंझट नहीं है।',
+      a: 'जैसे ही आपका रेफरल सदस्य वेरीफाई होता है, प्लान के अनुसार 50% से 70% इंसेंटिव तुरंत आपके खाते/UPI में ट्रांसफर कर दिया जाता है। किसी तीसरे पक्ष या देरी की कोई झंझट नहीं है।',
     },
     {
       q: 'क्या यह प्लेटफॉर्म छात्रों व बच्चों के लिए सुरक्षित है?',
@@ -204,14 +204,14 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
     { title: '🏛️ RTPS व नागरिक प्रमाण पत्र', desc: 'जाति, आय, निवास, EWS, NCL, चरित्र प्रमाण पत्र की स्टेप-बाय-स्टेप गाइड व चेकलिस्ट।' },
     { title: '🌾 जमीन सुधार व दाखिल-खारिज', desc: 'दाखिल-खारिज (Mutation), परिमार्जन (डिजिटल जमाबंदी सुधार), LPC व ऑनलाइन लगान रसीद।' },
     { title: '🪪 10 मिनट में Instant e-PAN', desc: 'इनकम टैक्स पोर्टल से बिना ₹1 खर्च किए आधार OTP से तुरंत नया पैन कार्ड बनाएं।' },
-    { title: '👑 7 मास्टर स्वावलंबन प्लांस', desc: '₹10 से ₹999 तक के प्लान, 500+ ई-बुक्स, 10,000+ AI प्रॉम्ट्स व 70% सीधा इंसेंटिव।' },
+    { title: '👑 7 मास्टर स्वावलंबन प्लांस', desc: '₹10 से ₹999 तक के प्लान, 500+ ई-बुक्स, 10,000+ AI प्रॉम्ट्स व 50% से 70% सीधा इंसेंटिव।' },
     { title: '🌤️ लाइव मौसम व वर्षा अलर्ट', desc: 'सटीक शहरवार तापमान, बादलों की स्थिति, बारिश अलर्ट व 7-दिवसीय पूर्वानुमान।' },
     { title: '📺 24x7 लाइव न्यूज़ व ई-अखबार', desc: 'लाइव टीवी स्ट्रीमिंग (Aaj Tak, ABP, Zee आदि) और सभी प्रमुख राष्ट्रीय डिजिटल अखबार।' },
     { title: '🕉️ दैनिक पंचांग व 12 राशिफल', desc: 'शुभ मुहूर्त, राहु काल, चौघड़िया, लकी नंबर/रंग और दैनिक भाग्य फल।' },
     { title: '🌾 मंडी भाव व 24K सोना-चांदी', desc: 'फसलों के लाइव कृषि मंडी दाम और 24K/22K गोल्ड व चांदी के ताजा सर्राफा भाव।' },
     { title: '🪪 डिजिटल ID कार्ड जनरेटर', desc: '256-Bit एन्क्रिप्टेड स्मार्ट डिजिटल पहचान पत्र, लाइव प्रिव्यू व HD PNG डाउनलोड।' },
     { title: '💼 लाइव सरकारी व प्राइवेट जॉब्स', desc: 'SSC, रेलवे, बैंक, पुलिस की नई भर्तियां और घर बैठे डिजिटल अर्निंग अवसर।' },
-    { title: '🧮 70% अर्निंग कैलकुलेटर', desc: 'दैनिक, साप्ताहिक व मासिक रेफरल पेआउट का लाइव इंटरएक्टिव सिमुलेशन।' },
+    { title: '🧮 50%-70% अर्निंग कैलकुलेटर', desc: 'दैनिक, साप्ताहिक व मासिक रेफरल पेआउट का लाइव इंटरएक्टिव सिमुलेशन।' },
     { title: '🤖 24x7 IOIS AI असिस्टेंट', desc: 'किसी भी सरकारी योजना, RTPS या प्लान को समझने के लिए तुरंत हिंदी में AI सहायता।' },
   ];
 
@@ -363,9 +363,9 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
               <div className="w-10 h-10 rounded-xl bg-green-500/20 text-green-300 flex items-center justify-center font-bold text-lg">
                 💰
               </div>
-              <h3 className="text-sm font-black text-white">2. सीधा 70% इंसेंटिव</h3>
+              <h3 className="text-sm font-black text-white">2. सीधा 50% से 70% इंसेंटिव</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                बिना बिचौलिए के प्रति रेफरल ₹7 से ₹699 तक सीधा और पारदर्शी पेआउट।
+                बिना बिचौलिए के प्रति रेफरल ₹7 से ₹499 तक योजना अनुसार सीधा और पारदर्शी पेआउट।
               </p>
             </div>
 
@@ -398,7 +398,7 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
           <div>
             <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-amber-300 text-xs font-black uppercase">
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>70% डायरेक्ट इंसेंटिव मॉडल</span>
+              <span>50% से 70% डायरेक्ट इंसेंटिव मॉडल</span>
             </div>
             <h2 className="text-2xl sm:text-4xl font-black text-white mt-1">
               IOIS के सभी 7 मास्टर प्लांस (Plan Details & Earnings)
@@ -450,7 +450,7 @@ export const IoisPurposeWelcomeExplainer: React.FC<IoisPurposeWelcomeExplainerPr
                 {activePlanData.name}
               </span>
               <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/40 px-2.5 py-0.5 rounded-full">
-                70% सीधा इंसेंटिव: ₹{activePlanData.instantPayout}
+                {activePlanData.percentage}% सीधा इंसेंटिव: ₹{activePlanData.instantPayout}
               </span>
             </div>
 

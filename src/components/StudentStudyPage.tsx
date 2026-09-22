@@ -111,8 +111,8 @@ export const StudentStudyPage: React.FC<StudentStudyPageProps> = ({
         id: 3,
         name: 'प्लान 3 - करियर ग्रोथ प्लान',
         price: 99,
-        incentive: 69.30,
-        reason: 'JEE/NEET एवं बोर्ड्स के लिए एडवांस्ड नोट्स, AI करियर रोडमैप्स व 70% इंसेंटिव से अपनी कोचिंग फीस खुद निकालने का अवसर।'
+        incentive: 64,
+        reason: 'JEE/NEET एवं बोर्ड्स के लिए एडवांस्ड नोट्स, AI करियर रोडमैप्स व 65% इंसेंटिव से अपनी कोचिंग फीस खुद निकालने का अवसर।'
       }
     },
     class_11_12_arts_com: {
@@ -123,8 +123,8 @@ export const StudentStudyPage: React.FC<StudentStudyPageProps> = ({
         id: 3,
         name: 'प्लान 3 - करियर ग्रोथ प्लान',
         price: 99,
-        incentive: 69.30,
-        reason: 'कॉमर्स व आर्ट्स के बेहतरीन रिसोर्सेज, एकाउंटिंग नोट्स और डिजिटल रेफरल अर्निंग।'
+        incentive: 64,
+        reason: 'कॉमर्स व आर्ट्स के बेहतरीन रिसोर्सेज, एकाउंटिंग नोट्स और 65% सीधा रेफरल इंसेंटिव।'
       }
     },
     college_degree: {
@@ -135,8 +135,8 @@ export const StudentStudyPage: React.FC<StudentStudyPageProps> = ({
         id: 4,
         name: 'प्लान 4 - स्किल मास्टर व वोकेशनल प्लान',
         price: 199,
-        incentive: 139.30,
-        reason: 'ADCA फुल कोर्स गाइड, Tally GST, बोनाफाइड जनरेटर व ₹139.30 प्रति सफल रेफरल से पढ़ाई के साथ आत्मनिर्भर आय।'
+        incentive: 119,
+        reason: 'ADCA फुल कोर्स गाइड, Tally GST, बोनाफाइड जनरेटर व ₹119 (60%) प्रति सफल रेफरल से पढ़ाई के साथ आत्मनिर्भर आय।'
       }
     },
     job_aspirant: {
@@ -147,8 +147,8 @@ export const StudentStudyPage: React.FC<StudentStudyPageProps> = ({
         id: 4,
         name: 'प्लान 4 - स्किल मास्टर व वोकेशनल प्लान',
         price: 199,
-        incentive: 139.30,
-        reason: 'प्रतियोगी परीक्षा स्टडी बंडल, ADCA सर्टिफिकेशन गाइड और 70% सीधा पारदर्शी इंसेंटिव।'
+        incentive: 119,
+        reason: 'प्रतियोगी परीक्षा स्टडी बंडल, ADCA सर्टिफिकेशन गाइड और 60% सीधा पारदर्शी इंसेंटिव।'
       }
     }
   };
@@ -303,7 +303,7 @@ export const StudentStudyPage: React.FC<StudentStudyPageProps> = ({
         'ChatGPT एवं Google Gemini का ऑफिस कार्यों में उपयोग: स्वचालित ईमेल, रिपोर्ट व कंटेंट राइटिंग।',
         'एक्सेल फॉर्मूला व कोडिंग के लिए AI प्रॉम्प्ट्स बनाना और त्रुटियों को तुरंत ठीक करना।',
         'डिजिटल फ्रीलांसिंग: Fiverr, Upwork व लोकल दुकानों से डेटा एंट्री व डिजाइनिंग प्रोजेक्ट्स पाना।',
-        'IOIS प्लेटफॉर्म पर 70% डिजिटल इंसेंटिव मॉडल से घर बैठे ₹15,000-₹30,000/माह कमाने की रणनीति।'
+        'IOIS प्लेटफॉर्म पर 50% से 70% डिजिटल इंसेंटिव मॉडल से घर बैठे ₹15,000-₹30,000/माह कमाने की रणनीति।'
       ],
       practical: 'AI प्रॉम्प्ट्स से 10 सेकंड में प्रोफेशनल रिज्यूमे व प्रोजेक्ट रिपोर्ट तैयार करना।'
     }
@@ -447,7 +447,7 @@ Principal / Dean / Registrar
   // Career Roadmaps
   const careerRoadmaps = [
     {
-      title: '🩺 डॉक्टर (Doctor / MBBS / BDS / BAMS)',
+      title: 'डॉक्टर (Doctor / MBBS / BDS / BAMS)',
       icon: Stethoscope,
       color: 'from-emerald-600 to-teal-700',
       steps: [
@@ -458,7 +458,7 @@ Principal / Dean / Registrar
       ]
     },
     {
-      title: '💻 सॉफ्टवेयर इंजीनियर / टेक लीड (IIT JEE / B.Tech / AI)',
+      title: 'सॉफ्टवेयर इंजीनियर व टेक लीड (IIT JEE / B.Tech / AI)',
       icon: Cpu,
       color: 'from-blue-600 to-indigo-700',
       steps: [
@@ -469,7 +469,7 @@ Principal / Dean / Registrar
       ]
     },
     {
-      title: '🏛️ सिविल सेवा / प्रशासनिक अधिकारी (IAS / IPS / BPSC / PCS)',
+      title: 'सिविल सेवा व प्रशासनिक अधिकारी (IAS / IPS / BPSC / PCS)',
       icon: Landmark,
       color: 'from-amber-600 to-yellow-700',
       steps: [
@@ -480,7 +480,7 @@ Principal / Dean / Registrar
       ]
     },
     {
-      title: '🎖️ रक्षा सेवा / सेना अधिकारी (NDA / CDS / Air Force / Navy)',
+      title: 'रक्षा सेवा व सेना अधिकारी (NDA / CDS / Air Force / Navy)',
       icon: ShieldCheck,
       color: 'from-red-600 to-rose-700',
       steps: [
@@ -510,13 +510,13 @@ Principal / Dean / Registrar
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
-            📚 विद्यार्थी शिक्षा, <span className="tiranga-text">ADCA कंप्यूटर कोर्स</span> व करियर हब
+            विद्यार्थी शिक्षा, <span className="tiranga-text">ADCA कंप्यूटर कोर्स</span> व करियर हब
           </h1>
 
           <p className="text-slate-300 text-xs sm:text-base leading-relaxed max-w-4xl">
             कक्षा 1 से 12वीं, कॉलेज (BA, BSc, B.Com) व प्रतियोगी परीक्षा की तैयारी कर रहे छात्रों तथा अभिभावकों के लिए सम्पूर्ण डिजिटल केंद्र।
             यहाँ <strong>स्मार्ट इंटरव्यू व वेलकम गाइड</strong>, <strong>ADCA कंप्यूटर डिप्लोमा सिलेबस</strong>, <strong>NCERT बुक्स</strong>, 
-            <strong> कॉलेज बोनाफाइड सर्टिफिकेट जनरेटर</strong> और <strong>70% इंसेंटिव से आत्मनिर्भर बनने की रणनीति</strong> उपलब्ध है।
+            <strong> कॉलेज बोनाफाइड सर्टिफिकेट जनरेटर</strong> और <strong>50% से 70% इंसेंटिव से आत्मनिर्भर बनने की रणनीति</strong> उपलब्ध है।
           </p>
 
           {/* Quick AI Search bar for study / interview doubts */}
@@ -551,14 +551,14 @@ Principal / Dean / Registrar
       {/* 2. Navigation Tabs Bar */}
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
         {[
-          { id: 'smart_interview', label: '🎯 विद्यार्थी व अभिभावक इंटरव्यू', icon: UserCheck },
-          { id: 'adca_course', label: '💻 ADCA कंप्यूटर मास्टर कोर्स', icon: Monitor },
-          { id: 'gk_geography', label: '🌊 भारतीय भूगोल व GK', icon: Landmark },
-          { id: 'bonafide', label: '📜 बोनाफाइड सर्टिफिकेट फॉर्मेट', icon: Award },
-          { id: 'formulas', label: '📐 मैथ्स व साइंस फॉर्मूला', icon: Calculator },
-          { id: 'scholarships', label: '🏛️ स्कॉलरशिप व PMS पोर्टल', icon: Building2 },
-          { id: 'careers', label: '🎓 करियर रोडमैप (Doctor/IAS/Tech)', icon: Briefcase },
-          { id: 'elibrary', label: '📖 फ्री NCERT व ई-लाइब्रेरी', icon: BookOpen },
+          { id: 'smart_interview', label: 'विद्यार्थी व अभिभावक इंटरव्यू', icon: UserCheck },
+          { id: 'adca_course', label: 'ADCA कंप्यूटर मास्टर कोर्स', icon: Monitor },
+          { id: 'gk_geography', label: 'भारतीय भूगोल व GK', icon: Landmark },
+          { id: 'bonafide', label: 'बोनाफाइड सर्टिफिकेट फॉर्मेट', icon: Award },
+          { id: 'formulas', label: 'मैथ्स व साइंस फॉर्मूला', icon: Calculator },
+          { id: 'scholarships', label: 'स्कॉलरशिप व PMS पोर्टल', icon: Building2 },
+          { id: 'careers', label: 'करियर रोडमैप', icon: Briefcase },
+          { id: 'elibrary', label: 'फ्री NCERT व ई-लाइब्रेरी', icon: BookOpen },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -677,7 +677,7 @@ Principal / Dean / Registrar
                   onChange={(e) => setInterviewGoal(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none"
                 >
-                  <option value="computer_earning">💻 ADCA कंप्यूटर स्किल सीखना + 70% ऑनलाइन कमाई</option>
+                  <option value="computer_earning">💻 ADCA कंप्यूटर स्किल सीखना + 50%-70% ऑनलाइन कमाई</option>
                   <option value="ncert_notes">📚 मुफ्त NCERT बुक्स, नोट्स व परीक्षा मॉडल पेपर</option>
                   <option value="career_guidance">🚀 डॉक्टर/इंजीनियर/IAS बनने का सही रास्ता चुनना</option>
                   <option value="bonafide_scholarship">🏛️ बोनाफाइड सर्टिफिकेट व छात्रवृत्ति (NSP/PMS) पाना</option>
@@ -803,7 +803,7 @@ Principal / Dean / Registrar
                 <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
                   <div className="flex items-center gap-2 text-amber-400">
                     <TrendingUp className="w-5 h-5" />
-                    <h4 className="font-black text-sm text-white">3. आत्मनिर्भरता (70% Earning)</h4>
+                    <h4 className="font-black text-sm text-white">3. आत्मनिर्भरता (50%-70% Earning)</h4>
                   </div>
                   <ul className="space-y-2 text-xs text-slate-300">
                     <li className="flex items-start gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
@@ -812,7 +812,7 @@ Principal / Dean / Registrar
                     </li>
                     <li className="flex items-start gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                       <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <span><strong>70% सीधा इंसेंटिव:</strong> प्रत्येक रेफरल पर 70% (₹34.30 से ₹699 तक) सीधे अपने बैंक/UPI में पाएं।</span>
+                      <span><strong>सीधा इंसेंटिव:</strong> प्रत्येक रेफरल पर प्लान के अनुसार 50% से 70% (₹7 से ₹499 तक) सीधे अपने बैंक/UPI में पाएं।</span>
                     </li>
                     <li className="flex items-start gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                       <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -859,7 +859,7 @@ Principal / Dean / Registrar
 
                     <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
                       <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                        <span className="text-slate-400 block text-[10px]">सीधा 70% इंसेंटिव:</span>
+                        <span className="text-slate-400 block text-[10px]">सीधा इंसेंटिव (पेआउट):</span>
                         <strong className="text-emerald-400 font-black text-sm">
                           ₹{selectedGradeInfo.recommendedPlan.incentive.toFixed(2)} / रेफर
                         </strong>

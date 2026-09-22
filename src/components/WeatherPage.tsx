@@ -18,7 +18,8 @@ import {
   MapPin, 
   Sparkles,
   Thermometer,
-  ShieldAlert
+  ShieldAlert,
+  Calendar
 } from 'lucide-react';
 
 export const WeatherPage: React.FC = () => {
@@ -320,7 +321,7 @@ export const WeatherPage: React.FC = () => {
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>आज के अगले घंटों का पूर्वानुमान (Hourly Forecast):</span>
+              <span>आज के अगले घंटों का पूर्वानुमान</span>
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3">
               {weather.hourly.map((h, idx) => (
@@ -346,8 +347,8 @@ export const WeatherPage: React.FC = () => {
           {/* 4. 7-Day Extended Forecast Table */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
             <h4 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-amber-400" />
-              <span>आगामी 7 दिनों का विस्तृत मौसम (7-Day Forecast):</span>
+              <Calendar className="w-4 h-4 text-amber-400" />
+              <span>आगामी 7 दिनों का विस्तृत मौसम</span>
             </h4>
 
             <div className="divide-y divide-slate-800">
@@ -384,14 +385,3 @@ export const WeatherPage: React.FC = () => {
     </div>
   );
 };
-
-function CalendarIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-      <line x1="16" x2="16" y1="2" y2="6"/>
-      <line x1="8" x2="8" y1="2" y2="6"/>
-      <line x1="3" x2="21" y1="10" y2="10"/>
-    </svg>
-  );
-}

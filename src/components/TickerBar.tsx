@@ -3,7 +3,11 @@ import { PLANS, OFFICIAL_FORM_URL } from '../data/plansData';
 import { TickerSpeed } from '../types';
 import { Play, Pause, Gauge, ChevronRight } from 'lucide-react';
 
-export const TickerBar: React.FC = () => {
+interface TickerBarProps {
+  onOpenRegister?: (planId?: number) => void;
+}
+
+export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
   const [speed, setSpeed] = useState<TickerSpeed>('slow');
   const [isHovered, setIsHovered] = useState<boolean>(false);
 
@@ -90,15 +94,26 @@ export const TickerBar: React.FC = () => {
               <span className="tiranga-text font-black tracking-wide">
                 {plan.code}: {plan.name} - ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔ ₹{plan.instantPayout} Instant Payout per Referral ({plan.percentage}%)
               </span>
-              <a
-                href={OFFICIAL_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
-              >
-                <span>JOIN NOW</span>
-                <ChevronRight className="w-2.5 h-2.5" />
-              </a>
+              {onOpenRegister ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenRegister(plan.id)}
+                  className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <span>JOIN NOW</span>
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </button>
+              ) : (
+                <a
+                  href={OFFICIAL_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
+                >
+                  <span>JOIN NOW</span>
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
           ))}
 
@@ -111,15 +126,26 @@ export const TickerBar: React.FC = () => {
               <span className="tiranga-text font-black tracking-wide">
                 {plan.code}: {plan.name} - ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔ ₹{plan.instantPayout} Instant Payout per Referral ({plan.percentage}%)
               </span>
-              <a
-                href={OFFICIAL_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
-              >
-                <span>JOIN NOW</span>
-                <ChevronRight className="w-2.5 h-2.5" />
-              </a>
+              {onOpenRegister ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenRegister(plan.id)}
+                  className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <span>JOIN NOW</span>
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </button>
+              ) : (
+                <a
+                  href={OFFICIAL_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
+                >
+                  <span>JOIN NOW</span>
+                  <ChevronRight className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
           ))}
         </div>

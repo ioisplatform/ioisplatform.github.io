@@ -425,7 +425,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 {createdUser.userId}
               </div>
               <span className="text-[10px] text-slate-400 block">
-                प्लान: {selectedPlan.code} (₹{selectedPlan.price}) • 70% इंसेंटिव सक्रिय
+                प्लान: {selectedPlan.code} (₹{selectedPlan.price}) • {selectedPlan.percentage}% इंसेंटिव सक्रिय
               </span>
             </div>
 
@@ -595,7 +595,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                     <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
                       <span>IOIS सदस्यता प्लान <span className="text-red-400">*</span>:</span>
                       <span className="text-[10px] text-amber-400 font-bold">
-                        शुल्क: ₹{selectedPlan.price} (70% पेआउट)
+                        शुल्क: ₹{selectedPlan.price} ({selectedPlan.percentage}% पेआउट)
                       </span>
                     </label>
                     <select
@@ -785,8 +785,9 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                     <input
                       type="text"
                       required
+                      maxLength={50}
                       value={payoutUpi}
-                      onChange={(e) => setPayoutUpi(e.target.value)}
+                      onChange={(e) => setPayoutUpi(e.target.value.replace(/\s+/g, '').slice(0, 50))}
                       placeholder="उदा. 9876543210@paytm"
                       className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3 py-2 outline-none transition"
                     />

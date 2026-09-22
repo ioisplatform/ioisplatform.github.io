@@ -30,6 +30,7 @@ import { LegalPolicyPages } from './components/LegalPolicyPages';
 import { QuickPageShortcuts } from './components/QuickPageShortcuts';
 import { Footer } from './components/Footer';
 import { AIChatBot } from './components/AIChatBot';
+import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
 import { Plan, UserProfile, PageType } from './types';
 import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser } from './services/userService';
 import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
@@ -46,10 +47,11 @@ export default function App() {
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>('login');
   const [authModalPrefill, setAuthModalPrefill] = useState<{ identifier?: string; mobile?: string; userId?: string }>({});
 
-  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card)
+  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card, Services)
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState<boolean>(false);
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
+  const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
 
   // Sync users with backend on launch and periodically check status updates
   useEffect(() => {
@@ -141,6 +143,7 @@ export default function App() {
           setChatInitialQuery('');
           setIsChatOpen(true);
         }}
+        onOpenServices={() => setIsServicesModalOpen(true)}
         onOpenLogin={() => handleOpenLogin('login')}
         onOpenRegister={() => handleOpenRegister()}
         onOpenDashboard={handleOpenDashboard}
@@ -149,10 +152,10 @@ export default function App() {
       />
 
       {/* 2. Controlled Live News & Instant Payout Ticker */}
-      <TickerBar />
+      <TickerBar onOpenRegister={(planId) => handleSelectPlanForRegister(planId || 1)} />
 
       {/* 3. Main Dynamic Content Area based on Current Page - Full width & responsive */}
-      <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-20 sm:pb-8">
+      <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-36 sm:pb-16">
         
         {/* ================= PAGE 1: HOME PAGE (Central Dashboard with all section buttons) ================= */}
         {currentPage === 'home' && (
@@ -212,7 +215,7 @@ export default function App() {
               currentPage="plans"
               onNavigate={navigateTo}
               title="7 मास्टर प्लांस (IOIS 7 Master Plans)"
-              subtitle="₹10 से ₹999 तक के सभी आधिकारिक प्लांस, 70% इंसेंटिव व डिजिटल संसाधन"
+              subtitle="₹10 से ₹999 तक के सभी आधिकारिक प्लांस, 50% से 70% इंसेंटिव व डिजिटल संसाधन"
             />
             <PlansGrid
               onAskAI={handleOpenChatWithQuery}
@@ -289,7 +292,7 @@ export default function App() {
               currentPage="calculator"
               onNavigate={navigateTo}
               title="इंसेंटिव व अर्निंग कैलकुलेटर (Payout Calculator)"
-              subtitle="70% दैनिक, साप्ताहिक व मासिक रेफरल आय का लाइव सिमुलेटर"
+              subtitle="योजना अनुसार 50% से 70% दैनिक, साप्ताहिक व मासिक रेफरल आय का लाइव सिमुलेटर"
             />
             <PayoutCalculator />
           </div>
@@ -560,6 +563,9 @@ export default function App() {
               setChatInitialQuery('');
               setIsChatOpen(true);
             }}
+            onOpenServicesModal={() => setIsServicesModalOpen(true)}
+            onOpenRegister={handleOpenRegister}
+            onOpenIdCard={handleOpenIdCard}
           />
         )}
 
@@ -630,14 +636,14 @@ export default function App() {
         )}
       </nav>
 
-      {/* 6. Floating AI Chatbot Launcher Button - Positioned above mobile bar on phones */}
+      {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above mobile dock */}
       <button
         id="floating-ai-chat-launcher"
         onClick={() => {
           setChatInitialQuery('');
           setIsChatOpen(true);
         }}
-        className="fixed bottom-16 sm:bottom-6 right-3 sm:right-6 z-40 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_30px_rgba(212,175,55,0.4)] flex items-center gap-1.5 sm:gap-2 transition transform hover:scale-108 active:scale-95 cursor-pointer border-2 border-white/40"
+        className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-40 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_30px_rgba(212,175,55,0.4)] flex items-center gap-1.5 sm:gap-2 transition transform hover:scale-108 active:scale-95 cursor-pointer border-2 border-white/40"
         title="Open Live AI Assistant"
       >
         <Sparkles className="w-4 h-4 text-black animate-spin" style={{ animationDuration: '4s' }} />
@@ -707,6 +713,19 @@ export default function App() {
         onOpenLogin={() => {
           setIsIdCardModalOpen(false);
           handleOpenLogin('login');
+        }}
+      />
+
+      {/* 12. All IOIS Services & Portals Drawer Dialog Modal */}
+      <IoisServicesDrawerModal
+        isOpen={isServicesModalOpen}
+        onClose={() => setIsServicesModalOpen(false)}
+        currentPage={currentPage}
+        onNavigate={navigateTo}
+        onOpenAiChat={() => {
+          setIsServicesModalOpen(false);
+          setChatInitialQuery('');
+          setIsChatOpen(true);
         }}
       />
     </div>

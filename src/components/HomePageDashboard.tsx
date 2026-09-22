@@ -99,11 +99,11 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
     {
       id: 'plans' as PageType,
       title: '7 मास्टर प्लांस',
-      sub: '₹10 से ₹999, 70% आय',
+      sub: '₹10 से ₹999, 50%-70% आय',
       icon: Crown,
       color: 'from-amber-500 to-yellow-500',
       iconColor: 'text-amber-400',
-      badge: '70% इंसेंटिव',
+      badge: '50%-70% इंसेंटिव',
     },
     {
       id: 'student-study' as PageType,
@@ -153,7 +153,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
     {
       id: 'calculator' as PageType,
       title: 'अर्निंग कैलकुलेटर',
-      sub: '70% दैनिक आय सिमुलेटर',
+      sub: '50%-70% आय सिमुलेटर',
       icon: Calculator,
       color: 'from-purple-500 to-pink-600',
       iconColor: 'text-purple-400',
@@ -275,7 +275,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
                 <span>🎯 IOIS रजिस्ट्रेशन / Join Now (7 मास्टर प्लांस)</span>
               </h3>
               <p className="text-slate-300 text-xs max-w-xl leading-relaxed">
-                ₹10 से ₹999 में से कोई भी प्लान चुनें, अपना डिजिटल ID कार्ड पाएं और हर रेफरल पर सीधा <strong>70% इंसेंटिव</strong> अपने खाते में प्राप्त करें।
+                ₹10 से ₹999 में से कोई भी प्लान चुनें, अपना डिजिटल ID कार्ड पाएं और प्लान के अनुसार प्रत्येक रेफरल पर सीधा <strong>50% से 70% तक इंसेंटिव</strong> अपने खाते में प्राप्त करें।
               </p>
               <div className="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/40 text-[10px] sm:text-[11px] text-amber-200 flex items-start gap-2 text-left">
                 <span className="text-amber-400 font-bold shrink-0">⚠️ ध्यान दें:</span>
@@ -301,7 +301,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         {/* Chrome-Style Speed Dial Quick Shortcuts Grid (Minimalist, Clean) */}
         <div className="w-full max-w-4xl mx-auto pt-1 sm:pt-2">
           <div className="text-left text-[11px] sm:text-xs font-black text-slate-400 uppercase tracking-wider mb-2.5 px-1 flex items-center justify-between">
-            <span>प्रमुख डिजिटल सेवाएं (Core Quick Shortcuts):</span>
+            <span>प्रमुख डिजिटल सेवाएं</span>
             <span className="text-amber-400 font-bold">1-क्लिक एक्सेस</span>
           </div>
 
@@ -349,10 +349,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-amber-400 text-[11px] sm:text-xs font-black uppercase tracking-wider">
               <Compass className="w-3.5 h-3.5" />
-              <span>ABOUT IOIS PLATFORM</span>
+              <span>IOIS परिचय</span>
             </div>
             <h2 className="text-xl sm:text-3xl font-black text-white">
-              📖 IOIS क्या है और यह कैसे काम करता है?
+              IOIS क्या है और यह कैसे काम करता है?
             </h2>
             <p className="text-slate-300 text-xs sm:text-sm max-w-2xl">
               भारतीय ऑनलाइन आय सहयोग प्रणाली (IOIS) देश के युवाओं, विद्यार्थियों और परिवारों को डिजिटल आत्मनिर्भरता प्रदान करने वाला विश्वसनीय प्लेटफॉर्म है।
@@ -373,18 +373,18 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         {/* 3 Core Pillars of IOIS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-sm border border-amber-500/30">
-              70%
+            <div className="w-12 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs border border-amber-500/30">
+              50-70%
             </div>
-            <h3 className="text-sm font-black text-white">1. सीधा 70% रेफरल इंसेंटिव</h3>
+            <h3 className="text-sm font-black text-white">1. सीधा 50% से 70% रेफरल इंसेंटिव</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              प्रत्येक सफल रेफरल पर आपको ₹7 से ₹699 तक सीधा 70% इंसेंटिव मिलता है। बिना किसी छिपे शुल्क के 100% पारदर्शी दैनिक भुगतान।
+              प्रत्येक सफल रेफरल पर आपको प्लान अनुसार सीधा 50% से 70% (₹7 से ₹499 तक) इंसेंटिव मिलता है। बिना किसी छिपे शुल्क के 100% पारदर्शी दैनिक भुगतान।
             </p>
           </div>
 
           <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
             <div className="w-9 h-9 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-black text-sm border border-violet-500/30">
-              📚
+              <BookOpen className="w-5 h-5 text-violet-400" />
             </div>
             <h3 className="text-sm font-black text-white">2. विद्यार्थी शिक्षा व डिजिटल संसाधन</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
@@ -394,7 +394,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
           <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-sm border border-emerald-500/30">
-              🏛️
+              <Building2 className="w-5 h-5 text-emerald-400" />
             </div>
             <h3 className="text-sm font-black text-white">3. नागरिक सहायता व RTPS गाइड</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
@@ -406,7 +406,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         {/* 3 Step Working Process */}
         <div className="p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-950 to-emerald-500/10 border border-amber-400/20 space-y-3 sm:space-y-4">
           <h4 className="text-xs font-black text-amber-300 uppercase tracking-wider">
-            ⚡ केवल 3 चरणों में शुरुआत करें (How to Get Started):
+            केवल 3 चरणों में शुरुआत करें:
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 text-xs">
@@ -430,7 +430,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
               <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 text-xs">3</span>
               <div>
                 <strong className="text-white block font-bold">शेयर करें व कमाएं</strong>
-                <span className="text-slate-400">डिजिटल सामग्री साझा करें और हर नए सदस्य पर 70% इंसेंटिव अपने खाते में प्राप्त करें।</span>
+                <span className="text-slate-400">डिजिटल सामग्री साझा करें और हर नए सदस्य पर प्लान अनुसार 50% से 70% तक इंसेंटिव अपने खाते में प्राप्त करें।</span>
               </div>
             </div>
           </div>

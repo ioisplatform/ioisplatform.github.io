@@ -315,8 +315,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <input
                   type="text"
                   disabled={!isEditing}
+                  maxLength={50}
                   value={payoutUpi}
-                  onChange={(e) => setPayoutUpi(e.target.value)}
+                  onChange={(e) => setPayoutUpi(e.target.value.replace(/\s+/g, '').slice(0, 50))}
                   placeholder="name@upi"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 disabled:opacity-70 text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition"
                 />
@@ -339,7 +340,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[11px] text-amber-300 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                <strong>पेआउट पता चेतावनी:</strong> सुनिश्चित करें कि आपका पेआउट UPI ID (<strong>{payoutUpi || 'दर्ज नहीं'}</strong>) 100% सही है। आपके 70% रेफरल इंसेंटिव सीधे इसी पते पर ट्रांसफर किए जाते हैं।
+                <strong>पेआउट पता चेतावनी:</strong> सुनिश्चित करें कि आपका पेआउट UPI ID (<strong>{payoutUpi || 'दर्ज नहीं'}</strong>) 100% सही है। आपके योजना अनुसार 50% से 70% रेफरल इंसेंटिव सीधे इसी पते पर ट्रांसफर किए जाते हैं।
               </span>
             </div>
 

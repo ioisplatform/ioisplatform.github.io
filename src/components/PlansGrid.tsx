@@ -29,16 +29,16 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
           IOIS 7 Dynamic Master Plans
         </h2>
         <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-          हर योजना एक नई संभावना है। अपनी आवश्यकता और लक्ष्य के अनुसार सही प्लान का चयन करें, इन-ऐप सीधे एक्टिवेट करें और डिजिटल कौशल के साथ तत्काल 70% इंसेंटिव प्राप्त करें।
+          हर योजना एक नई संभावना है। अपनी आवश्यकता और लक्ष्य के अनुसार सही प्लान का चयन करें, इन-ऐप सीधे एक्टिवेट करें और डिजिटल कौशल के साथ 50% से 70% तक त्वरित इंसेंटिव प्राप्त करें।
         </p>
 
         {/* Filter Pills */}
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
           {[
-            { key: 'all', label: 'सभी 7 प्लान (All Plans)' },
+            { key: 'all', label: 'सभी 7 प्लान' },
             { key: 'starter', label: 'शुरुआती प्लान (₹10 - ₹49)' },
-            { key: 'pro', label: 'कैरियर व छात्र (₹99 - ₹299)' },
-            { key: 'master', label: 'रीसेलर व मास्टर (₹499 - ₹999)' },
+            { key: 'pro', label: 'करियर व छात्र (₹99 - ₹299)' },
+            { key: 'master', label: 'मास्टर प्लान (₹499 - ₹999)' },
           ].map((item) => (
             <button
               key={item.key}
@@ -87,7 +87,7 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
 
                     <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-400 text-black px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-md">
                       <Zap className="w-4 h-4 fill-black" />
-                      <span>70% INSTANT PAYOUT (₹499/Referral)</span>
+                      <span>{plan.percentage}% INSTANT PAYOUT (₹{plan.instantPayout}/Referral)</span>
                     </div>
                   </div>
 
@@ -166,7 +166,7 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
             <div
               key={plan.id}
               id={`plan-card-${plan.id}`}
-              className={`glass-card-premium border-t-4 ${plan.borderColor} flex flex-col justify-between p-6 space-y-6`}
+              className="glass-card-premium border border-slate-800 hover:border-amber-500/40 rounded-2xl flex flex-col justify-between p-6 space-y-6 transition-all duration-200 hover:shadow-xl"
             >
               <div className="space-y-4">
                 {/* Badge & Code */}
@@ -217,7 +217,7 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
                 </div>
 
                 {/* Story Snippet */}
-                <div className="p-3 bg-slate-950/70 border-l-2 border-amber-400 rounded-r-xl text-[11px] text-slate-300 italic leading-relaxed">
+                <div className="p-3 bg-slate-950/70 border border-amber-500/20 rounded-xl text-[11px] text-slate-300 italic leading-relaxed">
                   <span className="text-amber-400 font-bold block not-italic text-[10px]">
                     {plan.storyTitle}:
                   </span>
