@@ -1,0 +1,6 @@
+{
+  "name": "IOIS Student Learning Platform",
+  "description": "IOIS 7 अध्ययन योजनाएं (Class 1-12) - सचित्र NCERT नोट्स, आधिकारिक HD वीडियो कक्षाएं, डिजिटल अक्षर ट्रेसिंग पैड व दैनिक गृहकार्य प्रणाली।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
