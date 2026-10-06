@@ -7,6 +7,9 @@ import { MembershipPlansSection } from './components/MembershipPlansSection';
 import { StudentLeaderboardWidget } from './components/StudentLeaderboardWidget';
 import { StudentMainDashboardView } from './components/StudentMainDashboardView';
 import { Footer } from './components/Footer';
+import { FloatingContactWidget } from './components/FloatingContactWidget';
+import { PromotionalPosterBanner } from './components/PromotionalPosterBanner';
+import { useSiteSettings } from './hooks/useSiteSettings';
 import { ioisMasterPlans } from './data/ioisPlansData';
 import { PlanDetail, MemberProfile } from './types';
 import { 
@@ -41,6 +44,8 @@ const ModalLoadingFallback = () => (
 );
 
 export default function App() {
+  const siteSettings = useSiteSettings();
+
   // User session state
   const [currentUser, setCurrentUser] = useState<MemberProfile | null>(() => {
     return getCurrentSessionUser() || null;
@@ -151,7 +156,7 @@ export default function App() {
   const currentStudyPlanObj: PlanDetail = ioisMasterPlans.find(p => p.id === selectedStudyPlanId) || ioisMasterPlans[0];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8fafc] text-slate-900 selection:bg-amber-400 selection:text-slate-950 font-sans antialiased">
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] text-slate-900 selection:bg-amber-400 selection:text-slate-950 font-sans antialiased overflow-x-hidden w-full max-w-full">
       
       {/* 1. Global Student Navbar (Professional Educational Blue & White) */}
       {!isDashboardView && (
@@ -177,6 +182,20 @@ export default function App() {
           onOpenAdminModal={() => setAdminModalOpen(true)}
           onLogout={handleLogout}
         />
+      )}
+
+      {/* Global Announcement Ticker (Managed by Admin Panel) */}
+      {!isDashboardView && siteSettings.announcementTickerEnabled && siteSettings.announcementTickerText && (
+        <div className="bg-gradient-to-r from-orange-600 via-amber-500 to-orange-600 text-slate-950 font-bold text-xs py-1.5 px-3 sm:px-4 shadow-sm flex items-center justify-between border-b border-orange-700 overflow-hidden w-full max-w-full">
+          <div className="max-w-7xl mx-auto w-full flex items-center gap-2 overflow-hidden min-w-0">
+            <span className="px-2 py-0.5 rounded-full bg-slate-950 text-amber-300 text-[10px] font-black uppercase shrink-0">
+              📢 आधिकारिक सूचना
+            </span>
+            <span className="truncate text-slate-950 font-black text-[11px] sm:text-xs min-w-0">
+              {siteSettings.announcementTickerText}
+            </span>
+          </div>
+        </div>
       )}
 
       {/* CONDITIONAL VIEWS:
@@ -233,6 +252,14 @@ export default function App() {
             onOpenResumeBuilder={() => setActiveStudyPlanId('plan-02')}
             onOpenRegistration={(pId) => handleOpenRegistration(pId || 'plan-01')}
           />
+
+          {/* PROMOTIONAL POSTERS BANNER (Managed by Admin Panel) */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <PromotionalPosterBanner
+              onSelectPlan={(pId) => handleOpenRegistration(pId)}
+              onOpenStudyModal={handleOpenStudyModal}
+            />
+          </div>
 
           {/* SECTION 2: SMART STUDENT DASHBOARD / CLASS SELECTION GRID */}
           <ClassSelectionGrid
@@ -422,6 +449,9 @@ export default function App() {
           </div>
         )}
       </Suspense>
+
+      {/* Floating Speed-Dial Call & WhatsApp Contact Widget (Controlled by Admin) */}
+      <FloatingContactWidget />
 
     </div>
   );

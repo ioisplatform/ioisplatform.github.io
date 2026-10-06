@@ -9,6 +9,7 @@ import { Plan05EliteSuite } from './planStudySuites/Plan05EliteSuite';
 import { Plan06AgencySuite } from './planStudySuites/Plan06AgencySuite';
 import { Plan07MasterSuite } from './planStudySuites/Plan07MasterSuite';
 import { CompetitionReadyPracticeZone } from './CompetitionReadyPracticeZone';
+import { StudyPlanRoadmap } from './StudyPlanRoadmap';
 import { 
   X, 
   Download, 
@@ -40,6 +41,8 @@ import {
   Zap,
   Flame,
   Target,
+  Compass,
+  MapPin,
   Image as ImageIcon
 } from 'lucide-react';
 
@@ -348,7 +351,7 @@ interface StudyResourceViewerModalProps {
   currentUser: MemberProfile | null;
   onOpenLogin?: () => void;
   onOpenRegistration?: (planId: string) => void;
-  initialTab?: 'reader' | 'chapters' | 'download' | 'competition';
+  initialTab?: 'reader' | 'chapters' | 'download' | 'competition' | 'roadmap';
   initialClass?: number;
 }
 
@@ -363,8 +366,8 @@ export const StudyResourceViewerModal: React.FC<StudyResourceViewerModalProps> =
   initialTab,
   initialClass
 }) => {
-  const [selectedTab, setSelectedTab] = useState<'reader' | 'chapters' | 'download' | 'competition'>(
-    initialTab || (plan.planNumber === 3 ? 'competition' : 'reader')
+  const [selectedTab, setSelectedTab] = useState<'reader' | 'chapters' | 'download' | 'competition' | 'roadmap'>(
+    initialTab || (plan.planNumber === 3 ? 'competition' : 'roadmap')
   );
   const [selectedClass, setSelectedClass] = useState<number>(
     initialClass || (plan.planNumber === 3 ? 11 : 1)
@@ -948,6 +951,22 @@ export const StudyResourceViewerModal: React.FC<StudyResourceViewerModalProps> =
         <div className="bg-slate-950/70 px-4 sm:px-6 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
           
           <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            {/* 1. Interactive Step-by-Step Roadmap */}
+            <button
+              onClick={() => setSelectedTab('roadmap')}
+              className={`px-3 py-1.5 rounded-lg font-black transition-all flex items-center gap-1.5 ${
+                selectedTab === 'roadmap'
+                  ? 'bg-gradient-to-r from-orange-600 via-amber-500 to-amber-600 text-white shadow-md'
+                  : 'text-amber-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-300" />
+              <span>🗺️ लर्निंग रोडमैप (Roadmap)</span>
+              <span className="hidden sm:inline px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] border border-emerald-500/40 font-bold">
+                प्रगति ट्रैकर
+              </span>
+            </button>
+
             <button
               onClick={() => setSelectedTab('reader')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${
@@ -1511,6 +1530,19 @@ export const StudyResourceViewerModal: React.FC<StudyResourceViewerModalProps> =
           {selectedTab === 'competition' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <CompetitionReadyPracticeZone initialClass={selectedClass >= 7 ? selectedClass : 11} />
+            </div>
+          )}
+
+          {/* TAB 5: 🗺️ VISUAL STEP-BY-STEP INTERACTIVE ROADMAP COMPONENT */}
+          {selectedTab === 'roadmap' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <StudyPlanRoadmap
+                plan={plan}
+                currentUser={currentUser}
+                onNavigateToTopic={(lesson) => {
+                  setSelectedTab('reader');
+                }}
+              />
             </div>
           )}
 

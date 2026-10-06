@@ -47,8 +47,12 @@ import {
   User,
   Sparkles,
   Video,
-  Play
+  Play,
+  BarChart3,
+  TrendingUp,
+  Flame
 } from 'lucide-react';
+import { LearningProgressTracker } from './LearningProgressTracker';
 
 interface StudentMainDashboardViewProps {
   currentUser: MemberProfile;
@@ -69,7 +73,7 @@ export const StudentMainDashboardView: React.FC<StudentMainDashboardViewProps> =
   onProfileUpdated,
   onOpenVideoModal
 }) => {
-  const [activeTab, setActiveTab] = useState<'study' | 'account' | 'devices' | 'profile'>('study');
+  const [activeTab, setActiveTab] = useState<'study' | 'progress' | 'account' | 'devices' | 'profile'>('study');
   const [selectedPlanForWorkspace, setSelectedPlanForWorkspace] = useState<string>(currentUser.planId || 'plan-01');
 
   // Edit Profile State
@@ -412,6 +416,18 @@ export const StudentMainDashboardView: React.FC<StudentMainDashboardViewProps> =
           </button>
 
           <button
+            onClick={() => setActiveTab('progress')}
+            className={`py-3.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'progress'
+                ? 'border-[#1e3a8a] text-[#1e3a8a]'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-[#1e3a8a]" />
+            <span>शिक्षण प्रगति ट्रैकर (Learning Progress)</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('account')}
             className={`py-3.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'account'
@@ -501,6 +517,40 @@ export const StudentMainDashboardView: React.FC<StudentMainDashboardViewProps> =
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>आईडी कार्ड</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Learning Progress Tracker Widget */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-white border-2 border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 w-full md:w-auto">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1e3a8a] flex items-center justify-center shrink-0 border border-blue-200 shadow-2xs">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">लर्निंग प्रोग्रेस ट्रैकर 2026</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                      लाइफटाइम ट्रैकिंग
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    आपकी समग्र अध्ययन प्रगति और पाठ पूर्णता दर (Progress per Study Plan)
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    प्रत्येक पैकेज के पूर्ण पाठों का ग्राफ, वेलोसिटी वक्र एवं इंटरैक्टिव चेकलिस्ट देखें।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('progress')}
+                  className="px-4 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-blue-900 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95"
+                >
+                  <TrendingUp className="w-4 h-4 text-amber-300" />
+                  <span>📊 सम्पूर्ण प्रगति चार्ट खोलें (View Full Progress) →</span>
                 </button>
               </div>
             </div>
@@ -675,7 +725,21 @@ export const StudentMainDashboardView: React.FC<StudentMainDashboardViewProps> =
         )}
 
         {/* ============================================================= */}
-        {/* TAB 2: REAL ACCOUNT, PAYMENT & VERIFICATION STATUS */}
+        {/* TAB 2: LEARNING PROGRESS TRACKER & DATA VISUALIZATION CHARTS */}
+        {/* ============================================================= */}
+        {activeTab === 'progress' && (
+          <div className="space-y-6 animate-fadeIn">
+            <LearningProgressTracker
+              currentUser={currentUser}
+              onOpenStudyModal={onOpenStudyModal}
+              onOpenVideoModal={onOpenVideoModal}
+              onProfileUpdated={onProfileUpdated}
+            />
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* TAB 3: REAL ACCOUNT, PAYMENT & VERIFICATION STATUS */}
         {/* ============================================================= */}
         {activeTab === 'account' && (
           <div className="space-y-6 animate-fadeIn text-xs">

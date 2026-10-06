@@ -99,6 +99,7 @@ export interface MemberProfile {
   designation?: string;
   activeSessions?: ActiveSession[];
   sessionRevokedAt?: string;
+  completedLessons?: Record<string, string[]>; // planId -> array of completed lesson IDs
 }
 
 export interface ChatMessage {

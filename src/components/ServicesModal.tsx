@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ioisServicesList } from '../data/ioisPlansData';
 import { IOISService } from '../types';
+import { useSiteSettings } from '../hooks/useSiteSettings';
 import { 
   X, 
   Search, 
@@ -72,7 +73,25 @@ export const ServicesModal: React.FC<ServicesModalProps> = ({
     }
   };
 
-  const filteredServices = ioisServicesList.filter(s => {
+  const siteSettings = useSiteSettings();
+
+  const allServices = useMemo(() => {
+    const defaultRemaining = ioisServicesList.filter(s => !(siteSettings.removedServiceIds || []).includes(s.id));
+    const customItems: IOISService[] = (siteSettings.customServices || []).map(cs => ({
+      id: cs.id,
+      nameHindi: cs.nameHindi,
+      nameEnglish: cs.nameEnglish,
+      category: (cs.category === 'study' ? 'education' : cs.category === 'govt' ? 'government' : cs.category === 'career' ? 'career' : 'tools') as any,
+      icon: cs.iconName,
+      description: cs.description,
+      badge: cs.badge,
+      actionText: 'खोलें',
+      urlOrType: cs.urlOrType
+    }));
+    return [...defaultRemaining, ...customItems];
+  }, [siteSettings.removedServiceIds, siteSettings.customServices]);
+
+  const filteredServices = allServices.filter(s => {
     const matchesSearch = s.nameHindi.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           s.nameEnglish.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           s.description.toLowerCase().includes(searchTerm.toLowerCase());

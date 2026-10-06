@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MemberProfile } from '../types';
+import { useSiteSettings } from '../hooks/useSiteSettings';
 import { 
   Menu, 
   X, 
@@ -53,6 +54,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const siteSettings = useSiteSettings();
+  const cleanPhone = siteSettings.helplineWhatsapp.replace(/\D/g, '') || '918877490845';
 
   const handleNavClick = (action: () => void) => {
     action();
@@ -76,27 +79,29 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="h-1.5 w-full bg-gradient-to-r from-[#991b1b] via-[#ea580c] via-white via-[#1e3a8a] to-[#15803d]" />
       
       {/* Top Banking-Style Announcement & Service Support Bar */}
-      <div className="bg-[#991b1b] text-white text-xs py-1.5 px-4 border-b border-red-950">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2 overflow-hidden">
+      <div className="bg-[#991b1b] text-white text-xs py-1.5 px-3 sm:px-4 border-b border-red-950 overflow-hidden w-full max-w-full">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 overflow-hidden w-full">
+          <div className="flex items-center space-x-2 overflow-hidden min-w-0">
             <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded tracking-wide uppercase shrink-0 shadow-xs">
-              IOIS INDIA डिजिटल छात्र सेवा
+              IOIS INDIA
             </span>
-            <span className="truncate text-red-100 font-bold text-[11px]">
-              🇮🇳 भारत का आधिकारिक डिजिटल शिक्षा मंच • कक्षा 1 से 12 एवं बाल विकास किट
+            <span className="truncate text-red-100 font-bold text-[11px] min-w-0">
+              {siteSettings.helplineNoticeBanner || '🇮🇳 भारत का आधिकारिक डिजिटल शिक्षा मंच • कक्षा 1 से 12 एवं बाल विकास किट'}
             </span>
           </div>
           
           <div className="hidden md:flex items-center space-x-4 shrink-0 text-[11px]">
-            <a 
-              href="https://api.whatsapp.com/send?phone=918877490845" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-amber-200 hover:text-white font-bold flex items-center gap-1 transition-colors"
-            >
-              <PhoneCall className="w-3 h-3 text-amber-300" />
-              <span>हेल्पलाइन: +91 8877490845</span>
-            </a>
+            {siteSettings.contactButtonEnabled && (
+              <a 
+                href={`https://api.whatsapp.com/send?phone=${cleanPhone}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-amber-200 hover:text-white font-bold flex items-center gap-1 transition-colors"
+              >
+                <PhoneCall className="w-3 h-3 text-amber-300" />
+                <span>हेल्पलाइन: {siteSettings.helplinePhone}</span>
+              </a>
+            )}
             <span className="text-red-300">•</span>
             <button 
               onClick={handleShare}
@@ -122,27 +127,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 w-full max-w-full">
+        <div className="flex items-center justify-between h-16 gap-2">
           
           {/* Brand Logo — IOIS INDIA Red & Navy Emblem */}
           <div 
             onClick={() => onOpenPlansModal()}
-            className="flex items-center space-x-3 cursor-pointer group shrink-0"
+            className="flex items-center space-x-2 sm:space-x-3 cursor-pointer group min-w-0 shrink-0"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#991b1b] to-[#1e3a8a] flex items-center justify-center font-black text-white text-base shadow-md group-hover:scale-105 transition-transform border border-amber-300/40">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#991b1b] to-[#1e3a8a] flex items-center justify-center font-black text-white text-base shadow-md group-hover:scale-105 transition-transform border border-amber-300/40 shrink-0">
               <GraduationCap className="w-5 h-5 text-amber-300" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center space-x-1.5">
-                <span className="font-black text-lg sm:text-xl tracking-tight text-slate-900">
+                <span className="font-black text-base sm:text-lg lg:text-xl tracking-tight text-slate-900 truncate">
                   IOIS INDIA <span className="text-[#991b1b]">शिक्षा केंद्र</span>
                 </span>
-                <span className="hidden sm:inline-block bg-red-100 text-[#991b1b] text-[10px] font-black px-1.5 py-0.5 rounded border border-red-200">
+                <span className="hidden md:inline-block bg-red-100 text-[#991b1b] text-[10px] font-black px-1.5 py-0.5 rounded border border-red-200 shrink-0">
                   सत्यापित
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 font-semibold leading-none">
+              <p className="text-[10px] text-slate-500 font-semibold leading-none truncate hidden sm:block">
                 National Digital Student Services
               </p>
             </div>
@@ -227,24 +232,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Right Action Buttons — ZERO DUPLICATE CLAIM BUTTONS */}
-          <div className="hidden sm:flex items-center space-x-2">
-            
+          {/* Desktop Right Action Buttons (ONLY visible on Desktop lg: >=1024px) */}
+          <div className="hidden lg:flex items-center space-x-2 shrink-0">
             {/* AI Tutor Assistant */}
             <button
               onClick={() => onOpenAiModal('छात्र के रूप में पढ़ाई की योजना बताएं')}
-              className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold flex items-center space-x-1.5 transition-colors"
+              className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer"
             >
               <Bot className="w-4 h-4 text-purple-700" />
               <span>AI ट्यूटर</span>
             </button>
 
-            {/* Auth / Dashboard Controls — Registration & Login */}
+            {/* Auth / Dashboard Controls */}
             {currentUser ? (
               <div className="flex items-center space-x-2">
                 <button
                   onClick={onOpenDashboardModal}
-                  className="px-4 py-2 rounded-xl bg-[#991b1b] text-white hover:bg-red-800 text-xs font-black flex items-center space-x-1.5 shadow-sm transition-all border border-amber-300"
+                  className="px-4 py-2 rounded-xl bg-[#991b1b] text-white hover:bg-red-800 text-xs font-black flex items-center space-x-1.5 shadow-sm transition-all border border-amber-300 cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4 text-amber-300" />
                   <span>छात्र डैशबोर्ड</span>
@@ -253,7 +257,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={onLogout}
                   title="लॉगआउट"
-                  className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors border border-slate-200"
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors border border-slate-200 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -262,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => onOpenRegistrationModal('plan-01')}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 text-xs font-black shadow-xs flex items-center space-x-1.5 transition-all border border-amber-300"
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 text-xs font-black shadow-xs flex items-center space-x-1.5 transition-all border border-amber-300 cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5 text-slate-950" />
                   <span>विद्यार्थी पंजीकरण</span>
@@ -270,7 +274,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={onOpenLoginModal}
-                  className="px-3.5 py-2 rounded-xl bg-[#1e3a8a] hover:bg-blue-900 text-white text-xs font-black shadow-xs flex items-center space-x-1.5 transition-all"
+                  className="px-3.5 py-2 rounded-xl bg-[#1e3a8a] hover:bg-blue-900 text-white text-xs font-black shadow-xs flex items-center space-x-1.5 transition-all cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-amber-300" />
                   <span>विद्यार्थी लॉगिन</span>
@@ -279,41 +283,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Mobile Menu Toggle Button */}
-          <div className="flex lg:hidden items-center space-x-2">
+          {/* Mobile Header Action & Menu Toggle (Clean, Non-Crowded, Never Cut Off) */}
+          <div className="flex lg:hidden items-center space-x-1.5 sm:space-x-2 shrink-0">
             {!currentUser ? (
-              <>
-                <button
-                  onClick={() => onOpenRegistrationModal('plan-01')}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-black shadow-xs flex items-center gap-1 border border-amber-300"
-                >
-                  <UserCheck className="w-3 h-3 text-slate-950" />
-                  <span>पंजीकरण</span>
-                </button>
-                <button
-                  onClick={onOpenLoginModal}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold shadow-xs flex items-center gap-1"
-                >
-                  <LogIn className="w-3 h-3 text-amber-300" />
-                  <span>लॉगिन</span>
-                </button>
-              </>
+              <button
+                onClick={onOpenLoginModal}
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-blue-900 text-white text-xs font-black shadow-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                <span>लॉगिन</span>
+              </button>
             ) : (
               <button
                 onClick={onOpenDashboardModal}
-                className="px-3 py-1.5 rounded-xl bg-[#991b1b] text-white text-xs font-bold shadow-xs flex items-center gap-1"
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#991b1b] text-white text-xs font-black shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
-                <UserCheck className="w-3 h-3 text-amber-300" />
+                <UserCheck className="w-3.5 h-3.5 text-amber-300" />
                 <span>डैशबोर्ड</span>
               </button>
             )}
 
+            {/* Menu Toggle Button (Proper Touch Target & High Visibility) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 focus:outline-none"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 flex items-center justify-center focus:outline-none transition-colors shrink-0 cursor-pointer"
               aria-label="Toggle Menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-slate-900" /> : <Menu className="w-5 h-5 text-slate-900" />}
             </button>
           </div>
 
@@ -324,26 +320,75 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-t border-slate-200 px-4 pt-3 pb-6 space-y-3 animate-in fade-in duration-150">
           
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-red-50 to-amber-50 border border-red-200 flex items-center justify-between">
-            <div>
-              <span className="text-xs font-black text-[#991b1b] block">
-                IOIS INDIA विद्यार्थी सेवा केंद्र
-              </span>
-              <span className="text-[11px] text-slate-600">
-                कक्षा 1 से 12 एवं 7 मास्टर योजनाएं
-              </span>
+          {/* Mobile Top Authentication & Identity Card */}
+          {currentUser ? (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-50 to-slate-100 border border-blue-200 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <span className="text-xs font-black text-slate-900 block truncate">
+                    नमस्ते, {currentUser.name}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    रोल: {currentUser.rollNumber || currentUser.memberId}
+                  </span>
+                </div>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-600 text-white shrink-0">
+                  सक्रिय किट
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleNavClick(onOpenDashboardModal)}
+                  className="w-full py-2 px-2 bg-[#991b1b] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-amber-300" />
+                  <span>डैशबोर्ड खोलें</span>
+                </button>
+                <button
+                  onClick={() => handleNavClick(onLogout)}
+                  className="w-full py-2 px-2 bg-white text-red-700 hover:bg-red-50 border border-red-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>लॉगआउट</span>
+                </button>
+              </div>
             </div>
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#991b1b] text-white">
-              सत्यापित
-            </span>
-          </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 border border-amber-300 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-[#991b1b] flex items-center gap-1">
+                  <span>🇮🇳</span>
+                  <span>IOIS विद्यार्थी सेवा केंद्र</span>
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#991b1b] text-white">
+                  कक्षा 1 से 12
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleNavClick(() => onOpenRegistrationModal('plan-01'))}
+                  className="w-full py-2.5 px-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                  <span>नया पंजीकरण</span>
+                </button>
+                <button
+                  onClick={() => handleNavClick(onOpenLoginModal)}
+                  className="w-full py-2.5 px-2 bg-[#1e3a8a] hover:bg-blue-900 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>छात्र लॉगिन</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Mobile Quick Service Grid (IOIS INDIA Tiles) */}
           <div className="grid grid-cols-2 gap-2 pt-1 font-bold text-xs">
             {onOpenNurseryWorkbook && (
               <button
                 onClick={() => handleNavClick(onOpenNurseryWorkbook)}
-                className="col-span-2 p-2.5 rounded-xl bg-amber-50 text-amber-900 text-left border border-amber-200 flex items-center justify-between shadow-2xs"
+                className="col-span-2 p-2.5 rounded-xl bg-amber-50 text-amber-900 text-left border border-amber-200 flex items-center justify-between shadow-2xs cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base">🔤</span>
@@ -354,95 +399,76 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
             <button
               onClick={() => handleNavClick(onOpenPlansModal)}
-              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2"
+              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2 cursor-pointer hover:bg-slate-100"
             >
               <Layers className="w-4 h-4 text-[#991b1b]" />
               <span>7 अध्ययन योजनाएं</span>
             </button>
             <button
               onClick={() => handleNavClick(() => onOpenStudyModal(currentUser ? currentUser.planId : 'plan-01'))}
-              className="p-2.5 rounded-xl bg-orange-50 text-orange-950 text-left border border-orange-200 flex items-center gap-2 font-black"
+              className="p-2.5 rounded-xl bg-orange-50 text-orange-950 text-left border border-orange-200 flex items-center gap-2 font-black cursor-pointer hover:bg-orange-100"
             >
               <BookOpen className="w-4 h-4 text-orange-600" />
               <span>NCERT 1-12 प्रश्न बैंक</span>
             </button>
             <button
               onClick={() => handleNavClick(() => onOpenStudyModal('plan-01'))}
-              className="p-2.5 rounded-xl bg-indigo-50 text-indigo-950 text-left border border-indigo-200 flex items-center gap-2 font-black"
+              className="p-2.5 rounded-xl bg-indigo-50 text-indigo-950 text-left border border-indigo-200 flex items-center gap-2 font-black cursor-pointer hover:bg-indigo-100"
             >
               <span className="text-base">💊</span>
               <span>फार्मेसी 4th Sem (PCI)</span>
             </button>
             <button
               onClick={() => handleNavClick(onOpenVideoModal)}
-              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2"
+              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2 cursor-pointer hover:bg-slate-100"
             >
               <Tv className="w-4 h-4 text-red-600" />
               <span>वीडियो कक्षाएं</span>
             </button>
             <button
               onClick={() => handleNavClick(onOpenTracingModal)}
-              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2"
+              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2 cursor-pointer hover:bg-slate-100"
             >
               <Pencil className="w-4 h-4 text-purple-600" />
               <span>डिजिटल स्लेट</span>
             </button>
             <button
               onClick={() => handleNavClick(onOpenHomeworkModal)}
-              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2"
+              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2 cursor-pointer hover:bg-slate-100"
             >
               <FileCheck2 className="w-4 h-4 text-emerald-600" />
               <span>दैनिक गृहकार्य</span>
             </button>
             <button
               onClick={() => handleNavClick(onOpenIdCardModal)}
-              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2"
+              className="p-2.5 rounded-xl bg-slate-50 text-slate-800 text-left border border-slate-200 flex items-center gap-2 cursor-pointer hover:bg-slate-100"
             >
               <CreditCard className="w-4 h-4 text-slate-700" />
               <span>छात्र ID कार्ड</span>
             </button>
             <button
               onClick={() => handleNavClick(() => onOpenAiModal())}
-              className="col-span-2 p-2.5 rounded-xl bg-purple-50 text-purple-900 text-left border border-purple-200 flex items-center gap-2"
+              className="col-span-2 p-2.5 rounded-xl bg-purple-50 text-purple-900 text-left border border-purple-200 flex items-center gap-2 cursor-pointer hover:bg-purple-100"
             >
               <Bot className="w-4 h-4 text-purple-700" />
               <span>24x7 AI ट्यूटर से पूछें</span>
             </button>
           </div>
 
-          <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
-            {currentUser ? (
-              <>
-                <button
-                  onClick={() => handleNavClick(onOpenDashboardModal)}
-                  className="w-full py-2.5 bg-[#991b1b] text-white rounded-xl font-black text-center shadow-xs"
-                >
-                  छात्र डैशबोर्ड खोलें
-                </button>
-                <button
-                  onClick={() => handleNavClick(onLogout)}
-                  className="w-full py-2 bg-red-50 text-red-700 rounded-xl font-bold text-center border border-red-200 text-xs"
-                >
-                  लॉगआउट
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => handleNavClick(() => onOpenRegistrationModal('plan-01'))}
-                  className="w-full py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 font-black rounded-xl text-center shadow-xs border border-amber-300"
-                >
-                  नया विद्यार्थी पंजीकरण करें (Register)
-                </button>
-                <button
-                  onClick={() => handleNavClick(onOpenLoginModal)}
-                  className="w-full py-2.5 bg-[#1e3a8a] text-white rounded-xl font-bold text-center shadow-xs"
-                >
-                  विद्यार्थी लॉगिन करें (Student Login)
-                </button>
-              </>
-            )}
-          </div>
+          {/* Quick Helpline in Drawer */}
+          {siteSettings.contactButtonEnabled && (
+            <div className="pt-2 border-t border-slate-200">
+              <a
+                href={`https://api.whatsapp.com/send?phone=${cleanPhone}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
+                <span>आधिकारिक हेल्पलाइन: {siteSettings.helplinePhone}</span>
+              </a>
+            </div>
+          )}
 
         </div>
       )}

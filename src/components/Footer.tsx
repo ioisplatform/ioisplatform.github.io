@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSiteSettings } from '../hooks/useSiteSettings';
 import { 
   ShieldCheck, 
   Bot, 
@@ -16,7 +17,10 @@ import {
   Send,
   MessageCircle,
   Crown,
-  Layers
+  Layers,
+  MapPin,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 
 interface FooterProps {
@@ -42,6 +46,9 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenTracingModal,
   onOpenHomeworkModal
 }) => {
+  const siteSettings = useSiteSettings();
+  const cleanPhone = siteSettings.helplineWhatsapp.replace(/\D/g, '') || '918877490845';
+
   return (
     <footer className="bg-[#0f172a] text-slate-300 text-xs border-t-2 border-slate-800">
       
@@ -72,15 +79,29 @@ export const Footer: React.FC<FooterProps> = ({
               भारत के सभी विद्यार्थियों के लिए समर्पित ऑल-डिवाइस फ्रेंडली शिक्षा मंच। नर्सरी से 5वीं के लिए सचित्र वर्णमाला व ट्रेसिंग पैड, तथा कक्षा 6 से 12 तक के NCERT नोट्स, वीडियो लेक्चर्स व दैनिक गृहकार्य।
             </p>
 
-            {/* IOIS India Authorized Center Box */}
-            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1 max-w-sm">
+            {/* IOIS India Authorized Center & Head Office Address Box */}
+            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 max-w-sm">
               <div className="flex items-center gap-2 text-[#f3e5ab] font-bold text-xs">
                 <Store className="w-4 h-4 text-[#d4af37] shrink-0" />
-                <span>अधिकृत केंद्र: IOIS India</span>
+                <span>{siteSettings.organizationName || 'अधिकृत केंद्र: IOIS India'}</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-snug">
-                डिजिटल रजिस्ट्रेशन, छात्र सहायता व अध्ययन सामग्री वेरिफिकेशन का आधिकारिक राष्ट्रीय मंच।
-              </p>
+              <div className="text-[11px] text-slate-300 leading-snug flex items-start gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                <span>
+                  {siteSettings.headOfficeAddress}, {siteSettings.city}, {siteSettings.state} - {siteSettings.pincode}
+                </span>
+              </div>
+              {siteSettings.googleMapsUrl && (
+                <a
+                  href={siteSettings.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 inline-flex"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>गूगल मैप्स पर देखें</span>
+                </a>
+              )}
             </div>
 
             <div className="flex items-center space-x-2 pt-1 text-emerald-400 text-xs font-semibold">
@@ -188,7 +209,7 @@ export const Footer: React.FC<FooterProps> = ({
               
               {/* WhatsApp */}
               <a 
-                href="https://api.whatsapp.com/send?phone=918877490845" 
+                href={`https://api.whatsapp.com/send?phone=${cleanPhone}`} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center space-x-2.5 text-white hover:text-emerald-400 transition-colors group"
@@ -199,32 +220,30 @@ export const Footer: React.FC<FooterProps> = ({
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">WhatsApp:</span>
                   <span className="font-black text-sm text-white tracking-wide group-hover:text-emerald-400">
-                    +918877490845
+                    {siteSettings.helplineWhatsapp}
                   </span>
                 </div>
               </a>
 
-              {/* Telegram Username */}
+              {/* Call Helpline */}
               <a 
-                href="https://t.me/ioisplatform" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                href={`tel:${cleanPhone}`} 
                 className="flex items-center space-x-2.5 text-white hover:text-blue-400 transition-colors group"
               >
                 <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center shrink-0">
-                  <Send className="w-4 h-4 text-blue-400" />
+                  <PhoneCall className="w-4 h-4 text-blue-400" />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Telegram Username:</span>
-                  <span className="font-bold text-xs text-[#f3e5ab] group-hover:text-blue-400 font-mono">
-                    @ioisplatform
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">हेल्पलाइन कॉल:</span>
+                  <span className="font-black text-sm text-white tracking-wide group-hover:text-blue-400 font-mono">
+                    {siteSettings.helplinePhone}
                   </span>
                 </div>
               </a>
 
               {/* Email */}
               <a 
-                href="mailto:ioisplatform@gmail.com" 
+                href={`mailto:${siteSettings.helplineEmail}`} 
                 className="flex items-center space-x-2.5 text-white hover:text-[#d4af37] transition-colors group"
               >
                 <div className="w-7 h-7 rounded-lg bg-amber-600/30 border border-amber-500/50 flex items-center justify-center shrink-0">
@@ -233,28 +252,38 @@ export const Footer: React.FC<FooterProps> = ({
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">Official Email:</span>
                   <span className="font-bold text-xs text-white group-hover:text-[#d4af37]">
-                    ioisplatform@gmail.com
+                    {siteSettings.helplineEmail}
                   </span>
                 </div>
               </a>
 
-              {/* Telegram Bot */}
-              <a 
-                href="https://t.me/iois_admin_notification_bot" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="flex items-center space-x-2.5 text-white hover:text-purple-400 transition-colors group"
-              >
-                <div className="w-7 h-7 rounded-lg bg-purple-600/30 border border-purple-500/50 flex items-center justify-center shrink-0">
-                  <Bot className="w-4 h-4 text-purple-400" />
+              {/* Telegram Channel */}
+              {siteSettings.telegramChannel && (
+                <a 
+                  href={siteSettings.telegramChannel} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center space-x-2.5 text-white hover:text-blue-400 transition-colors group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center shrink-0">
+                    <Send className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Telegram Channel:</span>
+                    <span className="font-bold text-xs text-[#f3e5ab] group-hover:text-blue-400 font-mono">
+                      @ioisplatform
+                    </span>
+                  </div>
+                </a>
+              )}
+
+              {/* Working Hours */}
+              {siteSettings.helplineHours && (
+                <div className="pt-1 border-t border-slate-800 text-[10px] text-slate-400 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>{siteSettings.helplineHours}</span>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Telegram Bot:</span>
-                  <span className="font-bold text-xs text-purple-300 group-hover:text-purple-400 font-mono">
-                    @iois_admin_notification_bot
-                  </span>
-                </div>
-              </a>
+              )}
 
             </div>
 
