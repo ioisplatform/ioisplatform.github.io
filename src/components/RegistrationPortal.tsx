@@ -31,12 +31,14 @@ interface RegistrationPortalProps {
     prefill?: { identifier?: string; mobile?: string; userId?: string }
   ) => void;
   preSelectedPlanId?: number;
+  initialSponsorId?: string;
 }
 
 export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   onRegisterSuccess,
   onOpenLogin,
   preSelectedPlanId = 1,
+  initialSponsorId = '',
 }) => {
   // Step State: 1 = Personal Details, 2 = Plan & Security, 3 = Payment & Verification
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -46,7 +48,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   const [mobileNumber, setMobileNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [address, setAddress] = useState<string>('');
-  const [sponsorId, setSponsorId] = useState<string>('IOIS999VK01');
+  const [sponsorId, setSponsorId] = useState<string>(initialSponsorId);
 
   const [selectedPlanId, setSelectedPlanId] = useState<number>(preSelectedPlanId);
   const [role, setRole] = useState<string>('Verified Elite Member');
@@ -81,6 +83,10 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   }, [preSelectedPlanId]);
 
   useEffect(() => {
+    if (initialSponsorId) {
+      setSponsorId(initialSponsorId.toUpperCase());
+      return;
+    }
     try {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
@@ -88,7 +94,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     } catch {
       // ignore
     }
-  }, []);
+  }, [initialSponsorId]);
 
   const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
@@ -219,6 +225,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
       const newUser = await registerNewUserAsync({
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
@@ -230,10 +237,26 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
         payoutUpi: payoutUpi.trim(),
         sponsorId: sponsorId.trim().toUpperCase() || 'IOIS999VK01',
         paymentUtr: paymentUtr.trim(),
+        paymentMode: 'UPI',
         photoUrl: photoUrl.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
         googleDrivePhotoLink: googleDrivePhotoLink.trim() || undefined,
         paymentScreenshotUrl: paymentScreenshotUrl.trim() || undefined,
         googleDrivePaymentLink: googleDrivePaymentLink.trim() || undefined,
+        registrationFormData: {
+          fullName: fullName.trim(),
+          mobileNumber: mobileNumber.trim(),
+          email: email.trim(),
+          selectedPlanId: selectedPlanId,
+          planName: selectedPlan.name,
+          planPrice: selectedPlan.price,
+          address: address.trim(),
+          sponsorId: sponsorId.trim().toUpperCase() || 'IOIS999VK01',
+          payoutUpi: payoutUpi.trim(),
+          paymentUtr: paymentUtr.trim(),
+          paymentMode: 'UPI',
+          paymentScreenshotUrl: paymentScreenshotUrl.trim() || undefined,
+          submittedAt: new Date().toISOString(),
+        },
       });
 
       setIsSubmitting(false);

@@ -2260,7 +2260,35 @@ IOIS भारत का डिजिटल शिक्षा, बाल वि
 [[NAV:page:register|नया रजिस्ट्रेशन करें]]
 [[NAV:page:assessment|15-सवाल टेस्ट दें]]`;
       } 
-      // 13. Instant Payout
+      // 13. Instant Payout & Withdrawal
+      else if (lower.includes("withdraw") || lower.includes("विथड्रॉ") || lower.includes("निकासी") || lower.includes("पैसे निकाल") || lower.includes("कमीशन निकाल")) {
+        fallbackReply = `IOIS कमीशन विथड्रॉल (Withdrawal) प्रक्रिया:
+
+1. सदस्य लॉगिन करके 'यूजर डैशबोर्ड' खोलें।
+2. 'कमीशन व विथड्रॉल' टैब पर क्लिक करें।
+3. अपनी विथड्रॉल राशि दर्ज करें (न्यूनतम विथड्रॉल मात्र ₹100 है)।
+4. अपना पसंदीदा पेआउट माध्यम चुनें (BHIM UPI, PhonePe, Google Pay या Paytm)।
+5. अपनी सही UPI ID दर्ज करें और 'विथड्रॉल अनुरोध सबमिट करें' बटन दबाएं।
+6. एडमिन 2 से 24 घंटे में बिना किसी कटौती (0% Deduction) के सीधे आपके बैंक/UPI में पेमेंट ट्रांसफर कर देता है।
+
+[[NAV:page:dashboard|यूजर डैशबोर्ड विथड्रॉल फॉर्म खोलें]]
+[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]`;
+      }
+      // 13.1 Promotional Poster Studio
+      else if (lower.includes("poster") || lower.includes("पोस्टर") || lower.includes("बैनर") || lower.includes("दुकान") || lower.includes("banner")) {
+        fallbackReply = `IOIS ऑटोमैटिक प्रमोशनल पोस्टर स्टूडियो:
+
+आप अपने नाम, स्पॉन्सर आईडी और व्यक्तिगत QR कोड के साथ 4 तरह के HD पोस्टर बना सकते हैं:
+1. दुकान व CSC साइबर कैफे A4 फ्लेक्स बैनर
+2. विद्यार्थी NCERT नोट्स व मॉडल पेपर्स पोस्टर
+3. WhatsApp स्टेटस व स्टोरी (9:16 वर्टिकल) पोस्टर
+4. 50%-70% इंसेंटिव व स्वरोजगार पोस्टर
+
+पोस्टर बनाकर तुरंत HD PNG में डाउनलोड करें या 1-क्लिक में WhatsApp पर शेयर करें!
+
+[[NAV:page:dashboard|पोस्टर स्टूडियो खोलें]]
+[[NAV:page:idcard|डिजिटल ID कार्ड खोलें]]`;
+      }
       else if (lower.includes("payout") || lower.includes("पेआउट") || lower.includes("पैसे") || lower.includes("रुपये") || lower.includes("कमीशन") || lower.includes("earning")) {
         fallbackReply = `IOIS 50%-70% इंस्टेंट पेआउट सिस्टम:
 

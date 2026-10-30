@@ -4,6 +4,7 @@ import { PLANS, OFFICIAL_PHONE, OFFICIAL_EMAIL } from '../data/plansData';
 import { createHelpTicket, getHelpTickets } from '../services/userService';
 import { ProfileEditSection } from './ProfileEditSection';
 import { IDCardGenerator } from './IDCardGenerator';
+import { StudentReferralHub } from './StudentReferralHub';
 import { 
   User, 
   CreditCard, 
@@ -269,8 +270,8 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span className="truncate">3. रेफरल कमाई (50%-70%)</span>
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="truncate">3. रेफरल QR व डाउनलाइन</span>
           </button>
 
           <button
@@ -310,141 +311,14 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: REFERRAL EARNINGS & GITHUB LIVE REFERRAL SYSTEM */}
+        {/* TAB 3: REFERRAL QR, PROMOTION MESSAGES & DOWNLINE CHECKUP */}
         {/* ========================================================= */}
         {activeTab === 'earnings' && (
-          <div className="space-y-4 text-xs animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <h4 className="text-sm font-black text-white flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span>रेफरल इंसेंटिव व स्पॉन्सर सिस्टम</span>
-              </h4>
-              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                <span>50% से 70% इंस्टेंट पेआउट</span>
-              </span>
-            </div>
-
-            {/* Official Live Referral Card */}
-            <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 rounded-2xl border-2 border-amber-500/40 shadow-xl space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                <span className="text-xs font-black text-white flex items-center gap-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>आपकी आधिकारिक रेफरल लिंक (GitHub Live Platform):</span>
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full w-fit">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Live: ioisplatform.github.io</span>
-                </span>
-              </div>
-
-              {/* Referral Link Box */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center gap-2">
-                <div className="flex-1 font-mono text-xs text-amber-300 truncate select-all px-1">
-                  {referralUrl}
-                </div>
-              </div>
-
-              {/* Quick Share Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCopyReferralLink}
-                  className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95"
-                >
-                  {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedLink ? 'लिंक कॉपी हो गई!' : 'रेफरल लिंक कॉपी करें'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleShareWhatsApp}
-                  className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-black rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>WhatsApp पर शेयर करें</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopyInviteMessage}
-                  className="w-full py-2.5 px-3 bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-                >
-                  {copiedMessage ? <Check className="w-4 h-4 text-emerald-400" /> : <Send className="w-4 h-4 text-amber-400" />}
-                  <span>{copiedMessage ? 'मैसेज कॉपी हुआ!' : 'पूरा मैसेज कॉपी करें'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Payout Destination Card */}
-            <div className="p-3.5 sm:p-4 bg-slate-950 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400 font-bold">पेआउट प्राप्तकर्ता UPI पता:</span>
-                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>सक्रिय पेआउट खाता</span>
-                  </span>
-                </div>
-                <div className="font-mono text-sm font-black text-amber-300">
-                  {safePayoutUpi || 'UPI पता सेट नहीं है'}
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  योजना अनुसार 50% से 70% इंसेंटिव प्रत्येक सफल रेफरल पर सीधे इसी UPI खाते में भेजा जाता है।
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('profile');
-                }}
-                className="px-3.5 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-amber-500/40 hover:border-amber-400 text-amber-300 font-bold text-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
-              >
-                <span>UPI ID व प्रोफाइल बदलें</span>
-              </button>
-            </div>
-
-            {/* Plan-wise Payout Quick Table */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-white">
-                  प्रति रेफरल इंसेंटिव दरें (योजना अनुसार 50% से 70% पेआउट):
-                </span>
-                <span className="text-[10px] text-slate-400">7 मास्टर प्लांस</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                {PLANS.map((p) => {
-                  const isCurrent = p.id === user.selectedPlanId;
-                  return (
-                    <div 
-                      key={p.id} 
-                      className={`p-2.5 rounded-xl border text-center space-y-1 transition ${
-                        isCurrent 
-                          ? 'bg-amber-500/15 border-amber-400/80 shadow-md ring-1 ring-amber-400/50' 
-                          : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <span className="text-[10px] text-slate-400 block font-semibold truncate">
-                        {p.code} (₹{p.price})
-                      </span>
-                      <div className="text-sm font-black text-emerald-400 font-mono">
-                        ₹{p.instantPayout}
-                      </div>
-                      <span className={`text-[9px] font-bold block ${isCurrent ? 'text-amber-300' : 'text-slate-300'}`}>
-                        {p.percentage}% पेआउट
-                      </span>
-                      {isCurrent && (
-                        <span className="text-[8px] font-black text-amber-400 bg-amber-400/20 px-1 py-0.2 rounded-full block">
-                          एक्टिव
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="animate-fadeIn">
+            <StudentReferralHub
+              user={user}
+              onOpenIdCard={() => setActiveTab('idcard')}
+            />
           </div>
         )}
 

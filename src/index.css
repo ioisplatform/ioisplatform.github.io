@@ -1,12 +1,20 @@
 @import "tailwindcss";
 
 @layer base {
+  html, body, #root {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   :root {
     --bg-main: #020617;
     --card-bg: rgba(15, 23, 42, 0.85);
+    --surface-bg: #090d16;
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
+    --text-muted: #64748b;
     --border-color: rgba(212, 175, 55, 0.35);
+    --accent-color: #f59e0b;
     --accent-glow: rgba(245, 158, 11, 0.4);
     --saffron: #FF9933;
     --green: #138808;
@@ -19,84 +27,117 @@
   :root[data-mode="light"] {
     --bg-main: #f8fafc;
     --card-bg: rgba(255, 255, 255, 0.95);
+    --surface-bg: #ffffff;
     --text-primary: #0f172a;
-    --text-secondary: #475569;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
     --border-color: rgba(217, 119, 6, 0.25);
+    --accent-color: #d97706;
     --accent-glow: rgba(245, 158, 11, 0.2);
   }
 
   /* 1. Theme Presets - Dark Mode */
   html.dark.theme-royal-gold,
   :root[data-mode="dark"][data-theme="royal-gold"] {
-    --bg-main: #020617;
+    --bg-main: #060913;
+    --surface-bg: #0b1120;
     --border-color: rgba(245, 158, 11, 0.35);
+    --accent-color: #f59e0b;
     --accent-glow: rgba(245, 158, 11, 0.4);
   }
 
   html.dark.theme-ocean-blue,
   :root[data-mode="dark"][data-theme="ocean-blue"] {
-    --bg-main: #071326;
+    --bg-main: #040d1a;
+    --surface-bg: #07172e;
     --border-color: rgba(56, 189, 248, 0.35);
+    --accent-color: #38bdf8;
     --accent-glow: rgba(56, 189, 248, 0.4);
   }
 
   html.dark.theme-emerald-green,
   :root[data-mode="dark"][data-theme="emerald-green"] {
-    --bg-main: #061a12;
+    --bg-main: #03140c;
+    --surface-bg: #062115;
     --border-color: rgba(16, 185, 129, 0.35);
+    --accent-color: #10b981;
     --accent-glow: rgba(16, 185, 129, 0.4);
   }
 
   html.dark.theme-crimson-ruby,
   :root[data-mode="dark"][data-theme="crimson-ruby"] {
-    --bg-main: #180812;
+    --bg-main: #14050d;
+    --surface-bg: #220917;
     --border-color: rgba(244, 63, 94, 0.35);
+    --accent-color: #f43f5e;
     --accent-glow: rgba(244, 63, 94, 0.4);
   }
 
   html.dark.theme-amethyst-purple,
   :root[data-mode="dark"][data-theme="amethyst-purple"] {
-    --bg-main: #120822;
+    --bg-main: #0f051c;
+    --surface-bg: #1c0a33;
     --border-color: rgba(168, 85, 247, 0.35);
+    --accent-color: #a855f7;
     --accent-glow: rgba(168, 85, 247, 0.4);
   }
 
   html.dark.theme-midnight-dark,
   :root[data-mode="dark"][data-theme="midnight-dark"] {
     --bg-main: #020205;
+    --surface-bg: #09090b;
     --border-color: rgba(226, 232, 240, 0.25);
+    --accent-color: #e2e8f0;
     --accent-glow: rgba(226, 232, 240, 0.2);
   }
 
   /* 2. Theme Presets - Light Mode */
   html.light.theme-royal-gold,
   :root[data-mode="light"][data-theme="royal-gold"] {
-    --bg-main: #fcfbf7;
-    --border-color: rgba(217, 119, 6, 0.3);
+    --bg-main: #fdfbf7;
+    --surface-bg: #ffffff;
+    --border-color: rgba(217, 119, 6, 0.35);
+    --accent-color: #d97706;
   }
 
   html.light.theme-ocean-blue,
   :root[data-mode="light"][data-theme="ocean-blue"] {
-    --bg-main: #f0f9ff;
-    --border-color: rgba(14, 165, 233, 0.3);
+    --bg-main: #f0f7ff;
+    --surface-bg: #ffffff;
+    --border-color: rgba(14, 165, 233, 0.35);
+    --accent-color: #0284c7;
   }
 
   html.light.theme-emerald-green,
   :root[data-mode="light"][data-theme="emerald-green"] {
     --bg-main: #f0fdf4;
-    --border-color: rgba(16, 185, 129, 0.3);
+    --surface-bg: #ffffff;
+    --border-color: rgba(16, 185, 129, 0.35);
+    --accent-color: #059669;
   }
 
   html.light.theme-crimson-ruby,
   :root[data-mode="light"][data-theme="crimson-ruby"] {
-    --bg-main: #fff1f2;
-    --border-color: rgba(244, 63, 94, 0.3);
+    --bg-main: #fff1f3;
+    --surface-bg: #ffffff;
+    --border-color: rgba(244, 63, 94, 0.35);
+    --accent-color: #e11d48;
   }
 
   html.light.theme-amethyst-purple,
   :root[data-mode="light"][data-theme="amethyst-purple"] {
     --bg-main: #faf5ff;
-    --border-color: rgba(168, 85, 247, 0.3);
+    --surface-bg: #ffffff;
+    --border-color: rgba(168, 85, 247, 0.35);
+    --accent-color: #9333ea;
+  }
+
+  html.light.theme-midnight-dark,
+  :root[data-mode="light"][data-theme="midnight-dark"] {
+    --bg-main: #f8fafc;
+    --surface-bg: #ffffff;
+    --border-color: rgba(100, 116, 139, 0.3);
+    --accent-color: #334155;
   }
 
   body {
@@ -108,18 +149,21 @@
   }
 }
 
-/* Light mode support classes */
+/* ========================================================
+   UNIVERSAL LIGHT MODE COMPREHENSIVE ADAPTATIONS
+   ======================================================== */
+html.light .glass-card,
 html.light .glass-card-premium,
 html.light .glass-card-gold {
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: var(--card-bg) !important;
   color: #0f172a !important;
-  border-color: rgba(217, 119, 6, 0.3) !important;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.07) !important;
 }
 
 html.light header#main-header {
   background: rgba(255, 255, 255, 0.96) !important;
-  border-bottom-color: rgba(217, 119, 6, 0.25) !important;
+  border-bottom-color: var(--border-color) !important;
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06) !important;
 }
 
@@ -135,20 +179,57 @@ html.light .text-slate-400 {
 }
 
 html.light .bg-slate-950,
-html.light .bg-[#020617],
+html.light [class*="020617"],
 html.light .bg-slate-900\/80,
-html.light .bg-slate-900\/90 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-
+html.light .bg-slate-900\/90,
 html.light .bg-slate-900 {
-  background-color: #f1f5f9 !important;
+  background-color: #ffffff !important;
   color: #0f172a !important;
 }
 
-html.light .border-slate-800,
-html.light .border-slate-700 {
+html.light .bg-slate-850,
+html.light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
   border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-800,
+html.light .border-slate-700,
+html.light .border-slate-900 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Light Mode Inputs, Textareas, and Dropdowns */
+html.light input:not([type="checkbox"]):not([type="radio"]),
+html.light textarea,
+html.light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Light Mode Tables */
+html.light table th {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light table td {
+  color: #334155 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Light Mode Gold Text contrast adjustment */
+html.light .gold-text {
+  color: #b45309 !important;
+  font-weight: 800;
 }
 
 /* Gold Metallic Gradient Text */

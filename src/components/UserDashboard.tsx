@@ -4,6 +4,10 @@ import { PLANS, OFFICIAL_PHONE, OFFICIAL_EMAIL } from '../data/plansData';
 import { createHelpTicket, getHelpTickets, logoutUser } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { ProfileEditSection } from './ProfileEditSection';
+import { StudentReferralHub } from './StudentReferralHub';
+import { MarketingToolsSection } from './MarketingToolsSection';
+import { IDCardGenerator } from './IDCardGenerator';
+import { PromotionalPosterStudio } from './PromotionalPosterStudio';
 import { 
   User, 
   CreditCard, 
@@ -25,7 +29,11 @@ import {
   Sparkles,
   Phone,
   Mail,
-  MapPin
+  MapPin,
+  Share2,
+  Zap,
+  Users,
+  Image as ImageIcon
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -42,6 +50,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onLogout,
   onScrollToCard,
 }) => {
+  const [activeTab, setActiveTab] = useState<'referral' | 'marketing' | 'posters' | 'idcard' | 'profile' | 'support'>('referral');
+
   // Help & Support Tickets
   const [ticketSubject, setTicketSubject] = useState<string>('');
   const [ticketDesc, setTicketDesc] = useState<string>('');
@@ -158,122 +168,245 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
       </div>
 
-      {/* Main Grid: Profile Edit Left, Help Desk Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left: User Profile Details (Editable except User ID) */}
-        <div className="lg:col-span-7 glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30">
+      {/* Dashboard Navigation Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab('referral')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'referral'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span>1. रेफरल व टीम</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('marketing')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'marketing'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>2. मार्केटिंग टूल्स</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('posters')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'posters'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <ImageIcon className="w-3.5 h-3.5" />
+          <span>3. पोस्टर स्टूडियो</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('idcard')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'idcard'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>4. डिजिटल ID कार्ड</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('profile')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === 'profile'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <User className="w-3.5 h-3.5" />
+          <span>5. प्रोफाइल व गोपनीयता</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('support')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1 ${
+            activeTab === 'support'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>6. हेल्पडेस्क व टिकट</span>
+        </button>
+      </div>
+
+      {/* ========================================================= */}
+      {/* TAB 1: REFERRAL QR, PROMO COPY & DOWNLINE CHECKUP */}
+      {/* ========================================================= */}
+      {activeTab === 'referral' && (
+        <div className="animate-fadeIn">
+          <StudentReferralHub
+            user={user}
+            onOpenIdCard={() => setActiveTab('idcard')}
+          />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 2: MARKETING TOOLS SUITE (TEMPLATES, BULK INVITE, DYNAMIC QR) */}
+      {/* ========================================================= */}
+      {activeTab === 'marketing' && (
+        <div className="animate-fadeIn">
+          <MarketingToolsSection user={user} />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 3: PROMOTIONAL POSTER STUDIO */}
+      {/* ========================================================= */}
+      {activeTab === 'posters' && (
+        <div className="animate-fadeIn">
+          <PromotionalPosterStudio user={user} />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 2: PROFILE EDIT SECTION */}
+      {/* ========================================================= */}
+      {activeTab === 'profile' && (
+        <div className="glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30 animate-fadeIn">
           <ProfileEditSection
             user={user}
             onUserUpdated={onUserUpdated}
           />
         </div>
+      )}
 
-        {/* Right: In-App Help & Ticket Section (No third-party app needed) */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          <div className="glass-card p-6 sm:p-7 rounded-3xl border border-slate-800 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-black text-white flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-sky-400" />
-                <span>सहायता व समस्या निवारण (In-App Help Desk)</span>
-              </h3>
-              <span className="text-[10px] text-amber-400 font-bold">24x7 Direct Support</span>
-            </div>
+      {/* ========================================================= */}
+      {/* TAB 3: DIGITAL ID CARD STUDIO */}
+      {/* ========================================================= */}
+      {activeTab === 'idcard' && (
+        <div className="space-y-4 animate-fadeIn">
+          <IDCardGenerator
+            currentUser={user}
+            isModalMode={false}
+          />
+        </div>
+      )}
 
-            <p className="text-xs text-slate-300 leading-relaxed">
-              यदि आपको कोई समस्या या सवाल है, तो नीचे विवरण और स्क्रीनशॉट भेजें। एडमिन टीम सीधे आपके टिकट का जवाब देगी।
-            </p>
-
-            {ticketSuccess && (
-              <div className="p-3 bg-emerald-950/70 border border-emerald-500/50 rounded-2xl text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>{ticketSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleCreateTicket} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">विषय (Subject / Problem):</label>
-                <input
-                  type="text"
-                  required
-                  value={ticketSubject}
-                  onChange={(e) => setTicketSubject(e.target.value)}
-                  placeholder="उदा. पेमेंट अप्रूवल / ID कार्ड डाउनलोड समस्या"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-sky-400 text-white rounded-xl px-3.5 py-2 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">समस्या का पूरा विवरण:</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={ticketDesc}
-                  onChange={(e) => setTicketDesc(e.target.value)}
-                  placeholder="अपनी समस्या यहाँ विस्तार से लिखें..."
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-sky-400 text-white rounded-xl p-3 outline-none transition resize-none"
-                />
-              </div>
-
-              <SmartFileUpload
-                label="समस्या का स्क्रीनशॉट (यदि हो)"
-                sublabel="25MB तक सीधे अपलोड या Drive Link"
-                fileValue={ticketAttachment}
-                driveLinkValue={ticketDriveLink}
-                onFileChange={setTicketAttachment}
-                onDriveLinkChange={setTicketDriveLink}
-              />
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 text-white font-black text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-sky-500/20"
-              >
-                <Send className="w-4 h-4" />
-                <span>टिकट सबमिट करें (SUBMIT TICKET)</span>
-              </button>
-            </form>
-
-            {/* User's Previous Tickets */}
-            {myTickets.length > 0 && (
-              <div className="pt-3 border-t border-slate-800 space-y-3">
-                <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-                  <span>आपके पिछले टिकट (Ticket History):</span>
-                </h4>
-
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {myTickets.map((t) => (
-                    <div key={t.id} className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-[11px] space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">{t.subject}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                          t.status === 'resolved' 
-                            ? 'bg-emerald-500/20 text-emerald-400' 
-                            : 'bg-amber-500/20 text-amber-300'
-                        }`}>
-                          {t.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-slate-400">{t.description}</p>
-                      {t.adminReply && (
-                        <div className="p-2 bg-slate-900 border border-emerald-500/40 rounded-xl text-emerald-300 mt-1">
-                          <strong className="block text-[10px] text-amber-400">एडमिन जवाब:</strong>
-                          {t.adminReply}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
+      {/* ========================================================= */}
+      {/* TAB 4: HELP DESK & TICKETS */}
+      {/* ========================================================= */}
+      {activeTab === 'support' && (
+        <div className="glass-card p-6 sm:p-7 rounded-3xl border border-slate-800 space-y-6 max-w-3xl mx-auto animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-sky-400" />
+              <span>सहायता व समस्या निवारण (In-App Help Desk)</span>
+            </h3>
+            <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
+              24x7 Direct Admin Support
+            </span>
           </div>
 
-        </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            यदि आपको कोई समस्या, पेआउट संबंधी प्रश्न या सुझाव है, तो नीचे विवरण और स्क्रीनशॉट भेजें। एडमिन टीम सीधे आपके टिकट का जवाब देगी।
+          </p>
 
-      </div>
+          {ticketSuccess && (
+            <div className="p-3 bg-emerald-950/70 border border-emerald-500/50 rounded-2xl text-emerald-300 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>{ticketSuccess}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateTicket} className="space-y-3.5 text-xs">
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">विषय (Subject / Problem):</label>
+              <input
+                type="text"
+                required
+                value={ticketSubject}
+                onChange={(e) => setTicketSubject(e.target.value)}
+                placeholder="उदा. पेमेंट अप्रूवल / ID कार्ड डाउनलोड समस्या / पेआउट विवरण"
+                className="w-full bg-slate-950 border border-slate-700 focus:border-sky-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">समस्या का पूरा विवरण:</label>
+              <textarea
+                required
+                rows={3}
+                value={ticketDesc}
+                onChange={(e) => setTicketDesc(e.target.value)}
+                placeholder="अपनी समस्या यहाँ विस्तार से लिखें..."
+                className="w-full bg-slate-950 border border-slate-700 focus:border-sky-400 text-white rounded-xl p-3 outline-none transition resize-none"
+              />
+            </div>
+
+            <SmartFileUpload
+              label="समस्या का स्क्रीनशॉट (यदि हो)"
+              sublabel="25MB तक सीधे अपलोड या Drive Link"
+              fileValue={ticketAttachment}
+              driveLinkValue={ticketDriveLink}
+              onFileChange={setTicketAttachment}
+              onDriveLinkChange={setTicketDriveLink}
+            />
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 text-white font-black text-xs uppercase flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-sky-500/20"
+            >
+              <Send className="w-4 h-4" />
+              <span>टिकट सबमिट करें (SUBMIT TICKET)</span>
+            </button>
+          </form>
+
+          {/* User's Previous Tickets */}
+          {myTickets.length > 0 && (
+            <div className="pt-4 border-t border-slate-800 space-y-3">
+              <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                <span>आपके पिछले टिकट (Ticket History):</span>
+              </h4>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {myTickets.map((t) => (
+                  <div key={t.id} className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-[11px] space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">{t.subject}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                        t.status === 'resolved' 
+                          ? 'bg-emerald-500/20 text-emerald-400' 
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {t.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-slate-400">{t.description}</p>
+                    {t.adminReply && (
+                      <div className="p-2.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-emerald-300 mt-1">
+                        <strong className="block text-[10px] text-amber-400">एडमिन जवाब:</strong>
+                        {t.adminReply}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 };

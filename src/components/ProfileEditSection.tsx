@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, UserPrivacySettings, DEFAULT_PRIVACY_SETTINGS } from '../types';
 import { PLANS } from '../data/plansData';
 import { updateUserProfile, sanitizeUpiId } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
@@ -85,12 +85,17 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
   const [address, setAddress] = useState<string>(user.address || '');
   const [emergencyContact, setEmergencyContact] = useState<string>(user.emergencyContact || '');
   const [payoutUpi, setPayoutUpi] = useState<string>(user.payoutUpi || '');
-  const [sponsorId, setSponsorId] = useState<string>(user.sponsorId || 'IOIS999VK01');
+  const [sponsorId, setSponsorId] = useState<string>(user.sponsorId || '');
   const [selectedPlanId, setSelectedPlanId] = useState<number>(user.selectedPlanId || 1);
   const [role, setRole] = useState<string>(user.role || 'Verified Elite Member');
   const [password, setPassword] = useState<string>(user.password || '');
   const [photoUrl, setPhotoUrl] = useState<string>(user.photoUrl || '');
   const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>(user.googleDrivePhotoLink || '');
+
+  // Privacy & Visibility Settings (Default: All personal details masked, unique ID always visible)
+  const [privacySettings, setPrivacySettings] = useState<UserPrivacySettings>(() => {
+    return user.privacySettings || DEFAULT_PRIVACY_SETTINGS;
+  });
 
   // Payment Verification Updates
   const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string>(user.paymentScreenshotUrl || '');
@@ -112,7 +117,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setAddress(user.address || '');
     setEmergencyContact(user.emergencyContact || '');
     setPayoutUpi(user.payoutUpi || '');
-    setSponsorId(user.sponsorId || 'IOIS999VK01');
+    setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
     setRole(user.role || 'Verified Elite Member');
     setPassword(user.password || '');
@@ -121,6 +126,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setPaymentScreenshotUrl(user.paymentScreenshotUrl || '');
     setGoogleDrivePaymentLink(user.googleDrivePaymentLink || '');
     setPaymentUtr(user.paymentUtr || '');
+    setPrivacySettings(user.privacySettings || DEFAULT_PRIVACY_SETTINGS);
   }, [user]);
 
   const currentPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
@@ -133,7 +139,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setAddress(user.address || '');
     setEmergencyContact(user.emergencyContact || '');
     setPayoutUpi(user.payoutUpi || '');
-    setSponsorId(user.sponsorId || 'IOIS999VK01');
+    setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
     setRole(user.role || 'Verified Elite Member');
     setPassword(user.password || '');
@@ -142,6 +148,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setPaymentScreenshotUrl(user.paymentScreenshotUrl || '');
     setGoogleDrivePaymentLink(user.googleDrivePaymentLink || '');
     setPaymentUtr(user.paymentUtr || '');
+    setPrivacySettings(user.privacySettings || DEFAULT_PRIVACY_SETTINGS);
     setErrorMsg('');
     setIsEditing(false);
   };
@@ -182,7 +189,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
         address: address.trim(),
         emergencyContact: emergencyContact.trim() || undefined,
         payoutUpi: sanitizedUpi,
-        sponsorId: sponsorId.trim().toUpperCase() || 'IOIS999VK01',
+        sponsorId: sponsorId.trim().toUpperCase() || user.sponsorId || '',
         selectedPlanId,
         role: role.trim() || 'Verified Elite Member',
         password: password.trim(),
@@ -191,6 +198,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
         paymentScreenshotUrl: paymentScreenshotUrl || user.paymentScreenshotUrl,
         googleDrivePaymentLink: googleDrivePaymentLink.trim() || user.googleDrivePaymentLink,
         paymentUtr: paymentUtr.trim() || user.paymentUtr,
+        privacySettings,
       };
 
       const saved = updateUserProfile(updated);
@@ -702,6 +710,127 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
               )}
             </div>
           )}
+        </div>
+
+        {/* SECTION 7.5: PRIVACY & VISIBILITY CONTROLS */}
+        <div className="p-4 sm:p-5 bg-slate-950 rounded-2xl border-2 border-amber-500/40 space-y-3.5 shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <h5 className="font-black text-white text-xs sm:text-sm">
+                डिजिटल पहचान पत्र व प्रोफ़ाइल गोपनीयता सेटिंग्स (Privacy & Visibility)
+              </h5>
+            </div>
+            <span className="text-[10px] text-amber-400 font-mono font-bold bg-slate-900 px-2 py-0.5 rounded-lg border border-amber-500/30">
+              User ID हमेशा दृश्यमान रहेगी
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            नियंत्रित करें कि जब कोई नया आगंतुक या छात्र आपके रेफरल लिंक पर आए, तो वह आपका ID कार्ड देखते समय क्या देख सकता है। डिफ़ॉल्ट रूप से सुरक्षा हेतु सभी व्यक्तिगत विवरण मास्क्ड (छिपे हुए) रहते हैं।
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* 1. Full Name */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">👤 पूरा नाम (Full Name)</span>
+                <span className="text-[10px] text-slate-400 block">
+                  {privacySettings.showFullName ? 'सार्वजनिक (पूरा दिखेगा)' : 'सुरक्षित / मास्क्ड (उदा. R**** K****)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!isEditing}
+                onClick={() => setPrivacySettings((prev) => ({ ...prev, showFullName: !prev.showFullName }))}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showFullName ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 2. Mobile Number */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">📱 मोबाइल नंबर (Mobile Number)</span>
+                <span className="text-[10px] text-slate-400 block">
+                  {privacySettings.showMobile ? 'सार्वजनिक' : 'सुरक्षित (उदा. +91 ******1234)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!isEditing}
+                onClick={() => setPrivacySettings((prev) => ({ ...prev, showMobile: !prev.showMobile }))}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showMobile ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 3. Email */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">✉️ ईमेल पता (Email)</span>
+                <span className="text-[10px] text-slate-400 block">
+                  {privacySettings.showEmail ? 'सार्वजनिक' : 'सुरक्षित (उदा. r***@***.com)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!isEditing}
+                onClick={() => setPrivacySettings((prev) => ({ ...prev, showEmail: !prev.showEmail }))}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showEmail ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 4. Profile Photo */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">🖼️ व्यक्तिगत फ़ोटो (Photo)</span>
+                <span className="text-[10px] text-slate-400 block">
+                  {privacySettings.showPhoto ? 'सार्वजनिक' : 'सुरक्षित (आधिकारिक मेम्बर अवतार)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!isEditing}
+                onClick={() => setPrivacySettings((prev) => ({ ...prev, showPhoto: !prev.showPhoto }))}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showPhoto ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 5. Location / State */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between sm:col-span-2">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">📍 स्थान / राज्य (Location)</span>
+                <span className="text-[10px] text-slate-400 block">
+                  {privacySettings.showLocation ? 'सार्वजनिक (राज्य दिखेगा)' : 'सुरक्षित (भारत - सुरक्षित)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!isEditing}
+                onClick={() => setPrivacySettings((prev) => ({ ...prev, showLocation: !prev.showLocation }))}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showLocation ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* SECTION 8: BOTTOM ACTION BAR */}

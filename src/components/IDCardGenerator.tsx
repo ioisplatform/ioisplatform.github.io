@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_EMAIL } from '../data/plansData';
+import { maskMobile, maskEmail, maskName } from '../services/userService';
 import { 
   CreditCard, 
   Download, 
@@ -31,13 +32,16 @@ import {
   FileText,
   Link,
   Image as ImageIcon,
-  ExternalLink
+  ExternalLink,
+  UserCheck
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 interface IDCardGeneratorProps {
   currentUser?: UserProfile | null;
+  targetUser?: UserProfile | null;
+  isSponsorPreview?: boolean;
   onOpenRegister?: () => void;
   isModalMode?: boolean;
 }
@@ -59,23 +63,32 @@ const PRESET_AVATARS = [
 
 export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   currentUser,
+  targetUser,
+  isSponsorPreview = false,
   onOpenRegister,
   isModalMode = false,
 }) => {
+  const displayUser = targetUser || currentUser;
+  const isCardOwner = Boolean(
+    currentUser &&
+    displayUser &&
+    currentUser.userId?.trim().toUpperCase() === displayUser.userId?.trim().toUpperCase()
+  );
+
   // 1. Card Profile States
-  const [fullName, setFullName] = useState<string>(currentUser?.fullName || 'राहुल कुमार');
-  const [memberId, setMemberId] = useState<string>(currentUser?.userId || 'IOIS999VK01');
-  const [selectedPlanId, setSelectedPlanId] = useState<number>(currentUser?.selectedPlanId || 7);
-  const [userRole, setUserRole] = useState<string>(currentUser?.role || 'Supreme Master Partner');
-  const [phoneNumber, setPhoneNumber] = useState<string>(currentUser?.mobileNumber || '+91 9523218765');
+  const [fullName, setFullName] = useState<string>(displayUser?.fullName || 'आधिकारिक सदस्य (IOIS Member)');
+  const [memberId, setMemberId] = useState<string>(displayUser?.userId || 'IOIS-MEMBER-ID');
+  const [selectedPlanId, setSelectedPlanId] = useState<number>(displayUser?.selectedPlanId || 1);
+  const [userRole, setUserRole] = useState<string>(displayUser?.role || 'Official Verified Member');
+  const [phoneNumber, setPhoneNumber] = useState<string>(displayUser?.mobileNumber || '+91 9876543210');
   const [bloodGroup, setBloodGroup] = useState<string>('O+');
-  const [stateRegion, setStateRegion] = useState<string>('पटना, बिहार (IN)');
+  const [stateRegion, setStateRegion] = useState<string>(displayUser?.state || 'बिहार (IN)');
   const [dob, setDob] = useState<string>('15/08/2000');
   const [issueDate, setIssueDate] = useState<string>('01/01/2026');
   const [validThru, setValidThru] = useState<string>('31/12/2031');
   
   const [photoUrl, setPhotoUrl] = useState<string>(
-    currentUser?.photoUrl || PRESET_AVATARS[0].url
+    displayUser?.photoUrl || PRESET_AVATARS[0].url
   );
 
   // 2. Customizer Modes
@@ -83,7 +96,8 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   const [cardOrientation, setCardOrientation] = useState<CardOrientation>('landscape');
   const [cardSide, setCardSide] = useState<CardSide>('front');
   const [privacyMode, setPrivacyMode] = useState<PrivacyMode>('public'); // Details Mask: public vs private
-  
+  const [copiedId, setCopiedId] = useState<boolean>(false);
+
   // 3. QR Code Configuration
   const [qrMode, setQrMode] = useState<QrMode>('referral');
   const [customQrUrl, setCustomQrUrl] = useState<string>('');
@@ -98,17 +112,18 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   const backCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (currentUser) {
-      setFullName(currentUser.fullName);
-      setMemberId(currentUser.userId);
-      setSelectedPlanId(currentUser.selectedPlanId);
-      setUserRole(currentUser.role || 'Official Verified Member');
-      setPhoneNumber(currentUser.mobileNumber);
-      if (currentUser.photoUrl) setPhotoUrl(currentUser.photoUrl);
+    if (displayUser) {
+      setFullName(displayUser.fullName || 'आधिकारिक सदस्य (IOIS Member)');
+      setMemberId(displayUser.userId || 'IOIS-MEMBER-ID');
+      setSelectedPlanId(displayUser.selectedPlanId || 1);
+      setUserRole(displayUser.role || 'Official Verified Member');
+      setPhoneNumber(displayUser.mobileNumber || '+91 9876543210');
+      setStateRegion(displayUser.state || 'बिहार (IN)');
+      if (displayUser.photoUrl) setPhotoUrl(displayUser.photoUrl);
     }
-  }, [currentUser]);
+  }, [displayUser]);
 
-  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[6];
+  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -130,14 +145,29 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     ? customQrImage
     : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(effectiveQrLink)}`;
 
-  // Masked vs Unmasked Display (User ID is ALWAYS visible to everyone!)
-  const displayMobile = privacyMode === 'public'
-    ? phoneNumber.replace(/(\+?\d{2,4}\s?)?(\d{2,3})\d{4,5}(\d{2,3})/, '$1$2*****$3')
-    : phoneNumber;
-  
-  const displayBlood = privacyMode === 'public' ? '**' : bloodGroup;
-  const displayDob = privacyMode === 'public' ? '**/**/****' : dob;
-  const displayState = privacyMode === 'public' ? 'बिहार (सुरक्षित)' : stateRegion;
+  // Strict Privacy Masking Logic:
+  // By default, ALL personal info is masked except unique User ID!
+  // Card owner can preview public view (privacyMode === 'public') or unmask their own details (privacyMode === 'private').
+  // Non-owners (visitors or peers) ALWAYS have masking enforced according to displayUser's privacySettings.
+  const privacySettings = displayUser?.privacySettings || {
+    showFullName: false,
+    showMobile: false,
+    showEmail: false,
+    showPhoto: false,
+    showLocation: false,
+  };
+
+  const effectiveShowFullName = isCardOwner ? privacyMode === 'private' : privacySettings.showFullName;
+  const effectiveShowMobile = isCardOwner ? privacyMode === 'private' : privacySettings.showMobile;
+  const effectiveShowPhoto = isCardOwner ? privacyMode === 'private' : privacySettings.showPhoto;
+  const effectiveShowLocation = isCardOwner ? privacyMode === 'private' : privacySettings.showLocation;
+
+  const displayFullName = effectiveShowFullName ? fullName : maskName(fullName);
+  const displayMobile = effectiveShowMobile ? phoneNumber : maskMobile(phoneNumber);
+  const displayPhoto = effectiveShowPhoto ? photoUrl : PRESET_AVATARS[0].url;
+  const displayBlood = isCardOwner && privacyMode === 'private' ? bloodGroup : '**';
+  const displayDob = isCardOwner && privacyMode === 'private' ? dob : '**/**/****';
+  const displayState = effectiveShowLocation ? stateRegion : 'भारत (सुरक्षित)';
 
   // Photo Upload Handler
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,8 +200,12 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
-  // Download HD PNG
+  // Download HD PNG (Strict Owner Only)
   const handleDownloadPng = async (targetSide: 'front' | 'back' = 'front') => {
+    if (!isCardOwner) {
+      showToast('🔒 सुरक्षा नीति: केवल कार्ड धारक ही अपना मूल ID कार्ड डाउनलोड कर सकते हैं।');
+      return;
+    }
     const targetElement = targetSide === 'front' ? cardRef.current : backCardRef.current;
     if (!targetElement) return;
 
@@ -202,8 +236,12 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
-  // Download HD JPG
+  // Download HD JPG (Strict Owner Only)
   const handleDownloadJpg = async (targetSide: 'front' | 'back' = 'front') => {
+    if (!isCardOwner) {
+      showToast('🔒 सुरक्षा नीति: केवल कार्ड धारक ही अपना मूल ID कार्ड डाउनलोड कर सकते हैं।');
+      return;
+    }
     const targetElement = targetSide === 'front' ? cardRef.current : backCardRef.current;
     if (!targetElement) return;
 
@@ -234,8 +272,12 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
-  // Download Clean High-Resolution PDF
+  // Download Clean High-Resolution PDF (Strict Owner Only)
   const handleDownloadPdf = async (targetSide: 'front' | 'back' = 'front') => {
+    if (!isCardOwner) {
+      showToast('🔒 सुरक्षा नीति: केवल कार्ड धारक ही अपना मूल ID कार्ड डाउनलोड कर सकते हैं।');
+      return;
+    }
     const targetElement = targetSide === 'front' ? cardRef.current : backCardRef.current;
     if (!targetElement) return;
 
@@ -274,8 +316,12 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
-  // Download Both Sides in a Single 2-Page PDF
+  // Download Both Sides in a Single 2-Page PDF (Strict Owner Only)
   const handleDownloadBothSidesPdf = async () => {
+    if (!isCardOwner) {
+      showToast('🔒 सुरक्षा नीति: केवल कार्ड धारक ही अपना मूल ID कार्ड डाउनलोड कर सकते हैं।');
+      return;
+    }
     if (!cardRef.current || !backCardRef.current) return;
 
     try {
@@ -323,9 +369,15 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(memberId);
-    showToast(`User ID [${memberId}] क्लिपबोर्ड में कॉपी हो गया!`);
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(memberId);
+      setCopiedId(true);
+      showToast(`User ID [${memberId}] क्लिपबोर्ड में कॉपी हो गया!`);
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch {
+      showToast('कॉपी करने में समस्या आई।');
+    }
   };
 
   const handleCopyReferralLink = () => {
@@ -334,6 +386,10 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   };
 
   const handlePrint = () => {
+    if (!isCardOwner) {
+      showToast('🔒 सुरक्षा नीति: केवल कार्ड धारक ही अपना मूल ID कार्ड प्रिंट कर सकते हैं।');
+      return;
+    }
     window.print();
   };
 
@@ -639,123 +695,145 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
             )}
           </div>
 
-          {/* 5. User Details Editing Fields */}
-          <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">पूरा नाम (Full Name):</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="उदा. राहुल कुमार"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition"
-                />
+          {/* 5. User Details Editing Fields (Only allowed for Card Owner) */}
+          {isCardOwner ? (
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">पूरा नाम (Full Name):</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="उदा. आपका पूरा नाम"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">मोबाइल नंबर:</label>
+                  <input
+                    type="text"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="उदा. +91 9876543210"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">मोबाइल नंबर:</label>
-                <input
-                  type="text"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="उदा. +91 9523218765"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">चयनित IOIS प्लान व सेवा:</label>
-                <select
-                  value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition cursor-pointer font-bold"
-                >
-                  {PLANS.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      Plan 0{plan.id}: {plan.name} (₹{plan.price})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">सदस्य पद / रोल (Title):</label>
-                <select
-                  value={userRole}
-                  onChange={(e) => setUserRole(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition cursor-pointer"
-                >
-                  <option value="Supreme Master Partner">Supreme Master Partner</option>
-                  <option value="Official Verified Member">Official Verified Member</option>
-                  <option value="Authorized State Reseller">Authorized State Reseller</option>
-                  <option value="Active Digital Learner">Active Digital Learner</option>
-                  <option value="Student Ambassador">Student Ambassador</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-slate-400 text-[10px] font-bold mb-1">ब्लड ग्रुप:</label>
-                <input
-                  type="text"
-                  value={bloodGroup}
-                  onChange={(e) => setBloodGroup(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 text-[10px] font-bold mb-1">DOB:</label>
-                <input
-                  type="text"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 text-[10px] font-bold mb-1">राज्य / पता:</label>
-                <input
-                  type="text"
-                  value={stateRegion}
-                  onChange={(e) => setStateRegion(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none truncate"
-                />
-              </div>
-            </div>
-
-            {/* Preset Avatars & Custom Photo Upload */}
-            <div className="pt-2 border-t border-slate-800 space-y-2">
-              <label className="block text-slate-300 font-bold">फोटो का चयन (Select or Upload Photo):</label>
-              
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {PRESET_AVATARS.map((av) => (
-                  <button
-                    key={av.id}
-                    type="button"
-                    onClick={() => setPhotoUrl(av.url)}
-                    className={`w-9 h-9 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer transition ${
-                      photoUrl === av.url ? 'border-amber-400 scale-105 shadow-md' : 'border-slate-700 opacity-60 hover:opacity-100'
-                    }`}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">चयनित IOIS प्लान:</label>
+                  <select
+                    value={selectedPlanId}
+                    onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition cursor-pointer font-bold"
                   >
-                    <img src={av.url} alt={av.label} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+                    {PLANS.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        Plan 0{plan.id}: {plan.name} (₹{plan.price})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">सदस्य पद / रोल (Title):</label>
+                  <select
+                    value={userRole}
+                    onChange={(e) => setUserRole(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2 outline-none transition cursor-pointer"
+                  >
+                    <option value="Supreme Master Partner">Supreme Master Partner</option>
+                    <option value="Official Verified Member">Official Verified Member</option>
+                    <option value="Authorized State Reseller">Authorized State Reseller</option>
+                    <option value="Active Digital Learner">Active Digital Learner</option>
+                    <option value="Student Ambassador">Student Ambassador</option>
+                  </select>
+                </div>
               </div>
 
-              <label className="flex items-center justify-center gap-2 p-2 rounded-xl border border-dashed border-slate-700 hover:border-amber-400 bg-slate-950 cursor-pointer transition">
-                <Upload className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-slate-300 text-xs font-bold">अपनी गैलरी / डिवाइस से फोटो अपलोड करें</span>
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-              </label>
-            </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">ब्लड ग्रुप:</label>
+                  <input
+                    type="text"
+                    value={bloodGroup}
+                    onChange={(e) => setBloodGroup(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none"
+                  />
+                </div>
 
-          </div>
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">DOB:</label>
+                  <input
+                    type="text"
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">राज्य / पता:</label>
+                  <input
+                    type="text"
+                    value={stateRegion}
+                    onChange={(e) => setStateRegion(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-2 py-1.5 text-center text-xs font-bold outline-none truncate"
+                  />
+                </div>
+              </div>
+
+              {/* Preset Avatars & Custom Photo Upload */}
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <label className="block text-slate-300 font-bold">फोटो का चयन (Select or Upload Photo):</label>
+                
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {PRESET_AVATARS.map((av) => (
+                    <button
+                      key={av.id}
+                      type="button"
+                      onClick={() => setPhotoUrl(av.url)}
+                      className={`w-9 h-9 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer transition ${
+                        photoUrl === av.url ? 'border-amber-400 scale-105 shadow-md' : 'border-slate-700 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={av.url} alt={av.label} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+
+                <label className="flex items-center justify-center gap-2 p-2 rounded-xl border border-dashed border-slate-700 hover:border-amber-400 bg-slate-950 cursor-pointer transition">
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-slate-300 text-xs font-bold">अपनी गैलरी / डिवाइस से फोटो अपलोड करें</span>
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                </label>
+              </div>
+            </div>
+          ) : (
+            /* Verified Read-Only Card & Registration CTA */
+            <div className="p-4 bg-slate-950/90 rounded-2xl border-2 border-amber-500/40 space-y-3">
+              <div className="flex items-center gap-2 text-xs text-amber-300 font-black">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>{isSponsorPreview ? 'सत्यापित स्पॉन्सर डिजिटल पहचान' : 'सदस्य सत्यापन कार्ड'}</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                यह आपके {isSponsorPreview ? 'स्पॉन्सर' : 'सहकर्मी'} का आधिकारिक 256-Bit एन्क्रिप्टेड पहचान पत्र है। IOIS गोपनीयता नियमों के तहत व्यक्तिगत संपर्क मास्क्ड हैं और कार्ड संपादन केवल स्वामी के लिए सुरक्षित है।
+              </p>
+              {onOpenRegister && (
+                <button
+                  type="button"
+                  onClick={onOpenRegister}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>इस स्पॉन्सर के साथ रजिस्ट्रेशन करें</span>
+                </button>
+              )}
+            </div>
+          )}
 
         </div>
 
@@ -912,8 +990,8 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         <div className="relative shrink-0">
                           <div className="w-20 h-24 sm:w-22 sm:h-25 rounded-2xl overflow-hidden border-2 border-amber-400 bg-slate-900 shadow-xl">
                             <img
-                              src={photoUrl}
-                              alt={fullName}
+                              src={displayPhoto}
+                              alt={displayFullName}
                               crossOrigin="anonymous"
                               className="w-full h-full object-cover"
                             />
@@ -930,7 +1008,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                               सत्यापित सदस्य / Cardholder:
                             </span>
                             <h4 className="text-sm sm:text-base font-black text-white truncate tracking-wide leading-tight">
-                              {fullName}
+                              {displayFullName}
                             </h4>
                           </div>
 
@@ -1127,8 +1205,8 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         <div className="relative">
                           <div className="w-22 h-26 rounded-2xl overflow-hidden border-2 border-amber-400 bg-slate-900 shadow-xl">
                             <img
-                              src={photoUrl}
-                              alt={fullName}
+                              src={displayPhoto}
+                              alt={displayFullName}
                               crossOrigin="anonymous"
                               className="w-full h-full object-cover"
                             />
@@ -1141,7 +1219,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         {/* Name & ID */}
                         <div className="space-y-0.5">
                           <h4 className="text-sm font-black text-white tracking-wide">
-                            {fullName}
+                            {displayFullName}
                           </h4>
                           <span className="text-xs font-mono font-bold text-amber-300 block">
                             User ID: {memberId}
@@ -1268,75 +1346,106 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
               </span>
             </div>
 
-            {/* Main 3 High-Quality Buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              
-              {/* 1. HD PNG */}
-              <button
-                type="button"
-                onClick={() => handleDownloadPng(cardSide === 'back' ? 'back' : 'front')}
-                disabled={isDownloading}
-                className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
-              >
-                <Download className="w-3.5 h-3.5 shrink-0" />
-                <span>HD PNG</span>
-              </button>
+            {isCardOwner ? (
+              <>
+                {/* Main 3 High-Quality Buttons */}
+                <div className="grid grid-cols-3 gap-2">
+                  
+                  {/* 1. HD PNG */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPng(cardSide === 'back' ? 'back' : 'front')}
+                    disabled={isDownloading}
+                    className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span>HD PNG</span>
+                  </button>
 
-              {/* 2. HD JPG */}
-              <button
-                type="button"
-                onClick={() => handleDownloadJpg(cardSide === 'back' ? 'back' : 'front')}
-                disabled={isDownloading}
-                className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
-              >
-                <Download className="w-3.5 h-3.5 shrink-0" />
-                <span>HD JPG</span>
-              </button>
+                  {/* 2. HD JPG */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadJpg(cardSide === 'back' ? 'back' : 'front')}
+                    disabled={isDownloading}
+                    className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span>HD JPG</span>
+                  </button>
 
-              {/* 3. Clean PDF */}
-              <button
-                type="button"
-                onClick={() => handleDownloadPdf(cardSide === 'back' ? 'back' : 'front')}
-                disabled={isDownloading}
-                className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
-              >
-                <FileText className="w-3.5 h-3.5 shrink-0" />
-                <span>Clean PDF</span>
-              </button>
+                  {/* 3. Clean PDF */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdf(cardSide === 'back' ? 'back' : 'front')}
+                    disabled={isDownloading}
+                    className="py-2.5 px-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    <span>Clean PDF</span>
+                  </button>
 
-            </div>
+                </div>
 
-            {/* 4. Full 2-Page Front & Back Combined PDF */}
-            <button
-              type="button"
-              onClick={handleDownloadBothSidesPdf}
-              disabled={isDownloading}
-              className="w-full py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border-2 border-amber-500/50 text-amber-300 hover:text-amber-200 font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
-            >
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span>{isDownloading && downloadFormatLabel.includes('2-Page') ? 'PDF तैयार हो रहा है...' : 'आगे + पीछे दोनों भाग (Full 2-Page PDF) डाउनलोड करें'}</span>
-            </button>
+                {/* 4. Full 2-Page Front & Back Combined PDF */}
+                <button
+                  type="button"
+                  onClick={handleDownloadBothSidesPdf}
+                  disabled={isDownloading}
+                  className="w-full py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border-2 border-amber-500/50 text-amber-300 hover:text-amber-200 font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  <span>{isDownloading && downloadFormatLabel.includes('2-Page') ? 'PDF तैयार हो रहा है...' : 'आगे + पीछे दोनों भाग (Full 2-Page PDF) डाउनलोड करें'}</span>
+                </button>
 
-            {/* Auxiliary Tools: Print & Share */}
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>प्रिंट करें</span>
-              </button>
+                {/* Auxiliary Tools: Print & Share */}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>प्रिंट करें</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleShare}
-                className="px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>शेयर करें</span>
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>शेयर करें</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl text-center space-y-2.5">
+                <div className="flex items-center justify-center gap-2 text-amber-300 font-bold text-xs">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>सुरक्षा व डाउनलोड प्रतिबंध (Privacy & Download Protection)</span>
+                </div>
+                <p className="text-[11px] text-slate-300 max-w-sm mx-auto leading-relaxed">
+                  सुरक्षा नियमों के अनुसार कोई भी व्यक्ति केवल अपना स्वयं का ID कार्ड ही डाउनलोड कर सकता है। स्पॉन्सर या अन्य सदस्यों का कार्ड डाउनलोड करने की अनुमति नहीं है।
+                </p>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <button
+                    disabled
+                    className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500 text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-60"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>डाउनलोड केवल कार्ड स्वामी के लिए उपलब्ध है</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>स्पॉन्सर लिंक शेयर करें</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
           </div>
 

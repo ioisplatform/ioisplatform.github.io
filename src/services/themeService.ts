@@ -112,7 +112,11 @@ export const applyThemeToDocument = (mode: ThemeMode, preset: ThemePreset) => {
     localStorage.setItem(STORAGE_PRESET_KEY, preset);
   } catch (e) {}
 
-  // 4. Update browser theme-color meta tag
+  // 4. Update browser theme-color meta tag & colorScheme
+  try {
+    document.body.style.colorScheme = mode;
+  } catch (e) {}
+
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
     if (mode === 'light') {
@@ -122,4 +126,9 @@ export const applyThemeToDocument = (mode: ThemeMode, preset: ThemePreset) => {
       metaTheme.setAttribute('content', activePreset?.previewBg || '#020617');
     }
   }
+
+  // 5. Dispatch custom event for reactive listeners
+  try {
+    window.dispatchEvent(new CustomEvent('iois-theme-changed', { detail: { mode, preset } }));
+  } catch (e) {}
 };

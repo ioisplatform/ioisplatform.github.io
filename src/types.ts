@@ -1,6 +1,44 @@
+export interface UserEditLog {
+  field: string;
+  fieldLabelHi?: string;
+  oldValue?: string;
+  newValue?: string;
+  timestamp: string;
+}
+
+export interface UserPrivacySettings {
+  showFullName: boolean; // default false -> masked (e.g. "R**** K****")
+  showMobile: boolean;   // default false -> masked (e.g. "+91 98******10")
+  showEmail: boolean;    // default false -> masked (e.g. "r***@***.com")
+  showPhoto: boolean;    // default false -> masked (shows official member shield avatar)
+  showLocation: boolean; // default false -> masked (e.g. "भारत (गोपनीयता सुरक्षित)")
+}
+
+export const DEFAULT_PRIVACY_SETTINGS: UserPrivacySettings = {
+  showFullName: false,
+  showMobile: false,
+  showEmail: false,
+  showPhoto: false,
+  showLocation: false,
+};
+
+export interface CustomMarketingTemplate {
+  id: string;
+  tag: string;
+  title: string;
+  message: string;
+  createdAt: string;
+}
+
 export interface UserProfile {
   userId: string; // Non-editable custom formula: IOIS + PlanPrice + Initials + Counter (e.g. IOIS10RK01)
   fullName: string;
+  fatherOrHusbandName?: string;
+  motherName?: string;
+  dob?: string;
+  gender?: string;
+  qualification?: string;
+  aadhaarNumber?: string;
   mobileNumber: string;
   email: string;
   selectedPlanId: number;
@@ -11,14 +49,21 @@ export interface UserProfile {
   paymentScreenshotUrl?: string;
   googleDrivePaymentLink?: string;
   paymentUtr?: string;
+  paymentMode?: string;
   paymentStatus: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   createdAt: string;
   verifiedAt?: string;
   address?: string;
+  state?: string;
+  district?: string;
+  pincode?: string;
   payoutUpi?: string;
   sponsorId?: string;
   emergencyContact?: string;
+  editHistory?: UserEditLog[];
+  registrationFormData?: Record<string, any>;
+  privacySettings?: UserPrivacySettings;
 }
 
 export interface HelpTicket {

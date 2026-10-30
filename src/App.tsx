@@ -41,9 +41,10 @@ import { AuthModal } from './components/AuthModal';
 import { RegistrationModal } from './components/RegistrationModal';
 import { DashboardModal } from './components/DashboardModal';
 import { IdCardModal } from './components/IdCardModal';
+import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
 import { Plan, UserProfile, PageType } from './types';
-import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser } from './services/userService';
+import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser, findUserById } from './services/userService';
 import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
 
 const PageFallbackLoader = () => (
@@ -92,6 +93,49 @@ export default function App() {
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState<boolean>(false);
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
+
+  // Sponsor Referral Visitor State & Modal
+  const [sponsorReferralId, setSponsorReferralId] = useState<string>('');
+  const [sponsorUser, setSponsorUser] = useState<UserProfile | null>(null);
+  const [isSponsorModalOpen, setIsSponsorModalOpen] = useState<boolean>(false);
+
+  // Detect ?ref= or ?sponsor= on mount to show sponsor ID card with strict privacy
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
+      if (ref) {
+        const cleanRef = ref.trim().toUpperCase();
+        setSponsorReferralId(cleanRef);
+        const matched = findUserById(cleanRef);
+        if (matched) {
+          setSponsorUser(matched);
+        } else {
+          setSponsorUser({
+            userId: cleanRef,
+            fullName: 'IOIS Verified Member',
+            mobileNumber: '+91 9876543210',
+            email: 'member@iois.org.in',
+            selectedPlanId: 7,
+            role: 'Official Verified Member',
+            photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+            paymentStatus: 'approved',
+            createdAt: new Date().toISOString(),
+            privacySettings: {
+              showFullName: false,
+              showMobile: false,
+              showEmail: false,
+              showPhoto: false,
+              showLocation: false,
+            },
+          });
+        }
+        setIsSponsorModalOpen(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Fast Non-Blocking Deferred Sync with backend (Prioritizes 0-delay instant initial page paint)
   useEffect(() => {
@@ -142,6 +186,12 @@ export default function App() {
 
   const handleOpenRegister = (planId?: number) => {
     if (planId) setSelectedPlanForRegister(planId);
+    setIsRegisterModalOpen(true);
+  };
+
+  const handleOpenRegisterWithSponsor = (sponsorId: string) => {
+    setSponsorReferralId(sponsorId);
+    setSelectedPlanForRegister(1);
     setIsRegisterModalOpen(true);
   };
 
@@ -312,6 +362,7 @@ export default function App() {
               onRegisterSuccess={handleRegisterSuccess}
               onOpenLogin={handleOpenLogin}
               preSelectedPlanId={selectedPlanForRegister}
+              initialSponsorId={sponsorReferralId}
             />
           </div>
         )}
@@ -771,6 +822,17 @@ export default function App() {
           handleOpenLogin(mode || 'login', prefill);
         }}
         initialPlanId={selectedPlanForRegister}
+        initialSponsorId={sponsorReferralId}
+      />
+
+      {/* 9.5 Dedicated Sponsor Privacy-Protected ID Card Visitor Modal */}
+      <SponsorCardModal
+        isOpen={isSponsorModalOpen}
+        onClose={() => setIsSponsorModalOpen(false)}
+        sponsorUser={sponsorUser}
+        sponsorId={sponsorReferralId}
+        onOpenRegisterWithSponsor={handleOpenRegisterWithSponsor}
+        currentUser={currentUser}
       />
 
       {/* 10. Dedicated Member Dashboard Pop-Up Dialog Box Modal */}

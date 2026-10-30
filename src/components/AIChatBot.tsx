@@ -34,7 +34,8 @@ import {
   Mic,
   MicOff,
   Copy,
-  Check
+  Check,
+  HelpCircle
 } from 'lucide-react';
 
 interface AIChatBotProps {
@@ -117,6 +118,55 @@ export function getClientLiveIndianDate() {
   };
 }
 
+// Pre-curated Authoritative Frequently Asked Questions (अक्सर पूछे जाने वाले सवाल)
+const POPULAR_FAQS = [
+  {
+    category: 'प्लांस व आय',
+    q: 'IOIS के 7 मास्टर प्लांस और उनकी फीस क्या है?',
+    a: `IOIS प्लेटफॉर्म पर 7 मास्टर प्लांस उपलब्ध हैं:\n• Plan 01 (₹10): बाल विकास किट, 700+ पृष्ठ डिजिटल पुस्तक, ₹7 (70%) पेआउट।\n• Plan 02 (₹49): कक्षा 1-8 नोट्स, ₹34 (70%) पेआउट।\n• Plan 03 (₹99): कक्षा 9-10 हाई स्कूल नोट्स, ₹64 (65%) पेआउट।\n• Plan 04 (₹199): कक्षा 11-12 इंटरमीडिएट नोट्स, ₹119 (60%) पेआउट।\n• Plan 05 (₹299): प्रतियोगी परीक्षा व क्विज़, ₹179 (60%) पेआउट।\n• Plan 06 (₹499): सम्पूर्ण करियर व सरकारी सेवा हब, ₹274 (55%) पेआउट।\n• Plan 07 (₹999): लाइफटाइम मास्टर एक्सेस, ₹499 (50%) पेआउट।\n\n[[NAV:page:plans|7 मास्टर प्लांस देखें]]\n[[NAV:page:register|नया रजिस्ट्रेशन करें]]`
+  },
+  {
+    category: 'विथड्रॉल व पेआउट',
+    q: 'कमीशन पैसे विथड्रॉ (Withdraw) कैसे करें?',
+    a: `विथड्रॉल प्रक्रिया बेहद सरल और पारदर्शी है:\n1. सदस्य लॉगिन करें और 'यूजर डैशबोर्ड' खोलें।\n2. 'कमीशन व विथड्रॉल' टैब पर जाएं।\n3. अपनी विथड्रॉल राशि (न्यूनतम ₹100) दर्ज करें।\n4. अपना पेआउट माध्यम (Google Pay, PhonePe, Paytm, BHIM UPI या बैंक खाता) चुनें।\n5. अपनी UPI ID दर्ज करें और 'विथड्रॉल अनुरोध सबमिट करें' पर क्लिक करें।\n6. एडमिन 2 से 24 घंटे के भीतर सीधे आपके UPI खाते में 0% कटौती के साथ राशि ट्रांसफर कर देगा।\n\n[[NAV:page:dashboard|यूजर डैशबोर्ड में विथड्रॉल फॉर्म खोलें]]\n[[NAV:page:calculator|पेआउट कैलकुलेटर देखें]]`
+  },
+  {
+    category: 'ID कार्ड व पोस्टर',
+    q: 'दुकान और CSC सेंटर के लिए पोस्टर कैसे बनाएं और डाउनलोड करें?',
+    a: `IOIS ने आपके लिए ऑटोमैटिक प्रमोशनल पोस्टर स्टूडियो बनाया है:\n1. डैशबोर्ड में 'पोस्टर स्टूडियो' टैब पर क्लिक करें।\n2. 4 में से अपना पसंदीदा टेम्पलेट चुनें:\n   • दुकान / CSC कैफे बैनर (A4 Flex)\n   • विद्यार्थी NCERT नोट्स पोस्टर\n   • WhatsApp स्टेटस 9:16 स्टोरी पोस्टर\n   • 50%-70% इंसेंटिव स्वरोजगार पोस्टर\n3. अपना दुकान/सेंटर का नाम और मोबाइल नंबर डालें। आपका व्यक्तिगत QR कोड और स्पॉन्सर आईडी अपने आप पोस्टर में लग जाएगा।\n4. 'HD पोस्टर डाउनलोड करें' पर क्लिक करें या 1-क्लिक में WhatsApp पर शेयर करें!\n\n[[NAV:page:dashboard|पोस्टर स्टूडियो खोलें]]`
+  },
+  {
+    category: 'ID कार्ड व पोस्टर',
+    q: 'डिजिटल ID कार्ड कैसे डाउनलोड और प्रिंट करें?',
+    a: `स्मार्ट डिजिटल ID कार्ड डाउनलोड करने के लिए:\n1. ऊपरी मेन्यू से 'ID कार्ड' बटन दबाएं या डैशबोर्ड खोलें।\n2. आपका 256-बिट सुरक्षित मेंबर ID कार्ड (Front & Back) लाइव प्रदर्शित होगा।\n3. लैंडस्केप या पोर्ट्रेट ओरिएंटेशन चुनें।\n4. 'डाउनलोड HD कार्ड (PNG)' या 'प्रिंट / PDF' बटन पर क्लिक करें।\n5. यह कार्ड लेमिनेशन करवाकर गले में पहनने या दुकान पर प्रदर्शित करने हेतु उपयुक्त है।\n\n[[NAV:page:idcard|डिजिटल ID कार्ड जनरेटर खोलें]]`
+  },
+  {
+    category: 'प्लांस व आय',
+    q: 'पेमेंट अप्रूवल और वेरिफिकेशन में कितना समय लगता है?',
+    a: `रजिस्ट्रेशन के बाद जब आप 12-अंकों का UPI UTR नंबर और स्क्रीनशॉट जमा करते हैं:\n• आधिकारिक एडमिन टीम सामान्यतः 5 मिनट से 2 घंटे के भीतर बैंक स्टेटमेंट से UTR मिलाकर अप्रूव कर देती है।\n• अप्रूव होते ही आपके डैशबोर्ड पर हरा 'VERIFIED OFFICIAL MEMBER' बैज आ जाता है और डिजिटल ID कार्ड सक्रिय हो जाता है।\n• यदि UTR गलत दर्ज हुआ हो, तो आप डैशबोर्ड में 'प्रोफाइल एडिट' में जाकर सही UTR अपडेट कर सकते हैं।\n\n[[NAV:page:dashboard|डैशबोर्ड में वेरिफिकेशन स्टेटस देखें]]`
+  },
+  {
+    category: 'बाल विकास व पढ़ाई',
+    q: 'बाल विकास डिजिटल पुस्तक और चिंटू AI क्या है?',
+    a: `बाल विकास (ioisplatform.github.io/balvikas) बच्चों के लिए एक क्रांतिकारी डिजिटल प्लेटफॉर्म है:\n• 700+ पृष्ठों की सम्पूर्ण सचित्र पुस्तक (अ से ज्ञ, बारहखड़ी, सामान्य ज्ञान, गणित)।\n• चिंटू AI शिक्षक: बोलकर और समझाकर बच्चों को सिखाने वाला लाइव शिक्षक।\n• 3D मानव शरीर रचना व डिजिटल पेंसिल ट्रेसिंग स्लेट।\n• यह Plan 01 में मात्र ₹10 में लाइफटाइम उपलब्ध है, जिसपर ₹7 का तुरंत पेआउट मिलता है।\n\n[[NAV:plan:1|Plan 01 ₹10 बाल विकास चुनें]]\n[[NAV:external:https://ioisplatform.github.io/balvikas/|बाल विकास पोर्टल खोलें]]`
+  },
+  {
+    category: 'RTPS व सरकारी सेवाएं',
+    q: 'RTPS जाति, आय, निवास प्रमाण पत्र कैसे बनेगा?',
+    a: `IOIS पर RTPS सेवाएं पूर्णतः इंटीग्रेटेड हैं:\n1. 'RTPS व जमीन' पोर्टल पर जाएं।\n2. 'जाति प्रमाण पत्र', 'आय प्रमाण पत्र' या 'निवास प्रमाण पत्र' के सीधे लिंक पर क्लिक करें।\n3. सर्विस प्लस (serviceonline.gov.in) पर आधार OTP या आवश्यक विवरण भरें।\n4. आवेदन संख्या से 1-क्लिक में स्टेटस ट्रैक करें और तैयार होने पर सर्टिफिकेट डाउनलोड करें।\n\n[[NAV:page:rtps-services|RTPS नागरिक सेवाएं पोर्टल खोलें]]`
+  },
+  {
+    category: 'RTPS व सरकारी सेवाएं',
+    q: 'जमीन दाखिल खारिज (Mutation) और रसीद कैसे चेक करें?',
+    a: `बिहार व भारत के सभी राज्यों के भू-अभिलेख पोर्टल:\n• दाखिल खारिज (Mutation) ऑनलाइन आवेदन व स्टेटस।\n• ऑनलाइन लगान (Land Revenue) रसीद काटना।\n• जमीन का खाता, खसरा, खेसरा व जमाबंदी पंजी देखना।\n• भू-नक्शा (Land Map) डाउनलोड करना।\n\n[[NAV:page:rtps-services|जमीन सुधार व दाखिल खारिज पोर्टल खोलें]]`
+  },
+  {
+    category: 'प्लांस व आय',
+    q: 'मेरी स्पॉन्सर आईडी और रेफरल लिंक कहाँ मिलेगा?',
+    a: `लॉगिन करने के बाद:\n• यूजर डैशबोर्ड में 'रेफरल QR व डाउनलाइन' अनुभाग पर जाएं।\n• वहाँ आपकी Sponsor ID (जैसे IOIS... ) और आपकी यूनिक रेफरल लिंक (https://ioisplatform.github.io/?ref=...) हमेशा दिखाई देगी।\n• आप सीधे 1-क्लिक में लिंक कॉपी कर सकते हैं या अपना व्यक्तिगत QR कोड डाउनलोड कर सकते हैं।\n\n[[NAV:page:dashboard|रेफरल लिंक व QR देखें]]`
+  }
+];
+
 export const AIChatBot: React.FC<AIChatBotProps> = ({ 
   isOpen, 
   onClose, 
@@ -130,16 +180,16 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
     {
       id: 'msg-welcome',
       role: 'assistant',
-      content: `नमस्ते! 🙏 मैं IOIS AI हेल्पलाइन व संपूर्ण सिस्टम नेविगेटर हूँ (बाल विकास चिंटू AI शिक्षक मोड)।\n\nमैं आपको संपूर्ण IOIS प्लेटफॉर्म, बाल विकास (700+ डिजिटल पुस्तक), पढ़ाई, सामान्य ज्ञान और नागरिक सेवाओं के हर सवाल का सीधा और सटीक जवाब दूँगा।\n\nनीचे दिए गए बटनों पर क्लिक करें या अपना कोई भी सवाल पूछें!`,
+      content: `नमस्ते! 🙏 मैं IOIS AI हेल्पलाइन व संपूर्ण सिस्टम नेविगेटर हूँ (बाल विकास चिंटू AI शिक्षक मोड)।\n\nमैं आपको संपूर्ण IOIS प्लेटफॉर्म, 7 मास्टर प्लांस, रेफरल कमीशन, विथड्रॉल, डिजिटल ID कार्ड, पोस्टर स्टूडियो और नागरिक सेवाओं के हर सवाल का सीधा और सटीक जवाब दूँगा।\n\nनीचे दिए गए बटनों पर क्लिक करें या अक्सर पूछे जाने वाले सवाल (FAQ) देखें!`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       actions: [
         { id: 'act-balvikas', label: '📖 बाल विकास (Plan 01 ₹10)', type: 'select_plan', planId: 1 },
         { id: 'act-reg', label: '📝 नया सदस्य रजिस्ट्रेशन', type: 'navigate', target: 'register' },
         { id: 'act-plans', label: '💎 7 मास्टर प्लांस (₹10 - ₹999)', type: 'navigate', target: 'plans' },
-        { id: 'act-quiz', label: '🎯 15-सवाल कौशल साक्षात्कार', type: 'navigate', target: 'assessment' },
         { id: 'act-id', label: '🪪 डिजिटल ID कार्ड', type: 'navigate', target: 'idcard' },
-        { id: 'act-study', label: '📚 NCERT नोट्स व मैथ फॉर्मूला', type: 'navigate', target: 'student-study' },
+        { id: 'act-study', label: '📚 NCERT नोट्स व क्विज़', type: 'navigate', target: 'student-study' },
         { id: 'act-rtps', label: '🏛️ RTPS (जाति/आय/निवास)', type: 'navigate', target: 'rtps-services' },
+        { id: 'act-calc', label: '💰 पेआउट कैलकुलेटर', type: 'navigate', target: 'calculator' },
         { id: 'act-login', label: '🔐 सदस्य लॉगिन', type: 'open_login', loginMode: 'login' }
       ]
     }
@@ -149,6 +199,8 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [showNavigator, setShowNavigator] = useState<boolean>(false);
+  const [showFaq, setShowFaq] = useState<boolean>(false);
+  const [faqCategory, setFaqCategory] = useState<string>('सभी');
   const [navSuccessMessage, setNavSuccessMessage] = useState<string | null>(null);
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(INITIAL_KNOWLEDGE);
 
@@ -668,9 +720,29 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {/* FAQ Toggle Button */}
+          <button
+            onClick={() => {
+              setShowFaq(!showFaq);
+              if (showNavigator) setShowNavigator(false);
+            }}
+            className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer ${
+              showFaq 
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm' 
+                : 'bg-slate-800/80 text-amber-300 hover:bg-slate-700 border-amber-500/30'
+            }`}
+            title="अक्सर पूछे जाने वाले सवाल (FAQ)"
+          >
+            <HelpCircle className="w-3 h-3" />
+            <span className="hidden sm:inline">FAQ</span>
+          </button>
+
           {/* Direct System Navigator Toggle */}
           <button
-            onClick={() => setShowNavigator(!showNavigator)}
+            onClick={() => {
+              setShowNavigator(!showNavigator);
+              if (showFaq) setShowFaq(false);
+            }}
             className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer ${
               showNavigator 
                 ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm' 
@@ -803,6 +875,71 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
                     User ID खोजें
                   </button>
                 </div>
+              </div>
+            </div>
+          ) : showFaq ? (
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 scrollbar-thin scrollbar-thumb-slate-800 bg-slate-950">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-white font-black text-xs">अक्सर पूछे जाने वाले सवाल (FAQs)</h3>
+                </div>
+                <button
+                  onClick={() => setShowFaq(false)}
+                  className="text-[10px] text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded cursor-pointer"
+                >
+                  चैट पर लौटें ✕
+                </button>
+              </div>
+
+              {/* Category Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {['सभी', 'प्लांस व आय', 'विथड्रॉल व पेआउट', 'ID कार्ड व पोस्टर', 'बाल विकास व पढ़ाई', 'RTPS व सरकारी सेवाएं'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFaqCategory(cat)}
+                    className={`text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap transition cursor-pointer border ${
+                      faqCategory === cat
+                        ? 'bg-amber-400 text-slate-950 font-black border-amber-300 shadow-sm'
+                        : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* FAQ List */}
+              <div className="space-y-2.5">
+                {POPULAR_FAQS
+                  .filter((f) => faqCategory === 'सभी' || f.category === faqCategory)
+                  .map((faq, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 transition space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                            {faq.category}
+                          </span>
+                          <h4 className="text-xs font-black text-white">{faq.q}</h4>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowFaq(false);
+                            handleSendMessage(faq.q);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black shrink-0 transition cursor-pointer shadow-sm"
+                        >
+                          पूछें →
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950 p-2.5 rounded-xl border border-slate-850">
+                        {cleanBotText(faq.a)}
+                      </p>
+                    </div>
+                  ))}
               </div>
             </div>
           ) : (
@@ -948,15 +1085,26 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
 
           {/* Quick Preset Questions Chips */}
           <div className="px-3 py-2 bg-slate-900/95 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => {
+                setShowFaq(true);
+                setShowNavigator(false);
+              }}
+              className="text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black border-amber-300 shadow-sm flex items-center gap-1"
+            >
+              <HelpCircle className="w-3 h-3 text-slate-950" />
+              <span>अक्सर पूछे जाने वाले सवाल (FAQ)</span>
+            </button>
+
             {[
               '📅 आज कौन सा दिन व तारीख है?',
-              '📖 बाल विकास Plan 01 (₹10)',
+              '💰 पैसे विथड्रॉ कैसे करें?',
+              '🎨 दुकान पोस्टर कैसे बनाएं?',
               '💎 7 मास्टर प्लांस और पेआउट',
               '🪪 ID कार्ड कैसे डाउनलोड करें?',
-              '🎯 15-सवाल कौशल इंटरव्यू कैसे दें?',
+              '📖 बाल विकास Plan 01 (₹10)',
               '🏛️ जाति, आय, निवास प्रमाण पत्र (RTPS)',
               '🌾 मंडी भाव व सोना-चांदी दरें',
-              '💰 पेआउट व कमीशन कैलकुलेटर',
               '🌦️ लाइव मौसम व बारिश अलर्ट',
               '📞 व्हाट्सएप हेल्पलाइन +91 8877490845'
             ].map((chip, idx) => (
@@ -964,13 +1112,10 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
                 key={idx}
                 onClick={() => {
                   if (showNavigator) setShowNavigator(false);
+                  if (showFaq) setShowFaq(false);
                   handleSendMessage(chip);
                 }}
-                className={`text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border ${
-                  idx === 0 
-                    ? 'bg-amber-400 text-slate-950 font-black border-amber-300 shadow-sm'
-                    : 'bg-slate-950 hover:bg-slate-800 border-amber-500/30 text-amber-300'
-                }`}
+                className="text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border bg-slate-950 hover:bg-slate-800 border-amber-500/30 text-amber-300"
               >
                 {chip}
               </button>

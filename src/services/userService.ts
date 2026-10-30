@@ -19,42 +19,9 @@ const STORAGE_KNOWLEDGE_KEY = 'iois_ai_knowledge_v2';
 const STORAGE_UNANSWERED_KEY = 'iois_ai_unanswered_v2';
 const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 
-// Initial seed demo users
-const INITIAL_DEMO_USERS: UserProfile[] = [
-  {
-    userId: 'IOIS999RK01',
-    fullName: 'राहुल कुमार',
-    mobileNumber: '+91 9876543210',
-    email: 'rahul.kumar@example.com',
-    selectedPlanId: 7,
-    role: 'Supreme Master Partner',
-    password: 'password123',
-    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    paymentScreenshotUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80',
-    paymentUtr: 'UTR20268877490845',
-    paymentStatus: 'approved',
-    createdAt: '2026-08-20T10:30:00Z',
-    verifiedAt: '2026-08-20T11:00:00Z',
-    address: 'Patna, Bihar',
-    payoutUpi: 'rahul@upi',
-  },
-  {
-    userId: 'IOIS49PS01',
-    fullName: 'प्रिया शर्मा',
-    mobileNumber: '+91 9811223344',
-    email: 'priya.sharma@example.com',
-    selectedPlanId: 2,
-    role: 'Active Digital Learner',
-    password: 'password123',
-    photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
-    paymentScreenshotUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80',
-    paymentUtr: 'UTR202699112233',
-    paymentStatus: 'pending',
-    createdAt: '2026-08-23T08:15:00Z',
-    address: 'Indore, MP',
-    payoutUpi: 'priya@okhdfcbank',
-  }
-];
+// All demo/mock preview users removed per system requirements
+export const DEMO_USER_IDS = ['IOIS999RK01', 'IOIS49PS01', 'IOIS10AM01', 'IOIS99KV01', 'IOIS999VK01', 'IOIS999SM01'];
+const INITIAL_DEMO_USERS: UserProfile[] = [];
 
 export const INITIAL_KNOWLEDGE: KnowledgeItem[] = [
   {
@@ -578,10 +545,26 @@ export const getAllUsers = (): UserProfile[] => {
       return INITIAL_DEMO_USERS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_DEMO_USERS;
+    if (Array.isArray(parsed)) {
+      const cleanUsers = parsed.filter(
+        (u: UserProfile) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
+      );
+      if (cleanUsers.length !== parsed.length) {
+        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(cleanUsers));
+      }
+      return cleanUsers;
+    }
+    return INITIAL_DEMO_USERS;
   } catch (e) {
     return INITIAL_DEMO_USERS;
   }
+};
+
+export const findUserById = (userId?: string | null): UserProfile | undefined => {
+  if (!userId) return undefined;
+  const cleanId = userId.trim().toUpperCase();
+  const all = getAllUsers();
+  return all.find((u) => u.userId?.trim().toUpperCase() === cleanId);
 };
 
 export const saveUsers = (users: UserProfile[]): void => {
@@ -1162,6 +1145,48 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
   const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
   
+  // Track Audit Changes
+  const existingUser = index !== -1 ? users[index] : null;
+  const newLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = [];
+  const now = new Date().toISOString();
+
+  if (existingUser) {
+    const fieldMap: Array<{ key: keyof UserProfile; label: string }> = [
+      { key: 'payoutUpi', label: 'पेआउट UPI आईडी' },
+      { key: 'mobileNumber', label: 'मोबाइल नंबर' },
+      { key: 'email', label: 'ईमेल पता' },
+      { key: 'address', label: 'स्थायी पता' },
+      { key: 'state', label: 'राज्य' },
+      { key: 'district', label: 'जिला' },
+      { key: 'pincode', label: 'पिनकोड' },
+      { key: 'fatherOrHusbandName', label: 'पिता/पति का नाम' },
+      { key: 'dob', label: 'जन्मतिथि' },
+      { key: 'gender', label: 'जेंडर' },
+      { key: 'qualification', label: 'शैक्षणिक योग्यता' },
+      { key: 'photoUrl', label: 'प्रोफाइल फोटो' },
+      { key: 'paymentUtr', label: 'UTR नंबर' },
+      { key: 'paymentScreenshotUrl', label: 'पेमेंट स्क्रीनशॉट' },
+      { key: 'emergencyContact', label: 'आपातकालीन संपर्क' },
+    ];
+
+    fieldMap.forEach(({ key, label }) => {
+      const oldVal = (existingUser[key] as string) || '';
+      const newVal = (updatedProfile[key] as string) || '';
+      if (oldVal !== newVal && (oldVal || newVal)) {
+        newLogs.push({
+          field: String(key),
+          fieldLabelHi: label,
+          oldValue: oldVal || '(रिक्त)',
+          newValue: newVal || '(रिक्त)',
+          timestamp: now,
+        });
+      }
+    });
+  }
+
+  const existingLogs = existingUser?.editHistory || [];
+  const combinedLogs = [...newLogs, ...existingLogs].slice(0, 50); // Keep last 50 edits
+
   let finalizedUser: UserProfile;
   if (index !== -1) {
     finalizedUser = {
@@ -1169,6 +1194,7 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
       ...updatedProfile,
       payoutUpi: sanitizedUpi,
       userId: users[index].userId, // Strictly immutable User ID
+      editHistory: combinedLogs,
     };
     users[index] = finalizedUser;
   } else {
@@ -1176,6 +1202,7 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
       ...updatedProfile,
       payoutUpi: sanitizedUpi,
       userId: updatedProfile.userId.trim().toUpperCase(),
+      editHistory: combinedLogs,
     };
     users.push(finalizedUser);
   }
@@ -1197,6 +1224,127 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   }).catch((e) => console.warn('Background update sync note:', e));
 
   return finalizedUser;
+};
+
+/**
+ * ========================================================
+ * DOWNLINE & REFERRAL GENEALOGY HELPERS
+ * ========================================================
+ */
+export interface DownlineMemberInfo {
+  user: UserProfile;
+  planName: string;
+  planPrice: number;
+  instantPayout: number;
+  level: number;
+  directSponsorId?: string;
+  directSponsorName?: string;
+}
+
+export interface DownlineStats {
+  directCount: number;
+  totalDownlinesCount: number;
+  approvedCount: number;
+  pendingCount: number;
+  rejectedCount: number;
+  totalEarningsApproved: number;
+  potentialEarningsPending: number;
+}
+
+export const getDirectDownlines = (sponsorId: string, allUsers?: UserProfile[]): UserProfile[] => {
+  const users = allUsers || getAllUsers();
+  const cleanId = (sponsorId || '').trim().toUpperCase();
+  if (!cleanId) return [];
+  return users.filter((u) => u && u.sponsorId && u.sponsorId.trim().toUpperCase() === cleanId);
+};
+
+export const getAllDownlinesRecursive = (
+  rootUserId: string,
+  allUsers?: UserProfile[],
+  maxDepth = 5
+): DownlineMemberInfo[] => {
+  const users = allUsers || getAllUsers();
+  const cleanRootId = (rootUserId || '').trim().toUpperCase();
+  if (!cleanRootId) return [];
+
+  const userMap = new Map<string, UserProfile>();
+  users.forEach((u) => {
+    if (u && u.userId) userMap.set(u.userId.trim().toUpperCase(), u);
+  });
+
+  const results: DownlineMemberInfo[] = [];
+  const visited = new Set<string>();
+
+  const traverse = (currentSponsorId: string, currentLevel: number) => {
+    if (currentLevel > maxDepth) return;
+    const sponsorUser = userMap.get(currentSponsorId);
+
+    const directs = users.filter(
+      (u) => u && u.sponsorId && u.sponsorId.trim().toUpperCase() === currentSponsorId
+    );
+
+    for (const child of directs) {
+      const childId = child.userId.trim().toUpperCase();
+      if (visited.has(childId)) continue; // prevent cycle
+      visited.add(childId);
+
+      const plan = PLANS.find((p) => p.id === child.selectedPlanId) || PLANS[0];
+      results.push({
+        user: child,
+        planName: plan.name,
+        planPrice: plan.price,
+        instantPayout: plan.instantPayout,
+        level: currentLevel,
+        directSponsorId: currentSponsorId,
+        directSponsorName: sponsorUser?.fullName || currentSponsorId,
+      });
+
+      traverse(childId, currentLevel + 1);
+    }
+  };
+
+  traverse(cleanRootId, 1);
+  return results;
+};
+
+export const getDownlineStats = (userId: string, allUsers?: UserProfile[]): DownlineStats => {
+  const downlines = getAllDownlinesRecursive(userId, allUsers);
+  const directList = getDirectDownlines(userId, allUsers);
+
+  let approvedCount = 0;
+  let pendingCount = 0;
+  let rejectedCount = 0;
+  let totalEarningsApproved = 0;
+  let potentialEarningsPending = 0;
+
+  downlines.forEach((item) => {
+    if (item.user.paymentStatus === 'approved') {
+      approvedCount++;
+      // Full instant payout for level 1 directs, bonus for deeper levels
+      if (item.level === 1) {
+        totalEarningsApproved += item.instantPayout;
+      } else {
+        totalEarningsApproved += Math.round(item.instantPayout * 0.2); // 20% team bonus
+      }
+    } else if (item.user.paymentStatus === 'pending') {
+      pendingCount++;
+      if (item.level === 1) {
+        potentialEarningsPending += item.instantPayout;
+      }
+    } else {
+      rejectedCount++;
+    }
+  });
+
+  return {
+    directCount: directList.length,
+    totalDownlinesCount: downlines.length,
+    approvedCount,
+    pendingCount,
+    rejectedCount,
+    totalEarningsApproved,
+    potentialEarningsPending,
+  };
 };
 
 /**

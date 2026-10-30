@@ -12,11 +12,17 @@ import {
   isAdminLoggedIn, 
   setAdminSession,
   subscribeToFirestoreUsers,
-  subscribeToFirestoreTickets
+  subscribeToFirestoreTickets,
+  getAllDownlinesRecursive,
+  getDirectDownlines,
+  getDownlineStats,
+  maskMobile
 } from '../services/userService';
 import { TelegramAdminSettings } from './TelegramAdminSettings';
 import { AiKnowledgeManager } from './AiKnowledgeManager';
 import { InterviewListManager } from './InterviewListManager';
+import { StudentReferralHub } from './StudentReferralHub';
+import { IDCardGenerator } from './IDCardGenerator';
 import { 
   ShieldAlert, 
   CheckCircle2, 
@@ -40,7 +46,16 @@ import {
   Trash2,
   RefreshCw,
   Bot,
-  GraduationCap
+  GraduationCap,
+  Network,
+  History,
+  UserCheck,
+  CreditCard,
+  Share2,
+  Layers,
+  ChevronRight,
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -52,7 +67,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [adminPin, setAdminPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'tickets' | 'telegram' | 'ai_bot' | 'interviews'>('approvals');
+  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'tickets' | 'telegram' | 'ai_bot' | 'interviews'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -61,11 +76,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
-  // Modal / Preview state for screenshot
+  // Modal / Preview state for screenshot & inspection
   const [previewUser, setPreviewUser] = useState<UserProfile | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
   const [replyTicketId, setReplyTicketId] = useState<string | null>(null);
   const [adminReplyText, setAdminReplyText] = useState<string>('');
+
+  // Enhanced Admin Inspection States
+  const [selectedFormUser, setSelectedFormUser] = useState<UserProfile | null>(null);
+  const [impersonateUser, setImpersonateUser] = useState<UserProfile | null>(null);
+  const [selectedAuditUser, setSelectedAuditUser] = useState<UserProfile | null>(null);
+  const [selectedGenealogyUserId, setSelectedGenealogyUserId] = useState<string>('');
 
   const reloadData = async () => {
     setIsRefreshing(true);
@@ -253,103 +274,126 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
       </div>
 
-      {/* Admin Stats & Tab Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* Admin Stats & Tab Bar (8 Comprehensive Management Tabs) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'approvals'
               ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-slate-400">लंबित अप्रूवल</div>
-            <div className="text-xl font-black text-amber-400">{pendingCount} यूज़र्स</div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400">लंबित अप्रूवल</span>
+            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
           </div>
-          <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="text-lg font-black text-amber-400 mt-1">{pendingCount} यूज़र्स</div>
         </button>
 
         <button
           onClick={() => setActiveTab('all_users')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'all_users'
               ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-slate-400">कुल पंजीकृत सदस्य</div>
-            <div className="text-xl font-black text-white">{usersList.length} यूज़र्स</div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400">कुल सदस्य</span>
+            <Users className="w-4 h-4 text-sky-400 shrink-0" />
           </div>
-          <Users className="w-5 h-5 text-sky-400 shrink-0" />
+          <div className="text-lg font-black text-white mt-1">{usersList.length} यूज़र्स</div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('genealogy')}
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+            activeTab === 'genealogy'
+              ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-lg shadow-amber-500/15 ring-1 ring-amber-400'
+              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-300">डाउनलाइन ट्री</span>
+            <Network className="w-4 h-4 text-amber-400 shrink-0" />
+          </div>
+          <div className="text-xs font-black text-white mt-1">किसके नीचे कौन</div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('audit_logs')}
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+            activeTab === 'audit_logs'
+              ? 'bg-purple-500/25 border-purple-400 text-purple-300 shadow-lg shadow-purple-500/15 ring-1 ring-purple-400'
+              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-purple-300">एडिट हिस्ट्री</span>
+            <History className="w-4 h-4 text-purple-400 shrink-0" />
+          </div>
+          <div className="text-xs font-black text-white mt-1">ऑडिट लॉग्स</div>
         </button>
 
         <button
           onClick={() => setActiveTab('tickets')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'tickets'
               ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-slate-400">हेल्प टिकट्स</div>
-            <div className="text-xl font-black text-emerald-400">{openTicketCount} टिकट्स</div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400">हेल्प टिकट्स</span>
+            <HelpCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           </div>
-          <HelpCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="text-lg font-black text-emerald-400 mt-1">{openTicketCount} टिकट्स</div>
         </button>
 
         <button
           onClick={() => setActiveTab('telegram')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'telegram'
               ? 'bg-sky-500/20 border-sky-400 text-white shadow-lg shadow-sky-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-sky-300">Telegram Bot</div>
-            <div className="text-xs font-black text-white flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span>1-Click अलर्ट्स</span>
-            </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-sky-300">Telegram Bot</span>
+            <Bot className="w-4 h-4 text-sky-400 shrink-0" />
           </div>
-          <Bot className="w-5 h-5 text-sky-400 shrink-0" />
+          <div className="text-xs font-black text-white mt-1">1-Click अलर्ट्स</div>
         </button>
 
         <button
           onClick={() => setActiveTab('ai_bot')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'ai_bot'
               ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-amber-300">AI बॉट ज्ञान</div>
-            <div className="text-xs font-black text-white mt-0.5">
-              सवाल-जवाब सीखें
-            </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-300">AI बॉट ज्ञान</span>
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
           </div>
-          <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+          <div className="text-xs font-black text-white mt-1">नॉलेज बेस</div>
         </button>
 
         <button
           onClick={() => setActiveTab('interviews')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
             activeTab === 'interviews'
               ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/10'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
         >
-          <div>
-            <div className="text-[11px] font-bold text-emerald-300">इंटरव्यू टेस्ट्स</div>
-            <div className="text-xs font-black text-white mt-0.5">
-              15-सवाल रिपोर्ट
-            </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-300">इंटरव्यू टेस्ट्स</span>
+            <GraduationCap className="w-4 h-4 text-emerald-400 shrink-0" />
           </div>
-          <GraduationCap className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="text-xs font-black text-white mt-1">15-सवाल रिपोर्ट</div>
         </button>
       </div>
 
@@ -471,16 +515,53 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                           )}
                         </td>
 
-                        {/* Quick Approve / Reject / Delete Actions */}
+                        {/* Actions: View Form, Impersonate Dashboard, Downline Tree, Edit History, Approve, Reject, Delete */}
                         <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setSelectedFormUser(u)}
+                              title="पंजीकरण फॉर्म विवरण देखें (Full Submitted Form)"
+                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <FileSpreadsheet className="w-3 h-3 text-amber-400" />
+                              <span>फॉर्म</span>
+                            </button>
+
+                            <button
+                              onClick={() => setImpersonateUser(u)}
+                              title="यूजर का लाइव डैशबोर्ड देखें (Live Student Dashboard)"
+                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-sky-500/40 text-sky-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <UserCheck className="w-3 h-3 text-sky-400" />
+                              <span>डैशबोर्ड</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSelectedGenealogyUserId(u.userId);
+                                setActiveTab('genealogy');
+                              }}
+                              title="डाउनलाइन नेटवर्क ट्री देखें"
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-400 rounded-lg transition cursor-pointer"
+                            >
+                              <Network className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => setSelectedAuditUser(u)}
+                              title="यूजर प्रोफाइल एडिट हिस्ट्री (Audit Log)"
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-purple-300 rounded-lg transition cursor-pointer"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+
                             {u.paymentStatus !== 'approved' && (
                               <button
                                 onClick={() => handleApprove(u.userId)}
                                 title="स्वीकृत करें (Approve)"
-                                className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition cursor-pointer"
+                                className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition cursor-pointer shadow-sm"
                               >
-                                <CheckCircle2 className="w-4 h-4" />
+                                <CheckCircle2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                             {u.paymentStatus !== 'rejected' && (
@@ -489,9 +570,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                   setPreviewUser(u);
                                 }}
                                 title="अस्वीकृत करें (Reject with Reason)"
-                                className="p-1.5 bg-red-600/80 hover:bg-red-500 text-white rounded-lg transition cursor-pointer"
+                                className="p-1.5 bg-red-600/80 hover:bg-red-500 text-white rounded-lg transition cursor-pointer shadow-sm"
                               >
-                                <XCircle className="w-4 h-4" />
+                                <XCircle className="w-3.5 h-3.5" />
                               </button>
                             )}
                             <button
@@ -511,6 +592,341 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             </table>
           </div>
 
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: REFERRAL GENEALOGY NETWORK TREE (KIS USER KE NICHE KYA HAI) */}
+      {/* ========================================================= */}
+      {activeTab === 'genealogy' && (
+        <div className="glass-card p-5 sm:p-7 rounded-3xl border border-slate-800 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Network className="w-5 h-5 text-amber-400" />
+                <span>रेफरल नेटवर्क व डाउनलाइन ट्री (Genealogy Network Inspector)</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                किसी भी सदस्य का स्पॉन्सर कौन है, उसके नीचे कितने सदस्य जुड़े हैं और किसने कितना रेफरल किया — संपूर्ण विवरण।
+              </p>
+            </div>
+
+            {/* Select User to Inspect */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs text-slate-400 font-bold shrink-0">यूजर चुनें:</span>
+              <select
+                value={selectedGenealogyUserId || (usersList[0]?.userId || '')}
+                onChange={(e) => setSelectedGenealogyUserId(e.target.value)}
+                className="bg-slate-950 border border-amber-500/50 text-white rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-400 font-mono transition cursor-pointer max-w-xs truncate"
+              >
+                {usersList.map((u) => (
+                  <option key={u.userId} value={u.userId}>
+                    {u.fullName} ({u.userId}) - {u.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Render Tree for Target User */}
+          {(() => {
+            const currentRootId = selectedGenealogyUserId || usersList[0]?.userId || '';
+            const rootUser = usersList.find((u) => u.userId.toUpperCase() === currentRootId.toUpperCase()) || usersList[0];
+            if (!rootUser) {
+              return <div className="text-center text-xs text-slate-400 py-8">कोई यूजर उपलब्ध नहीं है।</div>;
+            }
+
+            const stats = getDownlineStats(rootUser.userId, usersList);
+            const allDownlines = getAllDownlinesRecursive(rootUser.userId, usersList);
+            const directList = getDirectDownlines(rootUser.userId, usersList);
+            const rootPlan = PLANS.find((p) => p.id === rootUser.selectedPlanId) || PLANS[0];
+            const sponsorUser = rootUser.sponsorId 
+              ? usersList.find((u) => u.userId.toUpperCase() === rootUser.sponsorId?.toUpperCase())
+              : null;
+
+            return (
+              <div className="space-y-6">
+                {/* Stats Summary for this user */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30">
+                    <span className="text-[10px] text-slate-400 block font-bold">डायरेक्ट सदस्य (L1)</span>
+                    <div className="text-xl font-black text-amber-400 font-mono mt-0.5">{stats.directCount}</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-sky-500/30">
+                    <span className="text-[10px] text-slate-400 block font-bold">कुल टीम (All Levels)</span>
+                    <div className="text-xl font-black text-sky-400 font-mono mt-0.5">{stats.totalDownlinesCount}</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-emerald-500/30">
+                    <span className="text-[10px] text-slate-400 block font-bold">सक्रिय सदस्य</span>
+                    <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">{stats.approvedCount}</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30">
+                    <span className="text-[10px] text-slate-400 block font-bold">पेंडिंग समीक्षा</span>
+                    <div className="text-xl font-black text-amber-300 font-mono mt-0.5">{stats.pendingCount}</div>
+                  </div>
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-green-500/40 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] text-emerald-300 block font-bold">वितरित इंसेंटिव</span>
+                    <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">₹{stats.totalEarningsApproved}</div>
+                  </div>
+                </div>
+
+                {/* Root Member Card with Sponsor Info */}
+                <div className="p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 rounded-2xl border-2 border-amber-400/80 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-400 shrink-0">
+                      <img src={rootUser.photoUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-white text-base">{rootUser.fullName}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-400 text-slate-950 font-black rounded-lg">
+                          ROOT: {rootUser.userId}
+                        </span>
+                        <span className="text-[10px] text-slate-300 font-semibold">
+                          {rootPlan.name} (₹{rootPlan.price})
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
+                        <span>📱 {rootUser.mobileNumber}</span>
+                        <span>•</span>
+                        <span>
+                          स्पॉन्सर: {sponsorUser ? (
+                            <strong className="text-amber-300">{sponsorUser.fullName} ({sponsorUser.userId})</strong>
+                          ) : rootUser.sponsorId ? (
+                            <strong className="text-amber-300">{rootUser.sponsorId}</strong>
+                          ) : (
+                            <span className="text-slate-400">Direct Official Platform (Top)</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFormUser(rootUser)}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>फॉर्म विवरण</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImpersonateUser(rootUser)}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-sky-500/40 text-sky-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>लाइव डैशबोर्ड</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Level 1 & Downline Members Tree View */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black text-white flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-amber-400" />
+                      <span>{rootUser.fullName} के नीचे जुड़े सदस्य ({allDownlines.length}):</span>
+                    </h4>
+                    <span className="text-xs text-slate-400">
+                      Direct: {directList.length} | Multi-Level: {allDownlines.length - directList.length}
+                    </span>
+                  </div>
+
+                  {allDownlines.length === 0 ? (
+                    <div className="p-8 bg-slate-950 rounded-2xl border border-slate-800 text-center text-slate-400 text-xs">
+                      इस यूजर के नीचे वर्तमान में कोई डाउनलाइन सदस्य पंजीकृत नहीं है।
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {allDownlines.map((item) => {
+                        const isDirect = item.level === 1;
+                        return (
+                          <div
+                            key={item.user.userId}
+                            className={`p-4 rounded-2xl border transition space-y-3 ${
+                              isDirect 
+                                ? 'bg-slate-950 border-amber-500/40 hover:border-amber-400' 
+                                : 'bg-slate-950/70 border-slate-800 hover:border-sky-400'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                isDirect 
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                                  : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                              }`}>
+                                Level {item.level} {isDirect ? '(Direct)' : `(Under: ${item.directSponsorName})`}
+                              </span>
+
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                item.user.paymentStatus === 'approved'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              }`}>
+                                {item.user.paymentStatus.toUpperCase()}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0">
+                                <img src={item.user.photoUrl} alt="" className="w-full h-full object-cover" />
+                              </div>
+                              <div className="overflow-hidden">
+                                <div className="font-bold text-white text-xs truncate">{item.user.fullName}</div>
+                                <div className="font-mono text-[10px] text-amber-400">{item.user.userId}</div>
+                                <div className="text-[10px] text-slate-400">{item.planName} (₹{item.planPrice})</div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-850 flex items-center justify-between text-xs">
+                              <span className="text-[10px] text-slate-400">
+                                इंसेंटिव: <strong className="text-emerald-400 font-mono">₹{isDirect ? item.instantPayout : Math.round(item.instantPayout * 0.2)}</strong>
+                              </span>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFormUser(item.user)}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                                  title="पंजीकरण फॉर्म"
+                                >
+                                  फॉर्म
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setImpersonateUser(item.user)}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-sky-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                                  title="लाइव डैशबोर्ड"
+                                >
+                                  डैशबोर्ड
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedGenealogyUserId(item.user.userId);
+                                  }}
+                                  className="p-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg cursor-pointer"
+                                  title="इस सदस्य का नेटवर्क ट्री खोलें"
+                                >
+                                  <Network className="w-3.5 h-3.5 text-amber-400" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: AUDIT LOGS (USER NE KYA EDIT KIYA, KAB KIYA) */}
+      {/* ========================================================= */}
+      {activeTab === 'audit_logs' && (
+        <div className="glass-card p-5 sm:p-7 rounded-3xl border border-slate-800 space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <History className="w-5 h-5 text-purple-400" />
+                <span>यूजर प्रोफाइल ऑडिट व एडिट हिस्ट्री (Profile Change Log)</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                यूजर ने अपनी प्रोफाइल (UPI ID, पता, मोबाइल, फोटो आदि) में क्या बदलाव किया, उसका समय और पिछला व नया मान।
+              </p>
+            </div>
+
+            <div className="text-xs text-purple-300 font-bold bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/30">
+              Live Audit Tracking
+            </div>
+          </div>
+
+          {/* Audit History Timeline */}
+          {(() => {
+            const allLogs: Array<{
+              userId: string;
+              userName: string;
+              field: string;
+              fieldLabelHi: string;
+              oldValue?: string;
+              newValue?: string;
+              timestamp: string;
+            }> = [];
+
+            usersList.forEach((u) => {
+              if (u.editHistory && Array.isArray(u.editHistory)) {
+                u.editHistory.forEach((log) => {
+                  allLogs.push({
+                    userId: u.userId,
+                    userName: u.fullName,
+                    field: log.field,
+                    fieldLabelHi: log.fieldLabelHi || log.field,
+                    oldValue: log.oldValue,
+                    newValue: log.newValue,
+                    timestamp: log.timestamp,
+                  });
+                });
+              }
+            });
+
+            // Sort newest first
+            allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+            if (allLogs.length === 0) {
+              return (
+                <div className="p-8 text-center text-slate-400 text-xs bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <History className="w-8 h-8 mx-auto text-slate-600" />
+                  <p>अभी तक किसी यूजर ने अपनी प्रोफाइल एडिट नहीं की है। जब भी कोई सदस्य विवरण बदलेगा, यहाँ स्वतः दर्ज हो जाएगा।</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3">
+                {allLogs.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-purple-500/40 transition"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white text-sm">{item.userName}</span>
+                        <span className="font-mono text-[10px] text-amber-300 bg-slate-900 px-2 py-0.5 rounded border border-amber-500/30">
+                          {item.userId}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {item.fieldLabelHi} बदला गया
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs flex-wrap pt-1">
+                        <span className="text-red-400 font-mono line-through bg-red-950/40 px-2 py-0.5 rounded border border-red-500/20">
+                          पुराना: {item.oldValue || '(रिक्त)'}
+                        </span>
+                        <span className="text-slate-400">→</span>
+                        <span className="text-emerald-400 font-mono font-bold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                          नया: {item.newValue || '(रिक्त)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 shrink-0 font-mono">
+                      {new Date(item.timestamp).toLocaleString('hi-IN', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -739,6 +1155,338 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 1: FULL SUBMITTED REGISTRATION FORM INSPECTOR */}
+      {/* ========================================================= */}
+      {selectedFormUser && (() => {
+        const plan = PLANS.find((p) => p.id === selectedFormUser.selectedPlanId) || PLANS[0];
+        const sponsor = selectedFormUser.sponsorId
+          ? usersList.find((u) => u.userId.toUpperCase() === selectedFormUser.sponsorId?.toUpperCase())
+          : null;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
+            <div className="bg-slate-900 border-2 border-amber-500/50 w-full max-w-4xl rounded-3xl p-5 sm:p-7 shadow-2xl relative text-white space-y-5 my-4 max-h-[92vh] overflow-y-auto">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-400 shrink-0 bg-slate-950 shadow-md">
+                    <img src={selectedFormUser.photoUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg sm:text-xl font-black text-white">{selectedFormUser.fullName}</h3>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                        selectedFormUser.paymentStatus === 'approved'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : selectedFormUser.paymentStatus === 'pending'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {selectedFormUser.paymentStatus.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-300 flex-wrap">
+                      <span className="font-mono text-amber-300 font-bold">User ID: {selectedFormUser.userId}</span>
+                      <span>•</span>
+                      <span>{selectedFormUser.role}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedFormUser(null)}
+                  className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Submissions Header Notice */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs text-amber-300">
+                <span className="flex items-center gap-2 font-bold">
+                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <span>रजिस्ट्रेशन के समय सबमिट किया गया मूल विवरण (Official Registration Record)</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  {new Date(selectedFormUser.createdAt).toLocaleString('hi-IN')}
+                </span>
+              </div>
+
+              {/* 4 Multi-Column Data Blocks */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                
+                {/* Block 1: Personal & Identity Info */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
+                  <h4 className="font-black text-amber-400 border-b border-slate-850 pb-1.5 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>1. व्यक्तिगत व पारिवारिक विवरण</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-slate-400">आवेदक का पूरा नाम:</span> <strong className="text-white">{selectedFormUser.fullName}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">पिता / पति का नाम:</span> <strong className="text-white">{selectedFormUser.fatherOrHusbandName || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">माता का नाम:</span> <strong className="text-white">{selectedFormUser.motherName || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">जन्मतिथि (DOB):</span> <strong className="text-white">{selectedFormUser.dob || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">जेंडर (Gender):</span> <strong className="text-white">{selectedFormUser.gender || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">शैक्षणिक योग्यता:</span> <strong className="text-white">{selectedFormUser.qualification || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">आधार संख्या (मास्क्ड):</span> <strong className="text-amber-300 font-mono">{selectedFormUser.aadhaarNumber || 'XXXX-XXXX-****'}</strong></div>
+                  </div>
+                </div>
+
+                {/* Block 2: Contact & Address */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
+                  <h4 className="font-black text-sky-400 border-b border-slate-850 pb-1.5 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>2. संपर्क व पता विवरण</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-slate-400">मोबाइल नंबर:</span> <strong className="text-white font-mono">{selectedFormUser.mobileNumber}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">ईमेल आईडी:</span> <strong className="text-white">{selectedFormUser.email}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">स्थायी पता:</span> <strong className="text-white text-right max-w-[200px]">{selectedFormUser.address || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">जिला (District):</span> <strong className="text-white">{selectedFormUser.district || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">राज्य (State):</span> <strong className="text-white">{selectedFormUser.state || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">पिनकोड:</span> <strong className="text-white font-mono">{selectedFormUser.pincode || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">आपातकालीन संपर्क:</span> <strong className="text-amber-300 font-mono">{selectedFormUser.emergencyContact || 'उपलब्ध नहीं'}</strong></div>
+                  </div>
+                </div>
+
+                {/* Block 3: Selected Plan & Payout */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
+                  <h4 className="font-black text-emerald-400 border-b border-slate-850 pb-1.5 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>3. चयनित योजना (Subscription Plan)</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-slate-400">प्लान नाम:</span> <strong className="text-white">{plan.name}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">प्लान कोड:</span> <strong className="text-amber-400 font-mono">{plan.code}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">सदस्यता शुल्क:</span> <strong className="text-emerald-400 font-mono text-sm">₹{plan.price}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">रेफरल इंसेंटिव दर:</span> <strong className="text-amber-400">{plan.percentage}% (₹{plan.instantPayout} प्रति रेफरल)</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">पेआउट UPI आईडी:</span> <strong className="text-amber-300 font-mono">{selectedFormUser.payoutUpi || 'सेट नहीं'}</strong></div>
+                  </div>
+                </div>
+
+                {/* Block 4: Sponsor & Verification Link */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
+                  <h4 className="font-black text-purple-400 border-b border-slate-850 pb-1.5 flex items-center gap-1.5">
+                    <Network className="w-3.5 h-3.5" />
+                    <span>4. स्पॉन्सर व सत्यापन विवरण</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-slate-400">स्पॉन्सर ID:</span> <strong className="text-amber-300 font-mono">{selectedFormUser.sponsorId || 'Direct Official Platform'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">स्पॉन्सर का नाम:</span> <strong className="text-white">{sponsor ? sponsor.fullName : selectedFormUser.sponsorId ? selectedFormUser.sponsorId : 'IOIS System Direct'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">पेमेंट UTR नंबर:</span> <strong className="text-emerald-400 font-mono">{selectedFormUser.paymentUtr || 'उपलब्ध नहीं'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">भुगतान मोड:</span> <strong className="text-white">{selectedFormUser.paymentMode || 'UPI'}</strong></div>
+                    <div className="flex justify-between"><span className="text-slate-400">सत्यापन स्थिति:</span> <strong className="text-white">{selectedFormUser.paymentStatus.toUpperCase()}</strong></div>
+                    {selectedFormUser.verifiedAt && (
+                      <div className="flex justify-between"><span className="text-slate-400">वेरिफाइड दिनांक:</span> <strong className="text-white">{new Date(selectedFormUser.verifiedAt).toLocaleString('hi-IN')}</strong></div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Payment Proof Attachments */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-300 block">अपलोड किया गया पेमेंट स्क्रीनशॉट प्रूफ:</span>
+                {selectedFormUser.paymentScreenshotUrl ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="w-40 h-40 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
+                      <img
+                        src={selectedFormUser.paymentScreenshotUrl}
+                        alt="Payment Screenshot"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <p className="text-slate-300">
+                        UTR: <strong className="text-emerald-400 font-mono">{selectedFormUser.paymentUtr || 'N/A'}</strong>
+                      </p>
+                      <a
+                        href={selectedFormUser.paymentScreenshotUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-700 text-amber-300 font-bold transition"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>फुल स्क्रीन में देखें →</span>
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">कोई स्क्रीनशॉट इमेज उपलब्ध नहीं है।</p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-800 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImpersonateUser(selectedFormUser);
+                      setSelectedFormUser(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>लाइव स्टूडेंट डैशबोर्ड देखें</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGenealogyUserId(selectedFormUser.userId);
+                      setActiveTab('genealogy');
+                      setSelectedFormUser(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-amber-300 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Network className="w-4 h-4" />
+                    <span>डाउनलाइन ट्री देखें</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {selectedFormUser.paymentStatus !== 'approved' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApprove(selectedFormUser.userId);
+                        setSelectedFormUser((prev) => prev ? { ...prev, paymentStatus: 'approved' } : null);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>अप्रूव करें</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFormUser(null)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
+                  >
+                    बंद करें
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: LIVE USER DASHBOARD INSPECTION (IMPERSONATION) */}
+      {/* ========================================================= */}
+      {impersonateUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
+          <div className="bg-slate-900 border-2 border-sky-500/50 w-full max-w-5xl rounded-3xl p-4 sm:p-6 shadow-2xl relative text-white space-y-4 my-4 max-h-[94vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/40">
+                  <UserCheck className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    लाइव स्टूडेंट डैशबोर्ड प्रीव्यू: <span className="text-amber-400">{impersonateUser.fullName}</span> ({impersonateUser.userId})
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    एडमिन व्यू: यह छात्र अपने डैशबोर्ड में क्या देख रहा है, उसका लाइव सटीक प्रीव्यू।
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setImpersonateUser(null)}
+                className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Embedded Live Student Referral Hub for this user */}
+            <div className="p-1">
+              <StudentReferralHub user={impersonateUser} />
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setImpersonateUser(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
+              >
+                प्रीव्यू बंद करें
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 3: SINGLE USER PROFILE EDIT HISTORY POPUP */}
+      {/* ========================================================= */}
+      {selectedAuditUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-900 border-2 border-purple-500/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-white space-y-4 max-h-[85vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedAuditUser(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <History className="w-5 h-5 text-purple-400" />
+              <div>
+                <h3 className="text-base font-black text-white">
+                  एडिट हिस्ट्री: {selectedAuditUser.fullName}
+                </h3>
+                <span className="font-mono text-xs text-amber-300">ID: {selectedAuditUser.userId}</span>
+              </div>
+            </div>
+
+            {(!selectedAuditUser.editHistory || selectedAuditUser.editHistory.length === 0) ? (
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-950 rounded-2xl border border-slate-800">
+                इस यूजर ने रजिस्ट्रेशन के बाद अपनी प्रोफाइल में कोई बदलाव नहीं किया है।
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {selectedAuditUser.editHistory.map((item, idx) => (
+                  <div key={idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-300">{item.fieldLabelHi || item.field}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(item.timestamp).toLocaleString('hi-IN')}
+                      </span>
+                    </div>
+                    <div className="text-[11px] flex items-center gap-2 pt-0.5">
+                      <span className="text-red-400 line-through">पहले: {item.oldValue || '(रिक्त)'}</span>
+                      <span>→</span>
+                      <span className="text-emerald-400 font-bold">नया: {item.newValue || '(रिक्त)'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedAuditUser(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                बंद करें
+              </button>
+            </div>
           </div>
         </div>
       )}
