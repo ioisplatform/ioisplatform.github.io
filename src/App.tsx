@@ -43,6 +43,7 @@ import { DashboardModal } from './components/DashboardModal';
 import { IdCardModal } from './components/IdCardModal';
 import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
+import { LockedFooterDock } from './components/LockedFooterDock';
 import { Plan, UserProfile, PageType } from './types';
 import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser, findUserById } from './services/userService';
 import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
@@ -683,73 +684,59 @@ export default function App() {
         </Suspense>
       </main>
 
-      {/* 4. Official Footer with AdSense Compliance Navigation */}
-      <Footer onNavigate={navigateTo} />
+      {/* 4. Official Footer with AdSense Compliance Navigation & Locked Options Hub */}
+      <Footer 
+        onNavigate={navigateTo}
+        currentUser={currentUser}
+        sponsorId={sponsorReferralId}
+        onOpenLogin={handleOpenLogin}
+        onOpenRegister={handleOpenRegister}
+        onOpenDashboard={handleOpenDashboard}
+        onOpenIdCard={handleOpenIdCard}
+        onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
+      />
 
-      {/* 5. Mobile Bottom Quick Navigation Bar (1-Click access to top portals on phones) */}
-      <nav 
-        id="mobile-bottom-nav" 
-        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-amber-500/30 px-1 py-1.5 sm:hidden flex items-center justify-around shadow-[0_-5px_20px_rgba(0,0,0,0.8)]"
-      >
-        <button
-          onClick={() => navigateTo('home')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-            currentPage === 'home' ? 'text-amber-400 font-black' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Home className="w-4 h-4" />
-          <span className="text-[10px] mt-0.5 font-bold">होम</span>
-        </button>
+      {/* 5. Fixed Locked Bottom Options Dock Bar (Active on Mobile, Tablet & PC) */}
+      <LockedFooterDock
+        currentUser={currentUser}
+        sponsorId={sponsorReferralId}
+        currentPage={currentPage}
+        onNavigate={navigateTo}
+        onOpenLogin={handleOpenLogin}
+        onOpenRegister={handleOpenRegister}
+        onOpenDashboard={handleOpenDashboard}
+        onOpenIdCard={handleOpenIdCard}
+        onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
+        onSetSponsorId={(newSponsorId) => {
+          setSponsorReferralId(newSponsorId);
+          const matched = findUserById(newSponsorId);
+          if (matched) {
+            setSponsorUser(matched);
+          } else {
+            setSponsorUser({
+              userId: newSponsorId,
+              fullName: 'IOIS Verified Member',
+              mobileNumber: '+91 9876543210',
+              email: 'member@iois.org.in',
+              selectedPlanId: 7,
+              role: 'Official Verified Member',
+              photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+              paymentStatus: 'approved',
+              createdAt: new Date().toISOString(),
+              privacySettings: {
+                showFullName: false,
+                showMobile: false,
+                showEmail: false,
+                showPhoto: false,
+                showLocation: false,
+              },
+            });
+          }
+        }}
+      />
 
-        <button
-          onClick={() => navigateTo('plans')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-            currentPage === 'plans' ? 'text-amber-400 font-black' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Crown className="w-4 h-4 text-amber-400" />
-          <span className="text-[10px] mt-0.5 font-bold">7 प्लान्स</span>
-        </button>
-
-        <button
-          onClick={() => navigateTo('rtps-services')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-            currentPage === 'rtps-services' ? 'text-emerald-400 font-black' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileText className="w-4 h-4 text-emerald-400" />
-          <span className="text-[10px] mt-0.5 font-bold">RTPS</span>
-        </button>
-
-        <button
-          onClick={handleOpenIdCard}
-          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-blue-400 hover:text-blue-300 transition"
-        >
-          <CreditCard className="w-4 h-4 text-blue-400" />
-          <span className="text-[10px] mt-0.5 font-bold">ID कार्ड</span>
-        </button>
-
-        {currentUser ? (
-          <button
-            onClick={handleOpenDashboard}
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-amber-400 font-black transition"
-          >
-            <LayoutDashboard className="w-4 h-4 text-amber-400" />
-            <span className="text-[10px] mt-0.5 font-bold">डैशबोर्ड</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => handleOpenRegister()}
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-emerald-400 font-black transition"
-          >
-            <UserPlus className="w-4 h-4 text-emerald-400" />
-            <span className="text-[10px] mt-0.5 font-bold">रजिस्टर</span>
-          </button>
-        )}
-      </nav>
-
-      {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above mobile dock with Live Prompt Pill */}
-      <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-40 flex items-center gap-2">
+      {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above dock */}
+      <div className="fixed bottom-14 sm:bottom-16 right-3 sm:right-6 z-40 flex items-center gap-2">
         <button
           type="button"
           onClick={() => {

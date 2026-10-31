@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserProfile, PageType } from '../types';
 import { 
   ShieldCheck, 
+  Lock,
   Sparkles, 
   Share2, 
   Check, 
@@ -154,8 +155,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* ================= MAIN HEADER BAR (GUARANTEED ZERO OVERFLOW ON ALL SCREENS) ================= */}
-      <header id="main-header" className="bg-slate-950/95 backdrop-blur-xl border-b border-amber-500/25 py-2 px-2 sm:px-4 md:px-6 sticky top-0 z-50 transition-all shadow-lg w-full max-w-full overflow-hidden">
+      {/* ================= MAIN LOCKED HEADER BAR (PERMANENT STICKY LOCK) ================= */}
+      <header id="main-header" className="bg-slate-950/98 backdrop-blur-2xl border-b-2 border-amber-500/40 py-2 px-2 sm:px-4 md:px-6 sticky top-0 z-50 transition-all shadow-[0_4px_30px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden">
         <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3 flex-nowrap">
           
           {/* 1. Brand Logo & Title */}
@@ -178,6 +179,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline-flex bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-bold px-1.5 py-0.2 rounded-full items-center gap-0.5">
                   <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
                   <span>OFFICIAL</span>
+                </span>
+                <span className="hidden md:inline-flex bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[8px] font-bold px-1.5 py-0.2 rounded-full items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5 text-amber-400" />
+                  <span>LOCKED HEADER</span>
                 </span>
               </div>
               <p className="gold-metallic-text text-[7px] xs:text-[7.5px] sm:text-[8px] md:text-[9px] uppercase tracking-wider font-black leading-none mt-0.5 whitespace-nowrap">

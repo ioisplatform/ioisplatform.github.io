@@ -154,55 +154,27 @@ ${user.googleDrivePaymentLink ? `🔗 <b>पेमेंट स्लिप ल�
   }
 }
 
-// Initial seed demo users
-const INITIAL_DEMO_USERS = [
-  {
-    userId: "IOIS999RK01",
-    fullName: "राहुल कुमार",
-    mobileNumber: "+91 9876543210",
-    email: "rahul.kumar@example.com",
-    selectedPlanId: 7,
-    role: "Supreme Master Partner",
-    password: "password123",
-    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
-    paymentScreenshotUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80",
-    paymentUtr: "UTR20268877490845",
-    paymentStatus: "approved",
-    createdAt: "2026-08-20T10:30:00Z",
-    verifiedAt: "2026-08-20T11:00:00Z",
-    address: "Patna, Bihar",
-    payoutUpi: "rahul@upi",
-  },
-  {
-    userId: "IOIS49PS01",
-    fullName: "प्रिया शर्मा",
-    mobileNumber: "+91 9811223344",
-    email: "priya.sharma@example.com",
-    selectedPlanId: 2,
-    role: "Active Digital Learner",
-    password: "password123",
-    photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80",
-    paymentScreenshotUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop&q=80",
-    paymentUtr: "UTR202699112233",
-    paymentStatus: "pending",
-    createdAt: "2026-08-23T08:15:00Z",
-    address: "Indore, MP",
-    payoutUpi: "priya@okhdfcbank",
-  }
-];
+// No demo users - only genuine registered records exist
+const INITIAL_DEMO_USERS: any[] = [];
+const DEMO_USER_PREFIXES = ["IOIS999RK", "IOIS49PS", "IOIS10AM", "IOIS99KV", "IOIS999VK"];
 
 function loadUsersFromDisk(): any[] {
   try {
     if (!fs.existsSync(USERS_FILE)) {
-      fs.writeFileSync(USERS_FILE, JSON.stringify(INITIAL_DEMO_USERS, null, 2), "utf-8");
-      return INITIAL_DEMO_USERS;
+      fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), "utf-8");
+      return [];
     }
     const raw = fs.readFileSync(USERS_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : INITIAL_DEMO_USERS;
+    const users = Array.isArray(data) ? data : [];
+    return users.filter((u: any) => {
+      if (!u || !u.userId) return false;
+      const idUpper = u.userId.toUpperCase();
+      return !DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix));
+    });
   } catch (err) {
     console.error("Error reading users from disk:", err);
-    return INITIAL_DEMO_USERS;
+    return [];
   }
 }
 
