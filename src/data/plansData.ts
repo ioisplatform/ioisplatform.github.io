@@ -1,10 +1,11 @@
 import { Plan, AssessmentQuestion } from '../types';
 
 export const OFFICIAL_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdIEpw4EU8bqPSxkH_Ku9RCabSyw4RrrZ32ydbLHTo-wPIohw/viewform?usp=header";
-export const OFFICIAL_TELEGRAM_URL = "https://t.me/ioisplatform";
-export const OFFICIAL_WHATSAPP_URL = "https://wa.me/918877490845";
+export const OFFICIAL_TELEGRAM_URL = "https://t.me/newuserhelpline";
+export const OFFICIAL_HELPLINE_TITLE = "🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】";
+export const OFFICIAL_WHATSAPP_URL = "https://t.me/newuserhelpline";
 export const OFFICIAL_PHONE = "+91 8877490845";
-export const OFFICIAL_EMAIL = "ioisplatform@gmail.com";
+export const OFFICIAL_EMAIL = "newuserhelpline@gmail.com";
 export const OFFICIAL_UPI_ID = "8877490845@spicepay";
 export const OFFICIAL_PAYEE_NAME = "Vikas Kumar";
 

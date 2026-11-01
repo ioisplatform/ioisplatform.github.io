@@ -21,7 +21,8 @@ import {
   ShieldAlert,
   Loader2,
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Send
 } from 'lucide-react';
 
 interface RegistrationPortalProps {
@@ -48,6 +49,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   const [mobileNumber, setMobileNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [address, setAddress] = useState<string>('');
+  const [telegramUsername, setTelegramUsername] = useState<string>('');
   const [sponsorId, setSponsorId] = useState<string>(initialSponsorId);
 
   const [selectedPlanId, setSelectedPlanId] = useState<number>(preSelectedPlanId);
@@ -234,6 +236,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
         password: password.trim(),
         role: role,
         address: address.trim(),
+        telegramUsername: telegramUsername.trim() || undefined,
         payoutUpi: payoutUpi.trim(),
         sponsorId: sponsorId.trim().toUpperCase() || 'IOIS999VK01',
         paymentUtr: paymentUtr.trim(),
@@ -246,6 +249,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
           fullName: fullName.trim(),
           mobileNumber: mobileNumber.trim(),
           email: email.trim(),
+          telegramUsername: telegramUsername.trim() || undefined,
           selectedPlanId: selectedPlanId,
           planName: selectedPlan.name,
           planPrice: selectedPlan.price,
@@ -526,7 +530,7 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                   </div>
 
                   {/* Address */}
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-slate-300 font-bold mb-1.5">
                       शहर व राज्य (City & State):
                     </label>
@@ -536,6 +540,26 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                       onChange={(e) => setAddress(e.target.value)}
                       placeholder="जैसे: पटना, बिहार"
                       className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Telegram Username or Link (Optional / Not Required) */}
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Send className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Telegram Username या Link:</span>
+                      </span>
+                      <span className="text-[10px] text-sky-400 font-bold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/30">
+                        ऐच्छिक (NOT REQUIRED)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={telegramUsername}
+                      onChange={(e) => setTelegramUsername(e.target.value)}
+                      placeholder="उदा: @username या t.me/username"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-sky-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition"
                     />
                   </div>
                 </div>

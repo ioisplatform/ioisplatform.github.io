@@ -735,8 +735,8 @@ export default function App() {
         }}
       />
 
-      {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above dock */}
-      <div className="fixed bottom-14 sm:bottom-16 right-3 sm:right-6 z-40 flex items-center gap-2">
+      {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above dock with full clearance */}
+      <div className="fixed bottom-20 sm:bottom-24 right-3 sm:right-6 z-30 flex items-center gap-2">
         <button
           type="button"
           onClick={() => {

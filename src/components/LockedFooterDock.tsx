@@ -106,21 +106,21 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-black truncate">
                   <Unlock className="w-3 h-3 text-emerald-400 shrink-0" />
                   <span className="truncate">
-                    लॉक्ड सदस्य सत्र एक्टिव: <strong className="text-white font-mono">{currentUser?.userId}</strong>
+                    सदस्य सत्र: <strong className="text-white font-mono">{currentUser?.userId}</strong>
                   </span>
                 </div>
               ) : hasSponsor ? (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black truncate">
                   <ShieldCheck className="w-3 h-3 text-amber-400 shrink-0" />
                   <span className="truncate">
-                    स्पॉन्सर लिंक सत्यापित: <strong className="text-white font-mono">{cleanSponsorId}</strong>
+                    स्पॉन्सर: <strong className="text-white font-mono">{cleanSponsorId}</strong>
                   </span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 font-black truncate">
-                  <Lock className="w-3 h-3 text-rose-400 shrink-0" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black truncate">
+                  <Lock className="w-3 h-3 text-amber-400 shrink-0" />
                   <span className="truncate">
-                    बिना स्पॉन्सर विज़िटर (डायरेक्ट सिस्टम मोड)
+                    डायरेक्ट सिस्टम मोड
                   </span>
                 </div>
               )}

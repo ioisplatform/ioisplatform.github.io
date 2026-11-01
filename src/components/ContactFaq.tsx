@@ -145,20 +145,26 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
         </div>
 
         <div className="space-y-3.5 text-xs sm:text-sm">
-          {/* WhatsApp */}
+          {/* Official Telegram Helpline */}
           <a
-            href={OFFICIAL_WHATSAPP_URL}
+            href={OFFICIAL_TELEGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-green-500/50 rounded-2xl transition group shadow-md"
+            className="flex items-center gap-4 p-4 bg-gradient-to-r from-sky-950/90 to-slate-900 border-2 border-sky-400/60 hover:border-sky-300 rounded-2xl transition group shadow-xl"
           >
-            <div className="w-12 h-12 rounded-xl bg-green-500/20 text-green-400 flex items-center justify-center text-2xl shrink-0 group-hover:scale-105 transition">
-              <MessageSquare className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-sky-500/25 text-sky-300 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition shadow-inner">
+              <Send className="w-6 h-6 text-sky-400" />
             </div>
-            <div>
-              <span className="text-[11px] text-slate-400 uppercase font-bold">Whatsapp 24x7 Support</span>
-              <div className="text-white text-base sm:text-lg font-black">{OFFICIAL_PHONE}</div>
-              <span className="text-[10px] text-emerald-400 font-bold">त्वरित उत्तर व सहायता</span>
+            <div className="space-y-0.5">
+              <span className="text-[11px] text-sky-300 uppercase font-black tracking-wider">
+                🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】
+              </span>
+              <div className="text-white text-base sm:text-lg font-black font-mono">
+                t.me/newuserhelpline
+              </div>
+              <span className="text-[10px] text-emerald-400 font-bold block">
+                24x7 त्वरित टेलीग़्राम सहायता व मार्गदर्शन
+              </span>
             </div>
           </a>
 
@@ -193,24 +199,7 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
             </div>
           </div>
 
-          {/* Telegram */}
-          <a
-            href={OFFICIAL_TELEGRAM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-sky-500/50 rounded-2xl transition group shadow-md"
-          >
-            <div className="w-12 h-12 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-2xl shrink-0 group-hover:scale-105 transition">
-              <Send className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-400 uppercase font-bold">Official Telegram Channel</span>
-              <div className="text-white text-base sm:text-lg font-black">@ioisplatform</div>
-              <span className="text-[10px] text-sky-400 font-bold">दैनिक अपडेट्स व नए सर्कुलर</span>
-            </div>
-          </a>
-
-          {/* Email */}
+          {/* Email Support Helpline */}
           <a
             href={`mailto:${OFFICIAL_EMAIL}`}
             className="flex items-center gap-4 p-4 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition group shadow-md"
@@ -219,9 +208,13 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
               <Mail className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[11px] text-slate-400 uppercase font-bold">Official Verification Email</span>
-              <div className="text-white text-sm sm:text-base font-bold">{OFFICIAL_EMAIL}</div>
-              <span className="text-[10px] text-amber-400 font-bold">दस्तावेज व आधिकारिक पत्राचार</span>
+              <span className="text-[11px] text-amber-300 uppercase font-black">
+                🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】EMAIL
+              </span>
+              <div className="text-white text-sm sm:text-base font-bold font-mono">{OFFICIAL_EMAIL}</div>
+              <span className="text-[10px] text-slate-400 block">
+                Contact us on Email - {OFFICIAL_EMAIL}
+              </span>
             </div>
           </a>
         </div>

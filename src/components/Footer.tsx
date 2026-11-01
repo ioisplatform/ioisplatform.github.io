@@ -1,9 +1,9 @@
 import React from 'react';
-import { OFFICIAL_TELEGRAM_URL, OFFICIAL_WHATSAPP_URL } from '../data/plansData';
+import { OFFICIAL_TELEGRAM_URL, OFFICIAL_EMAIL } from '../data/plansData';
 import { PageType, UserProfile } from '../types';
 import { 
   Send, 
-  MessageSquare, 
+  Mail,
   ShieldCheck, 
   Lock, 
   Unlock, 
@@ -82,7 +82,7 @@ export const Footer: React.FC<FooterProps> = ({
             ) : (
               <span className="px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-black flex items-center gap-1.5">
                 <Lock className="w-3.5 h-3.5 text-rose-400" />
-                <span>बिना स्पॉन्सर विज़िटर (डायरेक्ट मोड)</span>
+                <span>डायरेक्ट सिस्टम मोड</span>
               </span>
             )}
           </div>
@@ -273,19 +273,19 @@ export const Footer: React.FC<FooterProps> = ({
             href={OFFICIAL_TELEGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-11 h-11 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-sky-400 hover:text-sky-300 hover:scale-110 hover:border-sky-500/50 transition shadow-lg"
-            title="Official Telegram"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-sky-500/40 text-sky-400 hover:text-sky-300 hover:scale-105 transition shadow-lg text-xs font-bold"
+            title="🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】 Telegram"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 text-sky-400" />
+            <span>🎧 𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘 (Telegram)</span>
           </a>
           <a
-            href={OFFICIAL_WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-11 h-11 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-green-400 hover:text-green-300 hover:scale-110 hover:border-green-500/50 transition shadow-lg"
-            title="Official WhatsApp"
+            href={`mailto:${OFFICIAL_EMAIL}`}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-amber-500/40 text-amber-300 hover:text-amber-200 hover:scale-105 transition shadow-lg text-xs font-bold"
+            title="Email: newuserhelpline@gmail.com"
           >
-            <MessageSquare className="w-4 h-4" />
+            <Mail className="w-4 h-4 text-amber-400" />
+            <span>{OFFICIAL_EMAIL}</span>
           </a>
         </div>
 

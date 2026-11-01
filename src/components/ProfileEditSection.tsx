@@ -23,7 +23,8 @@ import {
   Award,
   ArrowRight,
   RefreshCw,
-  X
+  X,
+  Send
 } from 'lucide-react';
 
 interface ProfileEditSectionProps {
@@ -84,6 +85,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
   const [email, setEmail] = useState<string>(user.email || '');
   const [address, setAddress] = useState<string>(user.address || '');
   const [emergencyContact, setEmergencyContact] = useState<string>(user.emergencyContact || '');
+  const [telegramUsername, setTelegramUsername] = useState<string>(user.telegramUsername || '');
   const [payoutUpi, setPayoutUpi] = useState<string>(user.payoutUpi || '');
   const [sponsorId, setSponsorId] = useState<string>(user.sponsorId || '');
   const [selectedPlanId, setSelectedPlanId] = useState<number>(user.selectedPlanId || 1);
@@ -116,6 +118,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setEmail(user.email || '');
     setAddress(user.address || '');
     setEmergencyContact(user.emergencyContact || '');
+    setTelegramUsername(user.telegramUsername || '');
     setPayoutUpi(user.payoutUpi || '');
     setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
@@ -138,6 +141,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setEmail(user.email || '');
     setAddress(user.address || '');
     setEmergencyContact(user.emergencyContact || '');
+    setTelegramUsername(user.telegramUsername || '');
     setPayoutUpi(user.payoutUpi || '');
     setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
@@ -188,6 +192,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
         email: email.trim(),
         address: address.trim(),
         emergencyContact: emergencyContact.trim() || undefined,
+        telegramUsername: telegramUsername.trim() || undefined,
         payoutUpi: sanitizedUpi,
         sponsorId: sponsorId.trim().toUpperCase() || user.sponsorId || '',
         selectedPlanId,
@@ -456,6 +461,31 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
                 className={`w-full bg-slate-900 border text-white rounded-xl px-3 py-2.5 outline-none font-mono transition ${
                   isEditing 
                     ? 'border-amber-500/70 focus:border-amber-400 focus:ring-1 focus:ring-amber-400' 
+                    : 'border-slate-800 opacity-80 cursor-not-allowed'
+                }`}
+              />
+            </div>
+
+            {/* Telegram Username or Link (Optional) */}
+            <div>
+              <label className="block text-slate-300 font-bold mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Telegram Username / Link:</span>
+                </span>
+                <span className="text-[10px] text-sky-400 font-bold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/30">
+                  ऐच्छिक (Optional)
+                </span>
+              </label>
+              <input
+                type="text"
+                disabled={!isEditing}
+                value={telegramUsername}
+                onChange={(e) => setTelegramUsername(e.target.value)}
+                placeholder="उदा. @username या t.me/username"
+                className={`w-full bg-slate-900 border text-white rounded-xl px-3 py-2.5 outline-none transition ${
+                  isEditing 
+                    ? 'border-sky-500/70 focus:border-sky-400 focus:ring-1 focus:ring-sky-400' 
                     : 'border-slate-800 opacity-80 cursor-not-allowed'
                 }`}
               />

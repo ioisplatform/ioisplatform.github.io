@@ -279,7 +279,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
               </p>
               <div className="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/40 text-[10px] sm:text-[11px] text-amber-200 flex items-start gap-2 text-left">
                 <span className="text-amber-400 font-bold shrink-0">⚠️ ध्यान दें:</span>
-                <span>रजिस्ट्रेशन के समय अपना <strong>Payment Received UPI ID</strong> सही भरें और <strong>Sponsor ID</strong> (डिफ़ॉल्ट: <strong className="text-amber-400">IOIS999VK01</strong>) अवश्य दर्ज करें।</span>
+                <span>रजिस्ट्रेशन के समय अपना <strong>Payment Received UPI ID</strong> सही भरें और अपने मित्र का <strong>Sponsor ID</strong> दर्ज करें (यदि कोई स्पॉन्सर न हो तो खाली छोड़ें)।</span>
               </div>
             </div>
 

@@ -61,6 +61,7 @@ export interface UserProfile {
   payoutUpi?: string;
   sponsorId?: string;
   emergencyContact?: string;
+  telegramUsername?: string;
   editHistory?: UserEditLog[];
   registrationFormData?: Record<string, any>;
   privacySettings?: UserPrivacySettings;

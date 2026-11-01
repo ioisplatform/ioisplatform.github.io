@@ -18,7 +18,6 @@ import {
   getDownlineStats,
   maskMobile
 } from '../services/userService';
-import { TelegramAdminSettings } from './TelegramAdminSettings';
 import { AiKnowledgeManager } from './AiKnowledgeManager';
 import { InterviewListManager } from './InterviewListManager';
 import { StudentReferralHub } from './StudentReferralHub';
@@ -67,7 +66,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [adminPin, setAdminPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'tickets' | 'telegram' | 'ai_bot' | 'interviews'>('approvals');
+  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'tickets' | 'ai_bot' | 'interviews'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -198,39 +197,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
   if (!isAdminAuth) {
     return (
-      <section id="admin-panel" className="scroll-mt-24">
-        <div className="glass-card-gold p-6 sm:p-8 rounded-3xl border-2 border-amber-500/40 max-w-md mx-auto text-center space-y-5">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mx-auto flex items-center justify-center">
-            <Lock className="w-7 h-7" />
+      <section id="admin-panel" className="scroll-mt-24 py-8">
+        <div className="glass-card-gold p-6 sm:p-10 rounded-3xl border-2 border-amber-500/50 max-w-md mx-auto text-center space-y-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400/20 to-yellow-500/10 border-2 border-amber-400/60 text-amber-400 mx-auto flex items-center justify-center shadow-lg">
+            <Lock className="w-8 h-8 text-amber-400 animate-pulse" />
           </div>
-          <div className="space-y-1">
-            <h3 className="text-xl font-black text-white">🔒 IOIS आधिकारिक एडमिन पैनल</h3>
-            <p className="text-xs text-slate-300">
-              यूजर पेमेंट्स, स्क्रीनशॉट्स और सहायता टिकट अप्रूव / रिजेक्ट करने हेतु एडमिन PIN दर्ज करें:
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase">
+              <span>आधिकारिक सुरक्षित सिस्टम</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white">🔒 IOIS एडमिन कंट्रोल पैनल</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              यूजर पेमेंट्स, सत्यापन स्क्रीनशॉट, डाउनलाइन ट्री व टिकट्स के संचालन हेतु अधिकृत एडमिन पासवर्ड दर्ज करें:
             </p>
           </div>
 
           {pinError && (
-            <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2">
+            <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-red-300 text-xs flex items-center gap-2 text-left">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
               <span>{pinError}</span>
             </div>
           )}
 
-          <form onSubmit={handleAdminLogin} className="space-y-3">
-            <input
-              type="password"
-              value={adminPin}
-              onChange={(e) => setAdminPin(e.target.value)}
-              placeholder="Admin Password दर्ज करें..."
-              className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-4 py-2.5 text-center text-sm font-bold tracking-widest outline-none"
-            />
+          <form onSubmit={handleAdminLogin} className="space-y-3.5">
+            <div className="relative">
+              <input
+                type="password"
+                value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value)}
+                placeholder="Admin Password दर्ज करें..."
+                className="w-full bg-slate-950 border-2 border-slate-700 focus:border-amber-400 text-white rounded-xl px-4 py-3 text-center text-sm font-bold tracking-widest outline-none transition shadow-inner"
+              />
+            </div>
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs uppercase rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition transform hover:scale-[1.02] active:scale-95"
             >
               <Unlock className="w-4 h-4" />
-              <span>एडमिन पैनल खोलें (UNLOCK ADMIN)</span>
+              <span>एडमिन पैनल अनलॉक करें (UNLOCK ADMIN)</span>
             </button>
           </form>
         </div>
@@ -349,21 +354,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             <HelpCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           </div>
           <div className="text-lg font-black text-emerald-400 mt-1">{openTicketCount} टिकट्स</div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('telegram')}
-          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
-            activeTab === 'telegram'
-              ? 'bg-sky-500/20 border-sky-400 text-white shadow-lg shadow-sky-500/10'
-              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-sky-300">Telegram Bot</span>
-            <Bot className="w-4 h-4 text-sky-400 shrink-0" />
-          </div>
-          <div className="text-xs font-black text-white mt-1">1-Click अलर्ट्स</div>
         </button>
 
         <button
@@ -1033,11 +1023,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             )}
           </div>
         </div>
-      )}
-
-      {/* TAB 4: TELEGRAM BOT INTEGRATION & 1-CLICK APPROVALS */}
-      {activeTab === 'telegram' && (
-        <TelegramAdminSettings />
       )}
 
       {/* TAB 5: AI BOT KNOWLEDGE BASE & TRAINING */}

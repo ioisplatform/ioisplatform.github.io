@@ -33,7 +33,11 @@ import {
   Share2,
   Zap,
   Users,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Crown,
+  QrCode,
+  Copy,
+  Check
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -51,6 +55,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onScrollToCard,
 }) => {
   const [activeTab, setActiveTab] = useState<'referral' | 'marketing' | 'posters' | 'idcard' | 'profile' | 'support'>('referral');
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
 
   // Help & Support Tickets
   const [ticketSubject, setTicketSubject] = useState<string>('');
@@ -168,14 +173,112 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         )}
       </div>
 
-      {/* Dashboard Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+      {/* 4 MODERN LUXURY KPI SUMMARY CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+        {/* KPI 1: Active Master Plan & Payout */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-950 border-2 border-amber-500/40 p-4 shadow-xl group hover:border-amber-400 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">सक्रिय मास्टर प्लान</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+              <Crown className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 space-y-0.5">
+            <h4 className="text-base font-black text-white">{selectedPlan.name}</h4>
+            <p className="text-xl font-black text-amber-300 font-mono">₹{selectedPlan.price}</p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
+            <span className="text-slate-300">डायरेक्ट इंसेंटिव:</span>
+            <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+              50% - 70% UPI
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 2: Official Verification Status */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/15 via-slate-900 to-slate-950 border-2 border-emerald-500/40 p-4 shadow-xl group hover:border-emerald-400 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">वेरिफिकेशन स्थिति</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 space-y-0.5">
+            <h4 className="text-base font-black text-white">
+              {user.paymentStatus === 'approved' ? 'पूर्णतः सत्यापित' : user.paymentStatus === 'pending' ? 'समीक्षाधीन' : 'अमान्य पेमेंट'}
+            </h4>
+            <p className="text-xs text-slate-300 font-medium">
+              {user.paymentStatus === 'approved' ? 'आधिकारिक आईडी कार्ड व पेआउट सक्रिय' : user.paymentStatus === 'pending' ? 'एडमिन टीम द्वारा सत्यापन जारी' : 'स्क्रीनशॉट पुनः अपलोड करें'}
+            </p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between text-[11px]">
+            <span className="text-slate-300">सुरक्षा मानक:</span>
+            <span className="font-bold text-emerald-400">256-Bit SSL Verified</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Digital ID Card Hub */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500/15 via-slate-900 to-slate-950 border-2 border-sky-500/40 p-4 shadow-xl group hover:border-sky-400 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-sky-400">स्मार्ट डिजिटल ID कार्ड</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-black">
+              <CreditCard className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 space-y-0.5">
+            <h4 className="text-base font-black text-white">स्मार्ट कार्ड जनरेटेड</h4>
+            <p className="text-xs text-slate-300">लाइव QR व फोटो युक्त कार्ड</p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-sky-500/20 flex items-center justify-between text-[11px]">
+            <button
+              type="button"
+              onClick={() => setActiveTab('idcard')}
+              className="text-sky-300 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>कार्ड खोलें व डाउनलोड करें →</span>
+            </button>
+          </div>
+        </div>
+
+        {/* KPI 4: Sponsor Referral Code */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/15 via-slate-900 to-slate-950 border-2 border-purple-500/40 p-4 shadow-xl group hover:border-purple-400 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">आपका स्पॉन्सर कोड</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-black">
+              <Share2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 space-y-0.5">
+            <h4 className="text-lg font-black text-amber-300 font-mono tracking-wider">{user.userId}</h4>
+            <p className="text-[11px] text-slate-300">मित्रों को सीधे जोड़कर 50-70% कमाएं</p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-purple-500/20 flex items-center justify-between text-[11px]">
+            <button
+              type="button"
+              onClick={() => {
+                const link = `${window.location.origin}?sponsor=${user.userId}`;
+                navigator.clipboard.writeText(link);
+                setCopiedCode(true);
+                setTimeout(() => setCopiedCode(false), 3000);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] flex items-center gap-1 transition cursor-pointer"
+            >
+              {copiedCode ? <Check className="w-3 h-3 text-emerald-950" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedCode ? 'लिंक कॉपी हो गया!' : 'रेफरल लिंक कॉपी'}</span>
+            </button>
+            <span className="text-[10px] text-purple-300 font-mono">1-क्लिक शेयर</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard Modern Navigation Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-1.5 bg-slate-950/90 rounded-2xl border-2 border-slate-800 shadow-xl">
         <button
           type="button"
           onClick={() => setActiveTab('referral')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'referral'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
@@ -186,22 +289,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('marketing')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'marketing'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <Sparkles className="w-3.5 h-3.5" />
           <span>2. मार्केटिंग टूल्स</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('posters')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'posters'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
@@ -212,9 +315,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('idcard')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'idcard'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
@@ -225,9 +328,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('profile')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'profile'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
@@ -238,9 +341,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('support')}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1 ${
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1 ${
             activeTab === 'support'
-              ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/20'
+              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-400/25 scale-[1.02]'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           }`}
         >
