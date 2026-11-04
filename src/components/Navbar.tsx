@@ -279,15 +279,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-slate-950 font-black tracking-wide">लॉगिन</span>
                 </button>
 
-                {/* 3D Gold Join Button - Completely clear on mobile view */}
+                {/* 3D Gold Join Button - Completely clear on mobile view & INSTANT POPUP */}
                 <button
                   id="nav-register-btn"
-                  onClick={() => handleNavClick('register')}
+                  onClick={() => {
+                    if (onOpenRegister) onOpenRegister();
+                    else handleNavClick('register');
+                  }}
                   className="btn-3d-gold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
                   title="नया सदस्य रजिस्ट्रेशन करें"
                 >
-                  <UserPlus className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
-                  <span className="text-slate-950 font-black tracking-wide">ज्वाइन</span>
+                  <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
+                  <span className="text-black font-black tracking-wide">ज्वाइन</span>
                 </button>
               </div>
             )}

@@ -289,17 +289,18 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
             <div className="shrink-0 w-full md:w-auto pt-1 sm:pt-0">
               <button
+                type="button"
                 onClick={() => {
                   if (onOpenRegister) onOpenRegister();
                   else onNavigate('register');
                 }}
-                className="btn-3d-emerald w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+                className="btn-3d-rainbow w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-xl active:scale-95 touch-manipulation select-none"
               >
-                <div className="w-6 h-6 rounded-lg logo-3d-box-emerald flex items-center justify-center shrink-0">
-                  <UserPlus className="w-3.5 h-3.5 text-emerald-950" />
+                <div className="w-6 h-6 rounded-lg logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                  <UserPlus className="w-3.5 h-3.5 text-black" />
                 </div>
-                <span className="text-3d-white font-black">रजिस्ट्रेशन / Join Now</span>
-                <ArrowRight className="w-4 h-4 text-emerald-950" />
+                <span className="text-black font-black tracking-wide">रजिस्ट्रेशन / Join Now</span>
+                <ArrowRight className="w-4 h-4 text-black" />
               </button>
             </div>
           </div>

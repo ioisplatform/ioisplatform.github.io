@@ -54,7 +54,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
               त्वरित सेवाएं एवं नेविगेशन
             </h3>
             <p className="text-xs text-slate-400">
-              सेवाओं को डायलॉग बॉक्स या सीधे एक्सेस में खोलें
+              सभी सेवाओं को 1-क्लिक में तुरंत ओपन करें
             </p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
         </div>
       </div>
 
-      {/* Primary Action Button: Open All Services in Clean Dialog Box */}
+      {/* Primary Action Button: Open All Services in Clean Popup Window */}
       {onOpenServicesModal && (
         <button
           onClick={onOpenServicesModal}
@@ -94,7 +94,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
             </div>
             <div className="text-left">
               <h4 className="text-sm sm:text-base font-black text-amber-300 group-hover:text-amber-200 transition">
-                सभी 17+ सेवाएं देखें (डायलॉग बॉक्स मेन्यू)
+                सभी 17+ सेवाएं देखें (इंस्टेंट मेन्यू)
               </h4>
               <p className="text-xs text-slate-300">
                 RTPS, 7 प्लांस, विद्यार्थी नोट्स, मौसम, टीवी, पंचांग व अन्य सभी सेवाएं
@@ -103,7 +103,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-amber-400/30 shrink-0">
-            <span>डायलॉग खोलें</span>
+            <span>तुरंत देखें</span>
             <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition" />
           </div>
         </button>
@@ -175,7 +175,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
           <span className="text-xs font-bold truncate">विद्यार्थी पोर्टल</span>
         </button>
 
-        {/* 5. Registration Dialog */}
+        {/* 5. Registration */}
         <button
           onClick={() => {
             if (onOpenRegister) onOpenRegister();
@@ -185,12 +185,12 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
         >
           <div className="flex items-center justify-between">
             <UserPlus className="w-4 h-4 text-emerald-400" />
-            <span className="text-[9px] font-black uppercase bg-emerald-500/20 px-1.5 py-0.5 rounded">डायलॉग</span>
+            <span className="text-[9px] font-black uppercase bg-emerald-500/20 px-1.5 py-0.5 rounded">इंस्टेंट</span>
           </div>
           <span className="text-xs font-bold text-white truncate">ज्वाइन / रजिस्टर</span>
         </button>
 
-        {/* 6. ID Card Dialog */}
+        {/* 6. ID Card */}
         <button
           onClick={() => {
             if (onOpenIdCard) onOpenIdCard();
@@ -200,7 +200,7 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
         >
           <div className="flex items-center justify-between">
             <CreditCard className="w-4 h-4 text-blue-400" />
-            <span className="text-[9px] font-black uppercase bg-blue-500/20 px-1.5 py-0.5 rounded">डायलॉग</span>
+            <span className="text-[9px] font-black uppercase bg-blue-500/20 px-1.5 py-0.5 rounded">इंस्टेंट</span>
           </div>
           <span className="text-xs font-bold text-white truncate">डिजिटल ID कार्ड</span>
         </button>

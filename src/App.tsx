@@ -16,26 +16,27 @@ import {
   applyThemeToDocument 
 } from './services/themeService';
 
-// Lazy Loaded Secondary Pages for Super Fast Initial Page Load (<100ms)
-const RtpsJaminServicesPage = lazy(() => import('./components/RtpsJaminServicesPage').then(m => ({ default: m.RtpsJaminServicesPage })));
-const WeatherPage = lazy(() => import('./components/WeatherPage').then(m => ({ default: m.WeatherPage })));
-const LiveNewsPage = lazy(() => import('./components/LiveNewsPage').then(m => ({ default: m.LiveNewsPage })));
-const EntertainmentChatPage = lazy(() => import('./components/EntertainmentChatPage').then(m => ({ default: m.EntertainmentChatPage })));
-const PanchangRashifalPage = lazy(() => import('./components/PanchangRashifalPage').then(m => ({ default: m.PanchangRashifalPage })));
-const MandiMarketPage = lazy(() => import('./components/MandiMarketPage').then(m => ({ default: m.MandiMarketPage })));
-const GovtSchemesPage = lazy(() => import('./components/GovtSchemesPage').then(m => ({ default: m.GovtSchemesPage })));
-const JobAlertsPage = lazy(() => import('./components/JobAlertsPage').then(m => ({ default: m.JobAlertsPage })));
-const PlansGrid = lazy(() => import('./components/PlansGrid').then(m => ({ default: m.PlansGrid })));
-const PayoutCalculator = lazy(() => import('./components/PayoutCalculator').then(m => ({ default: m.PayoutCalculator })));
-const ParentsPortal = lazy(() => import('./components/ParentsPortal').then(m => ({ default: m.ParentsPortal })));
-const StudentStudyPage = lazy(() => import('./components/StudentStudyPage').then(m => ({ default: m.StudentStudyPage })));
-const IDCardGenerator = lazy(() => import('./components/IDCardGenerator').then(m => ({ default: m.IDCardGenerator })));
-const RegistrationPortal = lazy(() => import('./components/RegistrationPortal').then(m => ({ default: m.RegistrationPortal })));
-const UserDashboard = lazy(() => import('./components/UserDashboard').then(m => ({ default: m.UserDashboard })));
-const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
-const AssessmentPortal = lazy(() => import('./components/AssessmentPortal').then(m => ({ default: m.AssessmentPortal })));
-const LegalPolicyPages = lazy(() => import('./components/LegalPolicyPages').then(m => ({ default: m.LegalPolicyPages })));
-const ContactFaq = lazy(() => import('./components/ContactFaq').then(m => ({ default: m.ContactFaq })));
+// Direct High-Speed Static Imports for 0ms Instant Page Loads & Popups
+import { RtpsJaminServicesPage } from './components/RtpsJaminServicesPage';
+import { WeatherPage } from './components/WeatherPage';
+import { LiveNewsPage } from './components/LiveNewsPage';
+import { EntertainmentChatPage } from './components/EntertainmentChatPage';
+import { PanchangRashifalPage } from './components/PanchangRashifalPage';
+import { MandiMarketPage } from './components/MandiMarketPage';
+import { GovtSchemesPage } from './components/GovtSchemesPage';
+import { JobAlertsPage } from './components/JobAlertsPage';
+import { PlansGrid } from './components/PlansGrid';
+import { PayoutCalculator } from './components/PayoutCalculator';
+import { ParentsPortal } from './components/ParentsPortal';
+import { StudentStudyPage } from './components/StudentStudyPage';
+import { IDCardGenerator } from './components/IDCardGenerator';
+import { RegistrationPortal } from './components/RegistrationPortal';
+import { UserDashboard } from './components/UserDashboard';
+import { AdminPanel } from './components/AdminPanel';
+import { AssessmentPortal } from './components/AssessmentPortal';
+import { LegalPolicyPages } from './components/LegalPolicyPages';
+import { ContactFaq } from './components/ContactFaq';
+import { PagePopupModal } from './components/PagePopupModal';
 
 import { AuthModal } from './components/AuthModal';
 import { RegistrationModal } from './components/RegistrationModal';
@@ -68,6 +69,7 @@ const PageFallbackLoader = () => (
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('home');
   const [selectedPlanForRegister, setSelectedPlanForRegister] = useState<number>(1);
+  const [popupPage, setPopupPage] = useState<PageType | null>(null);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [chatInitialQuery, setChatInitialQuery] = useState<string>('');
 
@@ -174,8 +176,20 @@ export default function App() {
   }, [currentUser?.userId]);
 
   const navigateTo = (page: PageType) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (page === 'home') {
+      setCurrentPage('home');
+      setPopupPage(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (page === 'register') {
+      handleOpenRegister();
+    } else if (page === 'dashboard') {
+      handleOpenDashboard();
+    } else if (page === 'idcard') {
+      handleOpenIdCard();
+    } else {
+      // Instantly open page in modal popup window over current view (0ms delay)
+      setPopupPage(page);
+    }
   };
 
   const handleOpenChatWithQuery = (query: string) => {
@@ -333,16 +347,16 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleOpenDashboard}
-                    className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition cursor-pointer shadow-md flex items-center gap-1.5"
+                    className="btn-3d-gold px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-slate-950 font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5"
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" />
-                    <span>डैशबोर्ड डायलॉग खोलें →</span>
+                    <span>मेरा डैशबोर्ड</span>
                   </button>
                   <button
                     onClick={handleOpenIdCard}
-                    className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:bg-slate-800 transition cursor-pointer flex items-center gap-1.5"
+                    className="btn-3d-silver px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-slate-950 text-xs font-black cursor-pointer flex items-center gap-1.5"
                   >
-                    <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                    <CreditCard className="w-3.5 h-3.5" />
                     <span>ID कार्ड</span>
                   </button>
                 </div>
@@ -384,20 +398,6 @@ export default function App() {
         {/* ================= PAGE 3: REGISTRATION PAGE ================= */}
         {currentPage === 'register' && (
           <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-              <div className="space-y-1">
-                <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">सुविधाजनक विकल्प</span>
-                <h4 className="text-sm font-black text-white">पॉप-अप डायलॉग बॉक्स (Modal) विंडो में भरें</h4>
-                <p className="text-xs text-slate-300">यदि आप पेज बदले बिना त्वरित 3-स्टेप फॉर्म भरना चाहते हैं, तो पॉप-अप विंडो खोलें।</p>
-              </div>
-              <button
-                onClick={() => handleOpenRegister(selectedPlanForRegister)}
-                className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>पॉप-अप विंडो खोलें</span>
-              </button>
-            </div>
             <PageHeader
               currentPage="register"
               onNavigate={navigateTo}
@@ -416,20 +416,6 @@ export default function App() {
         {/* ================= PAGE 4: DIGITAL ID CARD PAGE ================= */}
         {currentPage === 'idcard' && (
           <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30">
-              <div className="space-y-1">
-                <span className="text-[10px] uppercase font-black tracking-wider text-blue-400">त्वरित प्रिव्यू</span>
-                <h4 className="text-sm font-black text-white">ID कार्ड पॉप-अप डायलॉग विंडो</h4>
-                <p className="text-xs text-slate-300">किसी भी पेज से सीधा डायलॉग बॉक्स में ID कार्ड देखें व PNG डाउनलोड करें।</p>
-              </div>
-              <button
-                onClick={handleOpenIdCard}
-                className="shrink-0 px-4 py-2.5 bg-blue-500 hover:bg-blue-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>पॉप-अप में देखें</span>
-              </button>
-            </div>
             <PageHeader
               currentPage="idcard"
               onNavigate={navigateTo}
@@ -642,15 +628,15 @@ export default function App() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                 <div className="space-y-1">
                   <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">सुपर फास्ट एक्सेस</span>
-                  <h4 className="text-sm font-black text-white">पॉप-अप डैशबोर्ड डायलॉग विंडो</h4>
-                  <p className="text-xs text-slate-300">बिना फुल-पेज स्क्रॉल किए डायलॉग बॉक्स में प्रोफाइल, ID कार्ड व सपोर्ट टिकट मैनेज करें।</p>
+                  <h4 className="text-sm font-black text-white">क्विक डैशबोर्ड पॉप-अप विंडो</h4>
+                  <p className="text-xs text-slate-300">सीधे पॉप-अप में प्रोफाइल, ID कार्ड व सपोर्ट टिकट तेजी से मैनेज करें।</p>
                 </div>
                 <button
                   onClick={handleOpenDashboard}
                   className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
                 >
                   <LayoutDashboard className="w-3.5 h-3.5" />
-                  <span>डायलॉग बॉक्स में खोलें</span>
+                  <span>डैशबोर्ड तुरंत खोलें</span>
                 </button>
               </div>
             )}
@@ -919,6 +905,43 @@ export default function App() {
         }}
         onPresetChange={handlePresetChange}
       />
+
+      {/* 14. Dedicated Universal Instant Page Popup Window (0ms Delay) */}
+      {popupPage && (
+        <PagePopupModal
+          page={popupPage}
+          onClose={() => setPopupPage(null)}
+          currentUser={currentUser}
+          onOpenLogin={(mode) => {
+            setPopupPage(null);
+            handleOpenLogin(mode);
+          }}
+          onOpenRegister={(planId, sponsorId) => {
+            setPopupPage(null);
+            if (sponsorId) setSponsorReferralId(sponsorId);
+            handleOpenRegister(planId);
+          }}
+          onOpenDashboard={() => {
+            setPopupPage(null);
+            handleOpenDashboard();
+          }}
+          onOpenIdCard={() => {
+            setPopupPage(null);
+            handleOpenIdCard();
+          }}
+          onOpenAiChat={() => {
+            setPopupPage(null);
+            setChatInitialQuery('');
+            setIsChatOpen(true);
+          }}
+          onSelectPlanForRegister={(planId) => {
+            setPopupPage(null);
+            handleSelectPlanForRegister(planId);
+          }}
+          sponsorReferralId={sponsorReferralId}
+          onRegisterSuccess={handleRegisterSuccess}
+        />
+      )}
     </div>
   );
 }
