@@ -1,6 +1,7 @@
 import React from 'react';
 import { UserProfile } from '../types';
 import { IDCardGenerator } from './IDCardGenerator';
+import { OFFICIAL_ROOT_SPONSOR_USER } from '../services/userService';
 import { CreditCard, X, ShieldCheck } from 'lucide-react';
 
 interface IdCardModalProps {
@@ -41,12 +42,12 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({
             <span>IOIS OFFICIAL SMART DIGITAL ID CARD</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-white">
-            स्मार्ट डिजिटल पहचान पत्र (Digital ID Card Studio)
+            {user ? 'आपका आधिकारिक डिजिटल पहचान पत्र' : 'सत्यापित स्पॉन्सर डिजिटल पहचान पत्र (मास्क्ड विवरण)'}
           </h3>
-          <p className="text-xs text-slate-300 max-w-xl mx-auto">
+          <p className="text-xs text-slate-300 max-w-2xl mx-auto">
             {user 
               ? 'आगे-पीछे का भाग, आड़ा (Landscape) व खड़ा (Portrait), विवरण मास्किंग, कस्टम QR कोड व हाई-क्वालिटी PDF/PNG/JPG डाउनलोड' 
-              : 'नमूना ID कार्ड स्टूडियो। अपना व्यक्तिगत ID कार्ड प्राप्त करने व एक्टिवेट करने हेतु रजिस्टर करें।'}
+              : 'गोपनीयता व सुरक्षा नीति के तहत स्पॉन्सर का संवेदनशील व्यक्तिगत विवरण मास्क्ड है, जबकि स्पॉन्सर ID पूर्णतः स्पष्ट है। कोई भी रैंडम ID कार्ड सिस्टम में नहीं दिखाया जाता।'}
           </p>
         </div>
 
@@ -54,6 +55,8 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({
         <div className="pt-2">
           <IDCardGenerator
             currentUser={user}
+            targetUser={user ? undefined : OFFICIAL_ROOT_SPONSOR_USER}
+            isSponsorPreview={!user}
             onOpenRegister={onOpenRegister}
             isModalMode={true}
           />

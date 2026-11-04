@@ -1,4 +1,4 @@
-import { UserProfile, HelpTicket, KnowledgeItem } from '../types';
+import { UserProfile, HelpTicket, KnowledgeItem, AdminPrivateMessage } from '../types';
 import { PLANS } from '../data/plansData';
 import { db } from '../lib/firebase';
 import { 
@@ -18,9 +18,10 @@ const STORAGE_TICKETS_KEY = 'iois_help_tickets_v2';
 const STORAGE_KNOWLEDGE_KEY = 'iois_ai_knowledge_v2';
 const STORAGE_UNANSWERED_KEY = 'iois_ai_unanswered_v2';
 const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
+const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
 
 // All demo/mock preview users removed per system requirements
-export const DEMO_USER_IDS = ['IOIS999RK01', 'IOIS49PS01', 'IOIS10AM01', 'IOIS99KV01', 'IOIS999VK01', 'IOIS999SM01'];
+export const DEMO_USER_IDS = ['IOIS999RK01', 'IOIS49PS01', 'IOIS10AM01', 'IOIS99KV01', 'IOIS999SM01'];
 const INITIAL_DEMO_USERS: UserProfile[] = [];
 
 export const INITIAL_KNOWLEDGE: KnowledgeItem[] = [
@@ -560,11 +561,109 @@ export const getAllUsers = (): UserProfile[] => {
   }
 };
 
+export const OFFICIAL_ROOT_SPONSOR_ID = 'IOIS999VK01';
+export const OFFICIAL_ROOT_SPONSOR_NAME = 'Vikas Kumar (Master Founder & Root Sponsor)';
+
+export const OFFICIAL_ROOT_SPONSOR_USER: UserProfile = {
+  userId: OFFICIAL_ROOT_SPONSOR_ID,
+  fullName: 'Vikas Kumar',
+  mobileNumber: '8877490845',
+  email: 'newuserhelpline@gmail.com',
+  selectedPlanId: 7,
+  role: 'Founder & Master Sponsor',
+  password: '',
+  paymentStatus: 'approved',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+  payoutUpi: '8877490845@spicepay',
+  state: 'बिहार (IN)',
+  address: 'Patna, Bihar, India',
+  telegramUsername: 'NEWUSERHELPLINE',
+};
+
+// Legacy / ACC India Partner Sponsor Link Support (SWACCDK01)
+export const ACC_LEGACY_SPONSOR_ID = 'SWACCDK01';
+export const ACC_LEGACY_SPONSOR_NAME = 'D. Kumar (ACC India Senior Partner Sponsor)';
+
+export const ACC_LEGACY_SPONSOR_USER: UserProfile = {
+  userId: ACC_LEGACY_SPONSOR_ID,
+  fullName: 'D. Kumar',
+  mobileNumber: '8877490845',
+  email: 'newuserhelpline@gmail.com',
+  selectedPlanId: 7,
+  role: 'Senior Verified Sponsor',
+  password: '',
+  paymentStatus: 'approved',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+  payoutUpi: '8877490845@spicepay',
+  state: 'बिहार (IN)',
+  address: 'Patna, Bihar, India',
+  telegramUsername: 'NEWUSERHELPLINE',
+};
+
 export const findUserById = (userId?: string | null): UserProfile | undefined => {
   if (!userId) return undefined;
   const cleanId = userId.trim().toUpperCase();
+  const cleanLower = userId.trim().toLowerCase().replace(/^@/, '');
+  if (cleanId === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
+    return OFFICIAL_ROOT_SPONSOR_USER;
+  }
+  if (cleanId === ACC_LEGACY_SPONSOR_ID) {
+    return ACC_LEGACY_SPONSOR_USER;
+  }
   const all = getAllUsers();
-  return all.find((u) => u.userId?.trim().toUpperCase() === cleanId);
+  return all.find((u) => {
+    if (!u) return false;
+    const uidMatch = u.userId?.trim().toUpperCase() === cleanId;
+    const unameMatch = u.username && u.username.trim().toLowerCase().replace(/^@/, '') === cleanLower;
+    return uidMatch || unameMatch;
+  });
+};
+
+export const getSponsorUserAsync = async (sponsorId?: string | null): Promise<UserProfile | null> => {
+  if (!sponsorId || !sponsorId.trim()) return null;
+  const cleanId = sponsorId.trim().toUpperCase();
+  const cleanLower = sponsorId.trim().toLowerCase().replace(/^@/, '');
+  if (cleanId === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
+    return OFFICIAL_ROOT_SPONSOR_USER;
+  }
+  if (cleanId === ACC_LEGACY_SPONSOR_ID) {
+    return ACC_LEGACY_SPONSOR_USER;
+  }
+  const localMatch = findUserById(cleanId);
+  if (localMatch) return localMatch;
+
+  if (db) {
+    try {
+      const snap = await getDoc(doc(db, 'users', cleanId));
+      if (snap.exists()) {
+        return snap.data() as UserProfile;
+      }
+    } catch {}
+  }
+
+  try {
+    const res = await fetch(`/api/users/profile/${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.userId) return data;
+    }
+  } catch {}
+
+  // If searched by username, also query server validate-sponsor
+  try {
+    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(sponsorId.trim())}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.isValid && data.sponsorId) {
+        const resolved = findUserById(data.sponsorId);
+        if (resolved) return resolved;
+      }
+    }
+  } catch {}
+
+  return null;
 };
 
 export const saveUsers = (users: UserProfile[]): void => {
@@ -574,6 +673,239 @@ export const saveUsers = (users: UserProfile[]): void => {
   } catch (e) {
     console.error('Failed to save users to localStorage', e);
   }
+};
+
+/**
+ * Strict Full Name Validator:
+ * - Minimum 3 characters, max 60.
+ * - Must be authentic name characters (Hindi/Devanagari, English letters, spaces, dot, apostrophe).
+ * - Reject numbers, symbols, random keyboard smash.
+ */
+export const validateFullName = (name?: string): { isValid: boolean; cleanName: string; error?: string } => {
+  if (!name || typeof name !== 'string') {
+    return { isValid: false, cleanName: '', error: 'पूरा नाम दर्ज करना अनिवार्य है।' };
+  }
+  const clean = name.trim().replace(/\s+/g, ' ');
+  if (clean.length < 3) {
+    return { isValid: false, cleanName: clean, error: 'पूरा नाम कम से कम 3 अक्षरों का होना चाहिए।' };
+  }
+  if (clean.length > 60) {
+    return { isValid: false, cleanName: clean, error: 'नाम 60 अक्षरों से अधिक नहीं हो सकता।' };
+  }
+  // Allow Unicode Devanagari (\u0900-\u097F) and Latin letters, spaces, dots, and hyphens/apostrophes
+  const validNameRegex = /^[\u0900-\u097Fa-zA-Z\s\.\'\-]+$/;
+  if (!validNameRegex.test(clean)) {
+    return { 
+      isValid: false, 
+      cleanName: clean, 
+      error: 'कृपया केवल वैध अक्षरों वाला वास्तविक नाम दर्ज करें (संख्याएं या विशेष प्रतीक स्वीकार्य नहीं हैं)।' 
+    };
+  }
+  // Disallow repetitive single character spam like 'aaaa', 'xxxx'
+  if (/^(.)\1{3,}$/i.test(clean.replace(/\s/g, ''))) {
+    return {
+      isValid: false,
+      cleanName: clean,
+      error: 'अमान्य नाम! कृपया अपना वास्तविक पूरा नाम दर्ज करें।'
+    };
+  }
+
+  return { isValid: true, cleanName: clean };
+};
+
+/**
+ * Strict Mobile Number Validator:
+ * - Exactly 10 digits.
+ * - Must start with 6, 7, 8, or 9 (Indian Mobile Standard).
+ * - Reject repetitive dummy numbers: 0000000000, 1111111111, 9999999999, etc.
+ * - Reject sequential dummy numbers: 1234567890, 9876543210, etc.
+ */
+export const validateMobileNumber = (mobile?: string): { isValid: boolean; cleanDigits: string; error?: string } => {
+  if (!mobile || typeof mobile !== 'string') {
+    return { isValid: false, cleanDigits: '', error: 'मोबाइल नंबर दर्ज करना अनिवार्य है।' };
+  }
+  const cleanDigits = mobile.replace(/\D/g, '');
+  if (cleanDigits.length !== 10) {
+    return { 
+      isValid: false, 
+      cleanDigits, 
+      error: 'मोबाइल नंबर ठीक 10 अंकों का होना चाहिए (बिना +91 या 0 लगाए)।' 
+    };
+  }
+  if (!/^[6-9]\d{9}$/.test(cleanDigits)) {
+    return { 
+      isValid: false, 
+      cleanDigits, 
+      error: 'कृपया 6, 7, 8 या 9 से शुरू होने वाला 10-अंकों का वैध भारतीय मोबाइल नंबर दर्ज करें।' 
+    };
+  }
+
+  // Reject repetitive numbers: 0000000000, 1111111111, etc.
+  if (/^(\d)\1{9}$/.test(cleanDigits)) {
+    return { 
+      isValid: false, 
+      cleanDigits, 
+      error: 'अमान्य मोबाइल नंबर! एक ही अंक बार-बार दर्ज किया गया फर्जी या रैंडम नंबर स्वीकार्य नहीं है।' 
+    };
+  }
+
+  // Reject sequential fake patterns
+  const sequentialPatterns = [
+    '1234567890', '0123456789', '9876543210', '0987654321',
+    '2345678901', '8765432109'
+  ];
+  if (sequentialPatterns.includes(cleanDigits)) {
+    return { 
+      isValid: false, 
+      cleanDigits, 
+      error: 'अमान्य मोबाइल नंबर! क्रमिक (Sequential) फर्जी नंबर स्वीकार्य नहीं है। कृपया अपना असली नंबर दर्ज करें।' 
+    };
+  }
+
+  return { isValid: true, cleanDigits };
+};
+
+/**
+ * Strict Email Address Validator:
+ * - Valid RFC email syntax with valid domain extension (min 2 chars).
+ * - Reject fake random patterns like test@test, abc@xyz, asdf@asdf.
+ */
+export const validateEmailAddress = (email?: string): { isValid: boolean; cleanEmail: string; error?: string } => {
+  if (!email || typeof email !== 'string') {
+    return { isValid: false, cleanEmail: '', error: 'ईमेल आईडी दर्ज करना अनिवार्य है।' };
+  }
+  const clean = email.trim().toLowerCase();
+  if (clean.length < 5 || clean.length > 100) {
+    return { isValid: false, cleanEmail: clean, error: 'कृपया एक वैध ईमेल आईडी दर्ज करें।' };
+  }
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,15}$/;
+  if (!emailRegex.test(clean)) {
+    return { 
+      isValid: false, 
+      cleanEmail: clean, 
+      error: 'कृपया सही फॉर्मेट वाली वैध ईमेल आईडी दर्ज करें (उदा. yourname@gmail.com)।' 
+    };
+  }
+
+  // Reject fake domains and placeholder test emails
+  const [userPart, domainPart] = clean.split('@');
+  if (!domainPart || !domainPart.includes('.')) {
+    return { isValid: false, cleanEmail: clean, error: 'ईमेल का डोमेन अमान्य है।' };
+  }
+
+  const fakePatterns = ['test@test.com', 'abc@xyz.com', 'asdf@asdf.com', 'fake@fake.com', 'dummy@dummy.com'];
+  if (fakePatterns.includes(clean)) {
+    return { 
+      isValid: false, 
+      cleanEmail: clean, 
+      error: 'फर्जी या डमी ईमेल आईडी स्वीकार्य नहीं है। कृपया अपनी वास्तविक सक्रिय ईमेल दर्ज करें।' 
+    };
+  }
+
+  // Reject all same character user
+  if (/^(\w)\1{4,}$/.test(userPart)) {
+    return { isValid: false, cleanEmail: clean, error: 'अमान्य ईमेल आईडी! कृपया अपनी वास्तविक ईमेल दर्ज करें।' };
+  }
+
+  return { isValid: true, cleanEmail: clean };
+};
+
+/**
+ * Strict Sponsor ID Verification:
+ * Checks whether the sponsor ID actually exists in:
+ * 1. Master Root Sponsor: IOIS999VK01 (Vikas Kumar)
+ * 2. Local registered user cache
+ * 3. Cloud Firestore users collection
+ * 4. Server API (/api/users/validate-sponsor)
+ * 
+ * UNDER NO CIRCUMSTANCES will a random or non-existent Sponsor ID be allowed.
+ */
+export const validateSponsorIdAsync = async (
+  sponsorId?: string,
+  localUsers?: UserProfile[]
+): Promise<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }> => {
+  if (!sponsorId || typeof sponsorId !== 'string' || !sponsorId.trim()) {
+    return {
+      isValid: false,
+      error: 'स्पॉन्सर ID दर्ज करना अनिवार्य है। यदि आपके पास कोई स्पॉन्सर नहीं है तो आधिकारिक डिफ़ॉल्ट ID "IOIS999VK01" का उपयोग करें।',
+    };
+  }
+
+  const clean = sponsorId.trim().toUpperCase();
+  const cleanLower = sponsorId.trim().toLowerCase().replace(/^@/, '');
+
+  // 1. Root Master Sponsor Check
+  if (clean === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
+    return {
+      isValid: true,
+      sponsorId: OFFICIAL_ROOT_SPONSOR_ID,
+      sponsorName: OFFICIAL_ROOT_SPONSOR_NAME,
+    };
+  }
+  if (clean === ACC_LEGACY_SPONSOR_ID) {
+    return {
+      isValid: true,
+      sponsorId: ACC_LEGACY_SPONSOR_ID,
+      sponsorName: ACC_LEGACY_SPONSOR_NAME,
+    };
+  }
+
+  // 2. Local Users Cache Check (By User ID or Username)
+  const users = localUsers || getAllUsers();
+  const localMatch = users.find((u) => {
+    if (!u) return false;
+    const uidMatch = u.userId && u.userId.trim().toUpperCase() === clean;
+    const unameMatch = u.username && u.username.trim().toLowerCase().replace(/^@/, '') === cleanLower;
+    return uidMatch || unameMatch;
+  });
+  if (localMatch) {
+    return {
+      isValid: true,
+      sponsorId: localMatch.userId,
+      sponsorName: localMatch.fullName || 'सत्यापित सदस्य',
+    };
+  }
+
+  // 3. Firestore Cloud Check (Direct document lookup)
+  if (db) {
+    try {
+      const docRef = doc(db, 'users', clean);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data() as UserProfile;
+        return {
+          isValid: true,
+          sponsorId: data.userId || clean,
+          sponsorName: data.fullName || 'सत्यापित सदस्य',
+        };
+      }
+    } catch (e) {
+      console.warn('Firestore sponsor check note:', e);
+    }
+  }
+
+  // 4. Server API Check
+  try {
+    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(clean)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.isValid) {
+        return {
+          isValid: true,
+          sponsorId: data.sponsorId || clean,
+          sponsorName: data.sponsorName || 'सत्यापित सदस्य',
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Server sponsor check note:', e);
+  }
+
+  // 5. If not found in any source -> Strictly Invalid Random Sponsor ID!
+  return {
+    isValid: false,
+    error: `अमान्य स्पॉन्सर ID "${clean}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
+  };
 };
 
 export const maskMobile = (mob?: string): string => {
@@ -600,6 +932,13 @@ export const maskName = (name?: string): string => {
     .split(/\s+/)
     .map((w) => (w.length > 1 ? `${w[0]}${'*'.repeat(Math.min(w.length - 1, 4))}` : w))
     .join(' ');
+};
+
+export const maskUpi = (upi?: string): string => {
+  if (!upi || !upi.includes('@')) return '';
+  const [handle, bank] = upi.split('@');
+  const visible = handle.length > 3 ? `${handle.slice(0, 2)}****${handle.slice(-2)}` : `${handle[0] || '*'}***`;
+  return `${visible}@${bank || 'upi'}`;
 };
 
 export interface DuplicateCheckResult {
@@ -796,7 +1135,7 @@ export const verifyUserIdentityAsync = async (
     };
   }
 
-  const localToken = `local_rst_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  const localToken = `local_rst_${Date.now()}_${Date.now().toString(36)}`;
   return {
     success: true,
     verificationToken: localToken,
@@ -987,8 +1326,35 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
 export const registerNewUserAsync = async (
   data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>
 ): Promise<UserProfile> => {
-  // 1. Strict Duplicate Check before creating any account (Masked privacy preserved)
-  const dupCheck = await checkUserAlreadyExists(data.mobileNumber, data.email);
+  // 1. Strict Full Name Validation (No random characters or numbers)
+  const nameCheck = validateFullName(data.fullName);
+  if (!nameCheck.isValid) {
+    throw new Error(nameCheck.error || 'कृपया अपना वास्तविक पूरा नाम दर्ज करें।');
+  }
+
+  // 2. Strict Mobile Number Validation (10-digit Indian valid mobile only, no repetitive/sequential fake numbers)
+  const mobileCheck = validateMobileNumber(data.mobileNumber);
+  if (!mobileCheck.isValid) {
+    throw new Error(mobileCheck.error || 'कृपया 10-अंकों का वैध भारतीय मोबाइल नंबर दर्ज करें।');
+  }
+
+  // 3. Strict Email Validation (Valid RFC format)
+  if (data.email) {
+    const emailCheck = validateEmailAddress(data.email);
+    if (!emailCheck.isValid) {
+      throw new Error(emailCheck.error || 'कृपया एक वैध ईमेल आईडी दर्ज करें।');
+    }
+  }
+
+  // 4. Strict Sponsor ID Verification (Random non-existent sponsor IDs are strictly prohibited)
+  const currentUsers = getAllUsers();
+  const sponsorCheck = await validateSponsorIdAsync(data.sponsorId, currentUsers);
+  if (!sponsorCheck.isValid) {
+    throw new Error(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।');
+  }
+
+  // 5. Strict Duplicate Check before creating any account (Masked privacy preserved)
+  const dupCheck = await checkUserAlreadyExists(mobileCheck.cleanDigits, data.email);
   if (dupCheck.exists) {
     const matchedLabel = dupCheck.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल' : dupCheck.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल';
     const err: any = new Error(
@@ -1001,13 +1367,16 @@ export const registerNewUserAsync = async (
     throw err;
   }
 
-  // 2. Fetch fresh users to ensure absolute unique User ID
-  const currentUsers = getAllUsers();
+  // 6. Fetch fresh users to ensure absolute unique User ID
   const plan = PLANS.find((p) => p.id === data.selectedPlanId) || PLANS[0];
-  const userId = generateCustomIOISUserId(data.fullName, plan.price, currentUsers);
+  const userId = generateCustomIOISUserId(nameCheck.cleanName, plan.price, currentUsers);
   
   const newUser: UserProfile = {
     ...data,
+    fullName: nameCheck.cleanName,
+    mobileNumber: mobileCheck.cleanDigits,
+    email: data.email ? data.email.trim().toLowerCase() : `${mobileCheck.cleanDigits}@iois.in`,
+    sponsorId: sponsorCheck.sponsorId || OFFICIAL_ROOT_SPONSOR_ID,
     userId,
     paymentStatus: 'pending',
     createdAt: new Date().toISOString(),
@@ -1073,15 +1442,50 @@ export const getGitHubReferralLink = (userId: string): string => {
 
 export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>): UserProfile => {
   const users = getAllUsers();
+
+  // 1. Strict Name Validation
+  const nameCheck = validateFullName(data.fullName);
+  if (!nameCheck.isValid) {
+    throw new Error(nameCheck.error || 'कृपया अपना वास्तविक पूरा नाम दर्ज करें।');
+  }
+
+  // 2. Strict Mobile Validation
+  const mobileCheck = validateMobileNumber(data.mobileNumber);
+  if (!mobileCheck.isValid) {
+    throw new Error(mobileCheck.error || 'कृपया 10-अंकों का वैध भारतीय मोबाइल नंबर दर्ज करें।');
+  }
+
+  // 3. Strict Email Validation
+  if (data.email) {
+    const emailCheck = validateEmailAddress(data.email);
+    if (!emailCheck.isValid) {
+      throw new Error(emailCheck.error || 'कृपया एक वैध ईमेल आईडी दर्ज करें।');
+    }
+  }
+
+  // 4. Strict Sponsor ID Validation
+  const cleanSponsor = (data.sponsorId || '').trim().toUpperCase();
+  const isMasterSponsor = cleanSponsor === OFFICIAL_ROOT_SPONSOR_ID;
+  const isExistingSponsor = users.some((u) => u.userId && u.userId.trim().toUpperCase() === cleanSponsor);
+  if (!isMasterSponsor && !isExistingSponsor) {
+    throw new Error(
+      `अमान्य स्पॉन्सर ID! "${cleanSponsor || 'खाली'}" सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`
+    );
+  }
+
   const cleanPayoutUpi = sanitizeUpiId(data.payoutUpi);
   const sanitizedData = {
     ...data,
+    fullName: nameCheck.cleanName,
+    mobileNumber: mobileCheck.cleanDigits,
+    email: data.email ? data.email.trim().toLowerCase() : `${mobileCheck.cleanDigits}@iois.in`,
+    sponsorId: cleanSponsor || OFFICIAL_ROOT_SPONSOR_ID,
     payoutUpi: cleanPayoutUpi,
   };
 
   // Check duplicate synchronously in local cache
-  const cleanDigits = (sanitizedData.mobileNumber || '').replace(/\D/g, '');
-  const cleanEmail = (sanitizedData.email || '').trim().toLowerCase();
+  const cleanDigits = sanitizedData.mobileNumber;
+  const cleanEmail = sanitizedData.email;
   const existing = users.find((u) => {
     if (!u) return false;
     const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
@@ -1142,6 +1546,21 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     throw new Error('यह मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है। कृपया अपना सही विवरण दर्ज करें।');
   }
 
+  // Prevent duplicate username across other users
+  if (updatedProfile.username && updatedProfile.username.trim()) {
+    const cleanUname = updatedProfile.username.trim().toLowerCase().replace(/^@/, '');
+    const unameConflict = users.find((u) => {
+      if (!u || u.userId.toUpperCase() === updatedProfile.userId.toUpperCase()) return false;
+      return (
+        (u.username && u.username.trim().toLowerCase().replace(/^@/, '') === cleanUname) ||
+        (u.userId && u.userId.trim().toLowerCase() === cleanUname)
+      );
+    });
+    if (unameConflict) {
+      throw new Error(`❌ यूजरनेम "@${cleanUname}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई दूसरा यूजरनेम चुनें।`);
+    }
+  }
+
   const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
   const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
   
@@ -1152,6 +1571,9 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
 
   if (existingUser) {
     const fieldMap: Array<{ key: keyof UserProfile; label: string }> = [
+      { key: 'username', label: 'यूजरनेम (@username)' },
+      { key: 'fullName', label: 'सदस्य का पूरा नाम' },
+      { key: 'password', label: 'लॉगिन पासवर्ड' },
       { key: 'payoutUpi', label: 'पेआउट UPI आईडी' },
       { key: 'mobileNumber', label: 'मोबाइल नंबर' },
       { key: 'email', label: 'ईमेल पता' },
@@ -1624,7 +2046,7 @@ export const createHelpTicket = (ticket: Omit<HelpTicket, 'id' | 'createdAt' | '
   const tickets = getHelpTickets();
   const newTicket: HelpTicket = {
     ...ticket,
-    id: 'TICKET-' + Math.floor(100000 + Math.random() * 900000),
+    id: 'TICKET-' + (tickets.length + 1).toString().padStart(6, '0'),
     createdAt: new Date().toISOString(),
     status: 'open',
   };
@@ -1661,4 +2083,272 @@ export const replyHelpTicket = (ticketId: string, reply: string, status: 'in_pro
       body: JSON.stringify({ adminReply: reply, status }),
     }).catch((e) => console.warn('Background ticket reply note:', e));
   }
+};
+
+// =========================================================================
+// 1. Unique Username Validation & Short Sponsor Link Helpers
+// =========================================================================
+
+export const validateUsernameFormat = (username?: string): { isValid: boolean; cleanUsername: string; error?: string } => {
+  if (!username || typeof username !== 'string' || !username.trim()) {
+    return { isValid: false, cleanUsername: '', error: 'यूजरनेम दर्ज करना अनिवार्य है।' };
+  }
+  const clean = username.trim().toLowerCase().replace(/^@/, '');
+  if (clean.length < 3) {
+    return { isValid: false, cleanUsername: clean, error: 'यूजरनेम कम से कम 3 अक्षरों का होना चाहिए।' };
+  }
+  if (clean.length > 20) {
+    return { isValid: false, cleanUsername: clean, error: 'यूजरनेम 20 अक्षरों से अधिक नहीं हो सकता।' };
+  }
+  if (!/^[a-z0-9_]+$/.test(clean)) {
+    return {
+      isValid: false,
+      cleanUsername: clean,
+      error: 'यूजरनेम में केवल छोटे अंग्रेजी अक्षर (a-z), अंक (0-9) और अंडरस्कोर (_) का ही उपयोग करें।',
+    };
+  }
+  const reserved = ['admin', 'root', 'support', 'iois', 'ioisplatform', 'official', 'acc', 'help', 'master', 'balvikas'];
+  if (reserved.includes(clean)) {
+    return {
+      isValid: false,
+      cleanUsername: clean,
+      error: `यह यूजरनेम "@${clean}" आधिकारिक सिस्टम के लिए आरक्षित है। कृपया कोई दूसरा नाम चुनें।`,
+    };
+  }
+  if (clean === 'iois999vk01' || clean === 'swaccdk01' || clean === 'vikaskumar') {
+    return {
+      isValid: false,
+      cleanUsername: clean,
+      error: `यह यूजरनेम "@${clean}" मास्टर स्पॉन्सर के लिए आरक्षित है।`,
+    };
+  }
+  return { isValid: true, cleanUsername: clean };
+};
+
+export const checkUsernameAvailableAsync = async (
+  username: string,
+  excludeUserId?: string
+): Promise<{ available: boolean; cleanUsername: string; error?: string; message?: string }> => {
+  const format = validateUsernameFormat(username);
+  if (!format.isValid) {
+    return { available: false, cleanUsername: format.cleanUsername, error: format.error };
+  }
+  const clean = format.cleanUsername;
+
+  // 1. Local Cache Check
+  const users = getAllUsers();
+  const excludeUpper = excludeUserId ? excludeUserId.trim().toUpperCase() : '';
+  const localConflict = users.find((u) => {
+    if (!u) return false;
+    if (excludeUpper && u.userId?.toUpperCase() === excludeUpper) return false;
+    const matchUname = u.username && u.username.toLowerCase().replace(/^@/, '') === clean;
+    const matchUid = u.userId && u.userId.toLowerCase() === clean;
+    return matchUname || matchUid;
+  });
+
+  if (localConflict) {
+    return {
+      available: false,
+      cleanUsername: clean,
+      error: `❌ यूजरनेम "@${clean}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई दूसरा उपलब्ध यूजरनेम चुनें।`,
+    };
+  }
+
+  // 2. Server API Check
+  try {
+    const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(clean)}&excludeUserId=${encodeURIComponent(excludeUpper)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.available) {
+        return {
+          available: false,
+          cleanUsername: clean,
+          error: data.error || `❌ यूजरनेम "@${clean}" पहले से उपयोग में है।`,
+        };
+      }
+    }
+  } catch {}
+
+  return {
+    available: true,
+    cleanUsername: clean,
+    message: `✓ यूजरनेम "@${clean}" उपलब्ध है!`,
+  };
+};
+
+export const getShortSponsorUrl = (user: { userId: string; username?: string }): string => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ioisplatform.github.io';
+  const handle = (user.username && user.username.trim().replace(/^@/, '')) || user.userId;
+  return `${origin}/?s=${encodeURIComponent(handle)}`;
+};
+
+// =========================================================================
+// 2. Private Direct Messaging Service (Admin <-> User)
+// =========================================================================
+
+export const getLocalPrivateChatMessages = (userId: string): AdminPrivateMessage[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(`${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveLocalPrivateChatMessages = (userId: string, msgs: AdminPrivateMessage[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`, JSON.stringify(msgs));
+  } catch {}
+};
+
+export const fetchPrivateChatMessagesAsync = async (userId: string): Promise<AdminPrivateMessage[]> => {
+  const cleanId = userId.trim().toUpperCase();
+  const local = getLocalPrivateChatMessages(cleanId);
+
+  // Firestore check
+  if (db) {
+    try {
+      const col = collection(db, 'private_messages');
+      const snap = await getDocs(col);
+      const list: AdminPrivateMessage[] = [];
+      snap.forEach((d) => {
+        const m = d.data() as AdminPrivateMessage;
+        if (m && m.userId && m.userId.toUpperCase() === cleanId) {
+          list.push(m);
+        }
+      });
+      if (list.length > 0) {
+        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        saveLocalPrivateChatMessages(cleanId, list);
+        return list;
+      }
+    } catch {}
+  }
+
+  // Server API check
+  try {
+    const res = await fetch(`/api/messages/${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.messages)) {
+        saveLocalPrivateChatMessages(cleanId, data.messages);
+        return data.messages;
+      }
+    }
+  } catch {}
+
+  return local;
+};
+
+export const sendPrivateChatMessageAsync = async (
+  msg: Omit<AdminPrivateMessage, 'id' | 'createdAt'>
+): Promise<AdminPrivateMessage> => {
+  const cleanId = msg.userId.trim().toUpperCase();
+  const newMsg: AdminPrivateMessage = {
+    ...msg,
+    id: `MSG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    userId: cleanId,
+    createdAt: new Date().toISOString(),
+    read: false,
+  };
+
+  const existing = getLocalPrivateChatMessages(cleanId);
+  const updated = [...existing, newMsg];
+  saveLocalPrivateChatMessages(cleanId, updated);
+
+  // Sync with Firestore
+  if (db) {
+    try {
+      await setDoc(doc(db, 'private_messages', newMsg.id), newMsg);
+    } catch (e) {
+      console.warn('Firestore message sync note:', e);
+    }
+  }
+
+  // Sync with Server API
+  fetch('/api/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newMsg),
+  }).catch(() => {});
+
+  return newMsg;
+};
+
+// =========================================================================
+// 3. Admin Master User Profile Updater
+// =========================================================================
+
+export const adminUpdateUserProfileAsync = async (
+  userId: string,
+  updates: Partial<UserProfile>
+): Promise<UserProfile> => {
+  const cleanId = userId.trim().toUpperCase();
+  const users = getAllUsers();
+  const index = users.findIndex((u) => u.userId?.toUpperCase() === cleanId);
+  if (index === -1) {
+    throw new Error('उपयोगकर्ता नहीं मिला।');
+  }
+
+  const existing = users[index];
+  const now = new Date().toISOString();
+  const existingHistory = existing.editHistory || [];
+
+  const fieldLabels: Record<string, string> = {
+    fullName: 'सदस्य का पूरा नाम (Admin Edit)',
+    password: 'लॉगिन पासवर्ड (Admin Reset)',
+    mobileNumber: 'मोबाइल नंबर',
+    email: 'ईमेल पता',
+    selectedPlanId: 'चयनित प्लान',
+    role: 'सदस्य पद / रोल',
+    payoutUpi: 'पेआउट UPI',
+    address: 'पता',
+    paymentStatus: 'पेमेंट स्थिति',
+    username: 'यूजरनेम (@username)',
+  };
+
+  const newLogs: any[] = [];
+  Object.keys(updates).forEach((k) => {
+    if (k !== 'editHistory' && k !== 'userId' && (updates as any)[k] !== undefined) {
+      const oldV = String((existing as any)[k] || '');
+      const newV = String((updates as any)[k] || '');
+      if (oldV !== newV) {
+        newLogs.push({
+          field: k,
+          fieldLabelHi: fieldLabels[k] || k,
+          oldValue: oldV || '(खाली)',
+          newValue: newV || '(खाली)',
+          timestamp: now,
+        });
+      }
+    }
+  });
+
+  const updatedUser: UserProfile = {
+    ...existing,
+    ...updates,
+    userId: existing.userId,
+    editHistory: [...newLogs, ...existingHistory].slice(0, 50),
+  };
+
+  users[index] = updatedUser;
+  saveUsers(users);
+
+  // Firestore sync
+  if (db) {
+    try {
+      await setDoc(doc(db, 'users', cleanId), updatedUser, { merge: true });
+    } catch {}
+  }
+
+  // Server API sync
+  fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  }).catch(() => {});
+
+  return updatedUser;
 };

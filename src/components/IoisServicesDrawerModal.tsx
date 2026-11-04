@@ -257,7 +257,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
       id: 'contact' as PageType,
       category: 'safety',
       title: '24x7 हेल्पलाइन व FAQ',
-      subtitle: 'WhatsApp, Telegram सपोर्ट व आपके सभी प्रश्नों का त्वरित समाधान',
+      subtitle: '🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】Telegram व Email सपोर्ट',
       badge: '24x7 हेल्पलाइन',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
       icon: PhoneCall,

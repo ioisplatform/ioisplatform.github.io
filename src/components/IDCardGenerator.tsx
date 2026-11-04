@@ -1,7 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_EMAIL } from '../data/plansData';
-import { maskMobile, maskEmail, maskName } from '../services/userService';
+import { 
+  maskMobile, 
+  maskEmail, 
+  maskName,
+  maskUpi,
+  OFFICIAL_ROOT_SPONSOR_USER,
+  OFFICIAL_ROOT_SPONSOR_ID,
+  validateSponsorIdAsync,
+  getSponsorUserAsync,
+  findUserById
+} from '../services/userService';
 import { 
   CreditCard, 
   Download, 
@@ -33,7 +43,10 @@ import {
   Link,
   Image as ImageIcon,
   ExternalLink,
-  UserCheck
+  UserCheck,
+  Search,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -68,19 +81,40 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   onOpenRegister,
   isModalMode = false,
 }) => {
-  const displayUser = targetUser || currentUser;
+  // Mode selection: If currentUser is logged in, default to their card, else sponsor card
+  const [viewMode, setViewMode] = useState<'my_card' | 'sponsor_card'>(
+    isSponsorPreview || !currentUser ? 'sponsor_card' : 'my_card'
+  );
+
+  // Authentically resolved sponsor (never random dummy)
+  const [inspectedSponsorUser, setInspectedSponsorUser] = useState<UserProfile>(
+    targetUser || (currentUser?.sponsorId ? (findUserById(currentUser.sponsorId) || OFFICIAL_ROOT_SPONSOR_USER) : OFFICIAL_ROOT_SPONSOR_USER)
+  );
+
+  const [sponsorSearchInput, setSponsorSearchInput] = useState<string>('');
+  const [rejectedSponsorInput, setRejectedSponsorInput] = useState<string>('');
+  const [isSearchingSponsor, setIsSearchingSponsor] = useState<boolean>(false);
+  const [sponsorSearchError, setSponsorSearchError] = useState<string>('');
+  const [sponsorSearchSuccess, setSponsorSearchSuccess] = useState<string>('');
+
+  const displayUser: UserProfile = viewMode === 'sponsor_card'
+    ? (inspectedSponsorUser || OFFICIAL_ROOT_SPONSOR_USER)
+    : (currentUser || OFFICIAL_ROOT_SPONSOR_USER);
+
   const isCardOwner = Boolean(
     currentUser &&
-    displayUser &&
+    viewMode === 'my_card' &&
     currentUser.userId?.trim().toUpperCase() === displayUser.userId?.trim().toUpperCase()
   );
 
+  const isViewingSponsor = viewMode === 'sponsor_card' || isSponsorPreview || !isCardOwner;
+
   // 1. Card Profile States
-  const [fullName, setFullName] = useState<string>(displayUser?.fullName || 'आधिकारिक सदस्य (IOIS Member)');
-  const [memberId, setMemberId] = useState<string>(displayUser?.userId || 'IOIS-MEMBER-ID');
-  const [selectedPlanId, setSelectedPlanId] = useState<number>(displayUser?.selectedPlanId || 1);
-  const [userRole, setUserRole] = useState<string>(displayUser?.role || 'Official Verified Member');
-  const [phoneNumber, setPhoneNumber] = useState<string>(displayUser?.mobileNumber || '+91 9876543210');
+  const [fullName, setFullName] = useState<string>(displayUser?.fullName || 'आधिकारिक सदस्य');
+  const [memberId, setMemberId] = useState<string>(displayUser?.userId || OFFICIAL_ROOT_SPONSOR_ID);
+  const [selectedPlanId, setSelectedPlanId] = useState<number>(displayUser?.selectedPlanId || 7);
+  const [userRole, setUserRole] = useState<string>(displayUser?.role || (isViewingSponsor ? 'आधिकारिक सत्यापित स्पॉन्सर' : 'Official Verified Member'));
+  const [phoneNumber, setPhoneNumber] = useState<string>(displayUser?.mobileNumber || '8877490845');
   const [bloodGroup, setBloodGroup] = useState<string>('O+');
   const [stateRegion, setStateRegion] = useState<string>(displayUser?.state || 'बिहार (IN)');
   const [dob, setDob] = useState<string>('15/08/2000');
@@ -113,15 +147,51 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
 
   useEffect(() => {
     if (displayUser) {
-      setFullName(displayUser.fullName || 'आधिकारिक सदस्य (IOIS Member)');
-      setMemberId(displayUser.userId || 'IOIS-MEMBER-ID');
-      setSelectedPlanId(displayUser.selectedPlanId || 1);
-      setUserRole(displayUser.role || 'Official Verified Member');
-      setPhoneNumber(displayUser.mobileNumber || '+91 9876543210');
+      setFullName(displayUser.fullName || 'आधिकारिक सदस्य');
+      setMemberId(displayUser.userId || OFFICIAL_ROOT_SPONSOR_ID);
+      setSelectedPlanId(displayUser.selectedPlanId || 7);
+      setUserRole(displayUser.role || (isViewingSponsor ? 'आधिकारिक सत्यापित स्पॉन्सर' : 'Official Verified Member'));
+      setPhoneNumber(displayUser.mobileNumber || '8877490845');
       setStateRegion(displayUser.state || 'बिहार (IN)');
       if (displayUser.photoUrl) setPhotoUrl(displayUser.photoUrl);
     }
-  }, [displayUser]);
+  }, [displayUser, isViewingSponsor]);
+
+  const handleInspectSponsor = async () => {
+    const clean = sponsorSearchInput.trim().toUpperCase();
+    if (!clean) {
+      setSponsorSearchError('कृपया स्पॉन्सर ID या Username दर्ज करें।');
+      return;
+    }
+    setIsSearchingSponsor(true);
+    setSponsorSearchError('');
+    setSponsorSearchSuccess('');
+    setRejectedSponsorInput('');
+    try {
+      const check = await validateSponsorIdAsync(clean);
+      if (!check.isValid) {
+        setRejectedSponsorInput(clean);
+        setSponsorSearchError(`❌ अमान्य स्पॉन्सर कोड "${clean}"! यह ID सिस्टम में पंजीकृत नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`);
+        setIsSearchingSponsor(false);
+        return;
+      }
+      const spUser = await getSponsorUserAsync(clean);
+      if (spUser) {
+        setInspectedSponsorUser(spUser);
+        setViewMode('sponsor_card');
+        setRejectedSponsorInput('');
+        setSponsorSearchSuccess(`✓ सत्यापित स्पॉन्सर [${spUser.userId}] का कार्ड लोड हो गया!`);
+        showToast(`स्पॉन्सर ${spUser.userId} का कार्ड सुरक्षित मास्क्ड विवरण के साथ लोड हुआ।`);
+      } else {
+        setRejectedSponsorInput(clean);
+        setSponsorSearchError(`❌ स्पॉन्सर डेटा नहीं मिला।`);
+      }
+    } catch {
+      setSponsorSearchError('सत्यापन में समस्या आई।');
+    } finally {
+      setIsSearchingSponsor(false);
+    }
+  };
 
   const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
@@ -145,29 +215,64 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     ? customQrImage
     : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(effectiveQrLink)}`;
 
-  // Strict Privacy Masking Logic:
-  // By default, ALL personal info is masked except unique User ID!
-  // Card owner can preview public view (privacyMode === 'public') or unmask their own details (privacyMode === 'private').
-  // Non-owners (visitors or peers) ALWAYS have masking enforced according to displayUser's privacySettings.
-  const privacySettings = displayUser?.privacySettings || {
-    showFullName: false,
-    showMobile: false,
-    showEmail: false,
-    showPhoto: false,
-    showLocation: false,
+  useEffect(() => {
+    if (targetUser) {
+      setInspectedSponsorUser(targetUser);
+    }
+  }, [targetUser]);
+
+  // Real Privacy Masking Logic:
+  // User's real uploaded photo, real full name, username, and plan are PUBLIC by default!
+  // Only sensitive personal info (Mobile number, Email address, UPI ID) are MASKED by default!
+  // Card owner has full freedom to customize privacy settings in their dashboard.
+  const privacySettings = {
+    showFullName: displayUser?.privacySettings?.showFullName ?? true,
+    showUsername: displayUser?.privacySettings?.showUsername ?? true,
+    showPhoto: displayUser?.privacySettings?.showPhoto ?? true,
+    showPlan: displayUser?.privacySettings?.showPlan ?? true,
+    showLocation: displayUser?.privacySettings?.showLocation ?? true,
+    showMobile: displayUser?.privacySettings?.showMobile ?? false,
+    showEmail: displayUser?.privacySettings?.showEmail ?? false,
+    showUpi: displayUser?.privacySettings?.showUpi ?? false,
   };
 
-  const effectiveShowFullName = isCardOwner ? privacyMode === 'private' : privacySettings.showFullName;
-  const effectiveShowMobile = isCardOwner ? privacyMode === 'private' : privacySettings.showMobile;
-  const effectiveShowPhoto = isCardOwner ? privacyMode === 'private' : privacySettings.showPhoto;
-  const effectiveShowLocation = isCardOwner ? privacyMode === 'private' : privacySettings.showLocation;
+  const effectiveShowFullName = isCardOwner ? (privacyMode === 'private' || privacySettings.showFullName) : privacySettings.showFullName;
+  const effectiveShowUsername = isCardOwner ? (privacyMode === 'private' || privacySettings.showUsername) : privacySettings.showUsername;
+  const effectiveShowPhoto = isCardOwner ? (privacyMode === 'private' || privacySettings.showPhoto) : privacySettings.showPhoto;
+  const effectiveShowLocation = isCardOwner ? (privacyMode === 'private' || privacySettings.showLocation) : privacySettings.showLocation;
+  const effectiveShowMobile = isCardOwner ? (privacyMode === 'private' || privacySettings.showMobile) : privacySettings.showMobile;
+  const effectiveShowEmail = isCardOwner ? (privacyMode === 'private' || privacySettings.showEmail) : privacySettings.showEmail;
+  const effectiveShowUpi = isCardOwner ? (privacyMode === 'private' || privacySettings.showUpi) : privacySettings.showUpi;
 
-  const displayFullName = effectiveShowFullName ? fullName : maskName(fullName);
-  const displayMobile = effectiveShowMobile ? phoneNumber : maskMobile(phoneNumber);
-  const displayPhoto = effectiveShowPhoto ? photoUrl : PRESET_AVATARS[0].url;
+  // Real user uploaded photo (displayed authentically on card)
+  const rawPhoto = (displayUser?.photoUrl || photoUrl || '').trim();
+  const displayPhoto = effectiveShowPhoto
+    ? (rawPhoto || PRESET_AVATARS[0].url)
+    : PRESET_AVATARS[0].url;
+
+  // Real full name
+  const rawName = (displayUser?.fullName || fullName || 'आधिकारिक सदस्य').trim();
+  const displayFullName = effectiveShowFullName ? rawName : maskName(rawName);
+
+  // Real username
+  const rawUsername = (displayUser?.username || displayUser?.telegramUsername || '').trim().replace(/^@/, '');
+  const displayUsername = effectiveShowUsername && rawUsername ? `@${rawUsername}` : '';
+
+  // Mobile (Masked by default)
+  const rawMobile = displayUser?.mobileNumber || phoneNumber || '';
+  const displayMobile = effectiveShowMobile ? rawMobile : maskMobile(rawMobile);
+
+  // Email (Masked by default)
+  const rawEmail = displayUser?.email || '';
+  const displayEmail = effectiveShowEmail ? rawEmail : maskEmail(rawEmail);
+
+  // UPI (Masked by default)
+  const rawUpi = displayUser?.payoutUpi || '';
+  const displayUpi = effectiveShowUpi ? rawUpi : maskUpi(rawUpi);
+
   const displayBlood = isCardOwner && privacyMode === 'private' ? bloodGroup : '**';
   const displayDob = isCardOwner && privacyMode === 'private' ? dob : '**/**/****';
-  const displayState = effectiveShowLocation ? stateRegion : 'भारत (सुरक्षित)';
+  const displayState = effectiveShowLocation ? (displayUser?.state || stateRegion || 'बिहार (IN)') : 'भारत (सुरक्षित)';
 
   // Photo Upload Handler
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,6 +516,11 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }
   };
 
+  const handleShareWhatsApp = () => {
+    const shareText = `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nमेरा आधिकारिक डिजिटल ID कार्ड: *${fullName}* (User ID: *${memberId}*)\n\n👉 *मेरे स्पॉन्सर कोड से सीधे जुड़ें व रजिस्टर करें:*\n${defaultReferralUrl}\n\n🏷️ *Sponsor ID:* ${memberId}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
+  };
+
   // Authentic IOIS Themes (Genuine Digital Network styling, never fake government seals)
   const getThemeClasses = () => {
     switch (cardTheme) {
@@ -511,15 +621,168 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
               <h3 className="text-sm sm:text-base font-black text-white">ID कार्ड कस्टमाइज़र स्टूडियो</h3>
             </div>
             <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-black uppercase">
-              IOIS Live ID
+              {isViewingSponsor ? 'सत्यापित स्पॉन्सर' : 'सक्रिय सदस्य'}
             </span>
+          </div>
+
+          {/* Toggle between My Card and Sponsor Masked Card (If logged in) */}
+          {currentUser && (
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setViewMode('my_card')}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  viewMode === 'my_card'
+                    ? 'bg-amber-400 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>मेरा ID कार्ड</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('sponsor_card')}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  viewMode === 'sponsor_card'
+                    ? 'bg-amber-400 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>स्पॉन्सर कार्ड (मास्क्ड)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Dedicated Sponsor ID Real Verification Search Bar (Strictly rejects random IDs) */}
+          <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-amber-500/40 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                <Search className="w-3.5 h-3.5 text-amber-400" />
+                <span>स्पॉन्सर ID या Username खोजें:</span>
+              </label>
+              <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSponsorSearchInput(OFFICIAL_ROOT_SPONSOR_ID);
+                    setRejectedSponsorInput('');
+                  }}
+                  className="text-slate-400 hover:text-amber-300 underline"
+                  title="Master Founder Sponsor"
+                >
+                  IOIS999VK01
+                </button>
+                <span className="text-slate-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSponsorSearchInput('SWACCDK01');
+                    setRejectedSponsorInput('');
+                  }}
+                  className="text-slate-400 hover:text-amber-300 underline"
+                  title="Senior Partner Sponsor"
+                >
+                  SWACCDK01
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={sponsorSearchInput}
+                onChange={(e) => {
+                  setSponsorSearchInput(e.target.value.toUpperCase().trim());
+                  setSponsorSearchError('');
+                  setSponsorSearchSuccess('');
+                  setRejectedSponsorInput('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleInspectSponsor();
+                }}
+                placeholder="उदा. IOIS999VK01 या SWACCDK01"
+                className="flex-1 bg-slate-900 border border-slate-700 focus:border-amber-400 text-amber-300 font-mono text-xs font-bold rounded-xl px-3 py-2 outline-none uppercase"
+              />
+              <button
+                type="button"
+                onClick={handleInspectSponsor}
+                disabled={isSearchingSponsor}
+                className="px-3 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                {isSearchingSponsor ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                <span>कार्ड देखें</span>
+              </button>
+            </div>
+
+            {/* Error & Instant Rejection for Random / Fake Text */}
+            {sponsorSearchError && (
+              <p className="text-[11px] text-red-400 bg-red-950/40 p-2.5 rounded-xl border border-red-500/30 leading-snug flex items-start gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{sponsorSearchError}</span>
+              </p>
+            )}
+
+            {/* Username Registration Suggestion on Rejected Non-Existent ID */}
+            {rejectedSponsorInput && (
+              <div className="p-3 bg-gradient-to-br from-slate-900 to-amber-950/30 border border-amber-500/40 rounded-xl space-y-2 animate-fadeIn">
+                <div className="flex items-center gap-1.5 text-amber-300 text-[11px] font-black">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>क्या आप यह नाम अपना निजी Username बनाना चाहते हैं?</span>
+                </div>
+                <p className="text-[10px] text-slate-300 leading-relaxed">
+                  चूँकि <strong className="text-white font-mono">@{rejectedSponsorInput.toLowerCase()}</strong> वर्तमान में किसी का ID नहीं है, आप इसे अपने खाते का कस्टम यूजरनेम बनाकर अपनी स्पॉन्सर लिंक बना सकते हैं!
+                </p>
+                {onOpenRegister && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('iois_prefill_custom_username', rejectedSponsorInput.toLowerCase());
+                      }
+                      onOpenRegister();
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[11px] transition cursor-pointer shadow flex items-center justify-center gap-1.5"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>👉 इस Username (@{rejectedSponsorInput.toLowerCase()}) से अभी नया रजिस्ट्रेशन करें</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {sponsorSearchSuccess && (
+              <p className="text-[11px] text-emerald-400 bg-emerald-950/40 p-2 rounded-xl border border-emerald-500/30 leading-snug flex items-center gap-1.5 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>{sponsorSearchSuccess}</span>
+              </p>
+            )}
+            
+            <p className="text-[10px] text-slate-400 leading-tight">
+              ⚠️ कोई भी रैंडम स्पॉन्सर ID काम नहीं करेगा। केवल वास्तविक पंजीकृत सदस्य का ही सत्यापित मास्क्ड कार्ड दिखेगा।
+            </p>
+
+            {/* Registration Process & Rules Guide for Visitors without a Sponsor */}
+            {!currentUser && (
+              <div className="pt-2 border-t border-slate-800 space-y-1.5 text-[10px]">
+                <span className="text-amber-400 font-bold block">
+                  📋 बिना स्पॉन्सर के रजिस्ट्रेशन नियम व गाइड:
+                </span>
+                <ul className="text-slate-300 space-y-1 list-disc list-inside">
+                  <li>बिना स्पॉन्सर ID कार्ड नहीं बन सकता। डिफ़ॉल्ट मास्टर कोड <strong className="text-amber-300 font-mono">IOIS999VK01</strong> का उपयोग करें।</li>
+                  <li>नया रजिस्ट्रेशन करते समय 10-अंकों का वैध मोबाइल नंबर व असली नाम भरें।</li>
+                  <li>पेमेंट UTR सत्यापन उपरांत आपका 256-Bit SSL ID कार्ड स्वतः एक्टिवेट हो जाएगा।</li>
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* 1. Permanent User ID Display (Always visible to everyone) */}
           <div className="p-3.5 bg-slate-950 rounded-2xl border-2 border-amber-500/50 flex items-center justify-between shadow-inner">
             <div>
               <span className="text-[10px] uppercase font-bold text-amber-400 block tracking-wider">
-                स्थाई सदस्य पहचान (User ID - All Visible):
+                {isViewingSponsor ? 'आधिकारिक स्पॉन्सर ID (Sponsor ID):' : 'स्थाई सदस्य पहचान (User ID):'}
               </span>
               <span className="text-base sm:text-lg font-black text-white font-mono tracking-wider">
                 {memberId}
@@ -922,6 +1185,24 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
           
           <div className="w-full flex flex-col items-center justify-center gap-6">
 
+            {/* Sponsor Privacy & Security Notice Banner (Active when viewing sponsor card) */}
+            {isViewingSponsor && (
+              <div className="w-full max-w-[460px] p-3 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-black text-white block">सत्यापित स्पॉन्सर ID कार्ड (मास्क्ड विवरण)</span>
+                    <span className="text-[11px] text-slate-300">
+                      सुरक्षा व गोपनीयता के तहत व्यक्तिगत विवरण मास्क्ड हैं। रैंडम कार्ड्स सिस्टम में प्रतिबंधित हैं।
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-full font-bold border border-emerald-500/30 shrink-0">
+                  ✓ सत्यापित
+                </span>
+              </div>
+            )}
+
             {/* ================= 1. LANDSCAPE CARD (ISO/IEC 7810 ID-1 Standard) ================= */}
             {cardOrientation === 'landscape' && (
               <div className="w-full max-w-[460px] flex flex-col items-center gap-6">
@@ -1005,24 +1286,33 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         <div className="space-y-1 flex-1 min-w-0">
                           <div>
                             <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold block">
-                              सत्यापित सदस्य / Cardholder:
+                              {isViewingSponsor ? 'सत्यापित स्पॉन्सर / Verified Sponsor:' : 'सत्यापित सदस्य / Cardholder:'}
                             </span>
-                            <h4 className="text-sm sm:text-base font-black text-white truncate tracking-wide leading-tight">
-                              {displayFullName}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-sm sm:text-base font-black text-white truncate tracking-wide leading-tight">
+                                {displayFullName}
+                              </h4>
+                              {displayUsername && (
+                                <span className="text-[8px] font-mono font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                                  {displayUsername}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* User ID & Mobile (User ID ALWAYS visible) */}
                           <div className="grid grid-cols-2 gap-x-2 text-[9px]">
                             <div>
-                              <span className="text-[6.5px] uppercase text-slate-400 font-bold block">User ID (Public):</span>
+                              <span className="text-[6.5px] uppercase text-slate-400 font-bold block">
+                                {isViewingSponsor ? 'Sponsor ID (Public):' : 'User ID (Public):'}
+                              </span>
                               <span className="font-mono font-black text-amber-300 truncate block">
                                 {memberId}
                               </span>
                             </div>
                             <div>
                               <span className="text-[6.5px] uppercase text-slate-400 font-bold block">मोबाइल:</span>
-                              <span className="font-medium text-slate-200 truncate block">
+                              <span className="font-medium text-slate-200 truncate block font-mono">
                                 {displayMobile}
                               </span>
                             </div>
@@ -1221,12 +1511,22 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                           <h4 className="text-sm font-black text-white tracking-wide">
                             {displayFullName}
                           </h4>
+                          {displayUsername && (
+                            <span className="text-[9.5px] font-mono font-bold text-amber-300 block">
+                              {displayUsername}
+                            </span>
+                          )}
                           <span className="text-xs font-mono font-bold text-amber-300 block">
-                            User ID: {memberId}
+                            {isViewingSponsor ? 'Sponsor ID:' : 'User ID:'} {memberId}
                           </span>
                           <span className="text-[8.5px] text-slate-400 font-bold block">
                             {userRole}
                           </span>
+                          {isViewingSponsor && (
+                            <span className="inline-block text-[7.5px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
+                              ✓ VERIFIED SPONSOR (सत्यापित स्पॉन्सर)
+                            </span>
+                          )}
                         </div>
 
                         {/* Plan Badge */}
@@ -1397,8 +1697,17 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                   <span>{isDownloading && downloadFormatLabel.includes('2-Page') ? 'PDF तैयार हो रहा है...' : 'आगे + पीछे दोनों भाग (Full 2-Page PDF) डाउनलोड करें'}</span>
                 </button>
 
-                {/* Auxiliary Tools: Print & Share */}
-                <div className="flex items-center justify-center gap-2 pt-1">
+                {/* Auxiliary Tools: Print, WhatsApp & Share */}
+                <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleShareWhatsApp}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-md active:scale-95"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>WhatsApp पर शेयर</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handlePrint}
@@ -1413,8 +1722,8 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                     onClick={handleShare}
                     className="px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>शेयर करें</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>लिंक कॉपी</span>
                   </button>
                 </div>
               </>

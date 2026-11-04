@@ -15,10 +15,34 @@ const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, "telegram-config.json");
 const KNOWLEDGE_FILE = path.join(DATA_DIR, "ai-knowledge.json");
 const UNANSWERED_FILE = path.join(DATA_DIR, "ai-unanswered.json");
 const INTERVIEWS_FILE = path.join(DATA_DIR, "interviews.json");
+const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadMessagesFromDisk(): any[] {
+  try {
+    if (!fs.existsSync(MESSAGES_FILE)) {
+      fs.writeFileSync(MESSAGES_FILE, JSON.stringify([], null, 2), "utf-8");
+      return [];
+    }
+    const raw = fs.readFileSync(MESSAGES_FILE, "utf-8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error("Error reading messages from disk:", err);
+    return [];
+  }
+}
+
+function saveMessagesToDisk(items: any[]): void {
+  try {
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(items, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error writing messages to disk:", err);
+  }
 }
 
 // Telegram Integration Configuration
@@ -842,6 +866,127 @@ async function startServer() {
   });
 
   // API Route: Register New User (Strict Uniqueness: No duplicate Mobile or Email allowed)
+  // API Route: Validate Sponsor ID (Strict: only official root or existing registered users)
+  // API Route: Validate Sponsor ID or Username
+  app.get("/api/users/validate-sponsor", (req: Request, res: Response) => {
+    try {
+      const { sponsorId } = req.query;
+      if (!sponsorId || typeof sponsorId !== "string" || !sponsorId.trim()) {
+        return res.status(400).json({
+          isValid: false,
+          error: "स्पॉन्सर ID दर्ज करना अनिवार्य है।",
+        });
+      }
+
+      const cleanSponsor = sponsorId.trim().toUpperCase();
+      const cleanLower = sponsorId.trim().toLowerCase();
+
+      // Master Root Sponsor: IOIS999VK01 or vikas01/vikaskumar
+      if (cleanSponsor === "IOIS999VK01" || cleanLower === "vikaskumar" || cleanLower === "vikas01") {
+        return res.json({
+          isValid: true,
+          sponsorId: "IOIS999VK01",
+          sponsorName: "Vikas Kumar (Master Founder & Root Sponsor)",
+        });
+      }
+
+      // Legacy Partner Sponsor: SWACCDK01
+      if (cleanSponsor === "SWACCDK01") {
+        return res.json({
+          isValid: true,
+          sponsorId: "SWACCDK01",
+          sponsorName: "D. Kumar (ACC India Senior Partner Sponsor)",
+        });
+      }
+
+      const users = loadUsersFromDisk();
+      const matched = users.find((u) => {
+        if (!u) return false;
+        const uidMatch = u.userId && u.userId.toUpperCase() === cleanSponsor;
+        const unameMatch = u.username && u.username.toLowerCase() === cleanLower;
+        return uidMatch || unameMatch;
+      });
+
+      if (matched) {
+        return res.json({
+          isValid: true,
+          sponsorId: matched.userId,
+          sponsorName: matched.fullName || "सत्यापित सदस्य",
+        });
+      }
+
+      return res.status(404).json({
+        isValid: false,
+        error: `अमान्य स्पॉन्सर ID "${sponsorId.trim()}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ isValid: false, error: "स्पॉन्सर सत्यापन में त्रुटि आई।" });
+    }
+  });
+
+  // API Route: Check Username Availability
+  app.get("/api/users/check-username", (req: Request, res: Response) => {
+    try {
+      const { username, excludeUserId } = req.query;
+      if (!username || typeof username !== "string" || !username.trim()) {
+        return res.status(400).json({ available: false, error: "कृपया यूजरनेम दर्ज करें।" });
+      }
+
+      const clean = username.trim().toLowerCase().replace(/^@/, "");
+      // Format validation: 3-20 characters, lowercase letters, numbers, underscore
+      if (!/^[a-z0-9_]{3,20}$/.test(clean)) {
+        return res.status(400).json({
+          available: false,
+          error: "यूजरनेम केवल 3 से 20 अक्षरों का होना चाहिए (छोटे अक्षर a-z, अंक 0-9 और अंडरस्कोर _)।",
+        });
+      }
+
+      // Reserved handles
+      const reserved = ["admin", "root", "support", "iois", "ioisplatform", "official", "acc", "help", "master", "balvikas"];
+      if (reserved.includes(clean)) {
+        return res.json({
+          available: false,
+          error: `यह यूजरनेम "@${clean}" आधिकारिक सिस्टम के लिए आरक्षित है। कृपया कोई दूसरा यूजरनेम चुनें।`,
+        });
+      }
+
+      // Check root sponsors
+      if (clean === "iois999vk01" || clean === "swaccdk01" || clean === "vikaskumar") {
+        return res.json({
+          available: false,
+          error: `यह यूजरनेम "@${clean}" पहले से मास्टर स्पॉन्सर के रूप में आरक्षित है।`,
+        });
+      }
+
+      const users = loadUsersFromDisk();
+      const excludeIdUpper = excludeUserId ? String(excludeUserId).trim().toUpperCase() : "";
+
+      const conflict = users.find((u) => {
+        if (!u) return false;
+        if (excludeIdUpper && u.userId && u.userId.toUpperCase() === excludeIdUpper) return false;
+        const matchUname = u.username && u.username.toLowerCase() === clean;
+        const matchUid = u.userId && u.userId.toLowerCase() === clean;
+        return matchUname || matchUid;
+      });
+
+      if (conflict) {
+        return res.json({
+          available: false,
+          error: `❌ यूजरनेम "@${clean}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई दूसरा उपलब्ध यूजरनेम चुनें।`,
+        });
+      }
+
+      return res.json({
+        available: true,
+        cleanUsername: clean,
+        message: `✓ यूजरनेम "@${clean}" उपलब्ध है!`,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ available: false, error: "यूजरनेम जांचने में त्रुटि आई।" });
+    }
+  });
+
+  // API Route: User Registration
   app.post("/api/users/register", (req: Request, res: Response) => {
     try {
       const {
@@ -851,6 +996,8 @@ async function startServer() {
         selectedPlanId = 1,
         role = "Verified Elite Member",
         password,
+        sponsorId,
+        telegramUsername,
         photoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
         googleDrivePhotoLink,
         paymentScreenshotUrl,
@@ -861,16 +1008,64 @@ async function startServer() {
         emergencyContact,
       } = req.body;
 
-      if (!fullName || !mobileNumber) {
-        return res.status(400).json({ success: false, error: "पूरा नाम और मोबाइल नंबर आवश्यक हैं।" });
+      if (!fullName || typeof fullName !== "string" || fullName.trim().length < 3) {
+        return res.status(400).json({ success: false, error: "कृपया अपना वास्तविक पूरा नाम दर्ज करें (कम से कम 3 अक्षर)।" });
       }
 
-      const users = loadUsersFromDisk();
-      const planPrice = PLAN_PRICES[selectedPlanId] || 10;
+      // Check name does not contain numbers or symbols
+      const validNameRegex = /^[\u0900-\u097Fa-zA-Z\s\.\'\-]+$/;
+      if (!validNameRegex.test(fullName.trim())) {
+        return res.status(400).json({ success: false, error: "नाम में संख्याएं या विशेष प्रतीक स्वीकार्य नहीं हैं।" });
+      }
+
+      if (!mobileNumber || typeof mobileNumber !== "string") {
+        return res.status(400).json({ success: false, error: "मोबाइल नंबर दर्ज करना अनिवार्य है।" });
+      }
 
       const cleanMobile = mobileNumber.trim();
       const cleanDigits = cleanMobile.replace(/\D/g, "");
+
+      if (cleanDigits.length !== 10 || !/^[6-9]\d{9}$/.test(cleanDigits)) {
+        return res.status(400).json({
+          success: false,
+          error: "कृपया 10-अंकों का वैध भारतीय मोबाइल नंबर दर्ज करें जो 6, 7, 8 या 9 से शुरू होता हो।",
+        });
+      }
+
+      // Disallow repetitive or sequential fake numbers
+      if (/^(\d)\1{9}$/.test(cleanDigits) || ["1234567890", "0123456789", "9876543210"].includes(cleanDigits)) {
+        return res.status(400).json({
+          success: false,
+          error: "अमान्य मोबाइल नंबर! फर्जी या रैंडम नंबर स्वीकार्य नहीं है।",
+        });
+      }
+
       const cleanEmail = (email || "").trim().toLowerCase();
+      if (cleanEmail) {
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,15}$/;
+        if (!emailRegex.test(cleanEmail)) {
+          return res.status(400).json({
+            success: false,
+            error: "कृपया एक वैध ईमेल आईडी दर्ज करें (उदा. yourname@gmail.com)।",
+          });
+        }
+      }
+
+      const users = loadUsersFromDisk();
+
+      // STRICT SPONSOR VALIDATION: No random sponsor ID allowed
+      const cleanSponsor = (sponsorId || "IOIS999VK01").trim().toUpperCase();
+      const isMasterSponsor = cleanSponsor === "IOIS999VK01";
+      const isExistingSponsor = users.some((u) => u.userId && u.userId.toUpperCase() === cleanSponsor);
+
+      if (!isMasterSponsor && !isExistingSponsor) {
+        return res.status(400).json({
+          success: false,
+          error: `अमान्य स्पॉन्सर ID "${cleanSponsor}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
+        });
+      }
+
+      const planPrice = PLAN_PRICES[selectedPlanId] || 10;
 
       // STRICT VALIDATION: Under no circumstance can multiple users have the same Mobile or Email
       const existingUser = users.find((u) => {
@@ -912,8 +1107,10 @@ async function startServer() {
       const newUser = {
         userId,
         fullName: fullName.trim(),
-        mobileNumber: cleanMobile,
+        mobileNumber: cleanDigits,
         email: cleanEmail || `${cleanDigits.slice(-10)}@iois.in`,
+        sponsorId: cleanSponsor,
+        telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
         selectedPlanId: Number(selectedPlanId),
         role: role || "member",
         password: password || "1234",
@@ -1350,6 +1547,156 @@ async function startServer() {
       return res.json({ success: true, message: "उत्तर भेज दिया गया!", ticket: tickets[index] });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "उत्तर भेजने में त्रुटि आई।" });
+    }
+  });
+
+  // =========================================================================
+  // API Routes: Private Direct Messaging (Admin <-> User with text, photos, videos, links)
+  // =========================================================================
+
+  // GET messages for a specific user
+  app.get("/api/messages/:userId", (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const cleanId = String(userId).trim().toUpperCase();
+      const allMessages = loadMessagesFromDisk();
+      const userMessages = allMessages.filter((m) => m && m.userId && m.userId.toUpperCase() === cleanId);
+      return res.json({ success: true, count: userMessages.length, messages: userMessages });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "मैसेज लोड करने में त्रुटि आई।" });
+    }
+  });
+
+  // POST new message (from Admin or User)
+  app.post("/api/messages", (req: Request, res: Response) => {
+    try {
+      const { userId, sender, senderName, text, mediaType, mediaUrl, linkUrl, linkTitle } = req.body;
+      if (!userId || (!text && !mediaUrl && !linkUrl)) {
+        return res.status(400).json({ success: false, error: "User ID और संदेश अथवा मीडिया अनिवार्य है।" });
+      }
+
+      const allMessages = loadMessagesFromDisk();
+      const newMsg = {
+        id: `MSG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        userId: String(userId).trim().toUpperCase(),
+        sender: sender === 'admin' ? 'admin' : 'user',
+        senderName: senderName || (sender === 'admin' ? 'IOIS Admin Team' : 'सदस्य'),
+        text: text ? String(text).trim() : '',
+        mediaType: mediaType || (mediaUrl ? (mediaUrl.includes('.mp4') || mediaUrl.includes('youtube') ? 'video' : 'image') : linkUrl ? 'link' : undefined),
+        mediaUrl: mediaUrl ? String(mediaUrl).trim() : undefined,
+        linkUrl: linkUrl ? String(linkUrl).trim() : undefined,
+        linkTitle: linkTitle ? String(linkTitle).trim() : undefined,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+
+      allMessages.push(newMsg);
+      saveMessagesToDisk(allMessages);
+
+      return res.status(201).json({ success: true, message: newMsg });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "संदेश भेजने में त्रुटि आई।" });
+    }
+  });
+
+  // GET all active chat threads for Admin
+  app.get("/api/admin/chat-threads", (_req: Request, res: Response) => {
+    try {
+      const allMessages = loadMessagesFromDisk();
+      const users = loadUsersFromDisk();
+      const threadsMap: Record<string, { userId: string; userName: string; userMobile: string; lastMessage: any; messageCount: number; unreadCount: number }> = {};
+
+      allMessages.forEach((msg) => {
+        if (!msg || !msg.userId) return;
+        const uid = msg.userId.toUpperCase();
+        if (!threadsMap[uid]) {
+          const u = users.find((usr) => usr.userId && usr.userId.toUpperCase() === uid);
+          threadsMap[uid] = {
+            userId: uid,
+            userName: u ? u.fullName : 'पंजीकृत सदस्य',
+            userMobile: u ? u.mobileNumber : '',
+            lastMessage: msg,
+            messageCount: 0,
+            unreadCount: 0,
+          };
+        }
+        threadsMap[uid].messageCount++;
+        if (msg.sender === 'user' && !msg.read) {
+          threadsMap[uid].unreadCount++;
+        }
+        threadsMap[uid].lastMessage = msg;
+      });
+
+      const threads = Object.values(threadsMap).sort((a, b) => {
+        const timeA = new Date(a.lastMessage?.createdAt || 0).getTime();
+        const timeB = new Date(b.lastMessage?.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+
+      return res.json({ success: true, count: threads.length, threads });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "थ्रेड्स लोड करने में त्रुटि आई।" });
+    }
+  });
+
+  // Admin Update User Profile with Edit History
+  app.put("/api/admin/users/:userId", (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const updates = req.body;
+      const cleanId = String(userId).trim().toUpperCase();
+
+      const users = loadUsersFromDisk();
+      const index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      if (index === -1) {
+        return res.status(404).json({ success: false, error: "उपयोगकर्ता नहीं मिला।" });
+      }
+
+      const existing = users[index];
+      const now = new Date().toISOString();
+      const editLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = existing.editHistory || [];
+
+      // Track Admin changes
+      const fieldLabels: Record<string, string> = {
+        fullName: "सदस्य का नाम (Admin Change)",
+        password: "लॉगिन पासवर्ड (Admin Reset)",
+        mobileNumber: "मोबाइल नंबर",
+        email: "ईमेल आईडी",
+        selectedPlanId: "चयनित प्लान",
+        role: "सदस्य पद / रोल",
+        payoutUpi: "पेआउट UPI ID",
+        address: "पता",
+        paymentStatus: "पेमेंट वेरिफिकेशन स्थिति",
+        username: "यूजरनेम (@username)",
+      };
+
+      Object.keys(updates).forEach((k) => {
+        if (k !== 'editHistory' && k !== 'userId' && updates[k] !== undefined) {
+          const oldV = String(existing[k] || '');
+          const newV = String(updates[k] || '');
+          if (oldV !== newV) {
+            editLogs.unshift({
+              field: k,
+              fieldLabelHi: fieldLabels[k] || k,
+              oldValue: oldV || '(खाली)',
+              newValue: newV || '(खाली)',
+              timestamp: now,
+            });
+          }
+        }
+      });
+
+      users[index] = {
+        ...existing,
+        ...updates,
+        userId: existing.userId, // immutable
+        editHistory: editLogs.slice(0, 100),
+      };
+
+      saveUsersToDisk(users);
+      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: users[index] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
     }
   });
 

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  OFFICIAL_PHONE, 
-  OFFICIAL_WHATSAPP_URL, 
   OFFICIAL_TELEGRAM_URL, 
   OFFICIAL_EMAIL,
   OFFICIAL_UPI_ID,

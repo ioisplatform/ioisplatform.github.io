@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { HomeHeaderWatch } from './HomeHeaderWatch';
 import { InterviewPreparationSection } from './InterviewPreparationSection';
+import { SuccessStoriesCarousel } from './SuccessStoriesCarousel';
 
 interface HomePageDashboardProps {
   onNavigate: (page: PageType) => void;
@@ -216,10 +217,13 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
               <button
                 type="submit"
-                className="ml-1 sm:ml-2 px-3 sm:px-4 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition cursor-pointer flex items-center gap-1 shrink-0"
+                className="btn-3d-gold ml-1 sm:ml-2 px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-black transition cursor-pointer flex items-center gap-1.5 shrink-0"
               >
-                <span>खोजें</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <div className="w-5 h-5 rounded-full logo-3d-box flex items-center justify-center shrink-0">
+                  <Search className="w-3 h-3 text-slate-950" />
+                </div>
+                <span className="text-3d-white font-black">खोजें</span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
               </button>
             </div>
           </form>
@@ -289,10 +293,13 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
                   if (onOpenRegister) onOpenRegister();
                   else onNavigate('register');
                 }}
-                className="w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition transform hover:scale-105 active:scale-95 cursor-pointer border border-emerald-300"
+                className="btn-3d-emerald w-full md:w-auto px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>रजिस्ट्रेशन / Join Now</span>
-                <ArrowRight className="w-4 h-4" />
+                <div className="w-6 h-6 rounded-lg logo-3d-box-emerald flex items-center justify-center shrink-0">
+                  <UserPlus className="w-3.5 h-3.5 text-emerald-950" />
+                </div>
+                <span className="text-3d-white font-black">रजिस्ट्रेशन / Join Now</span>
+                <ArrowRight className="w-4 h-4 text-emerald-950" />
               </button>
             </div>
           </div>
@@ -362,19 +369,28 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           <div className="flex items-center gap-2 w-full md:w-auto">
             <button
               onClick={() => onNavigate('plans')}
-              className="w-full md:w-auto px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
+              className="btn-3d-gold w-full md:w-auto px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-2 shadow-md"
             >
-              <Crown className="w-4 h-4" />
-              <span>7 मास्टर प्लांस देखें</span>
+              <div className="w-5 h-5 rounded-lg logo-3d-box flex items-center justify-center shrink-0">
+                <Crown className="w-3.5 h-3.5 text-slate-950" />
+              </div>
+              <span className="text-3d-white font-black tracking-wide">7 मास्टर प्लांस देखें</span>
             </button>
           </div>
         </div>
 
         {/* 3 Core Pillars of IOIS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-          <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="w-12 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs border border-amber-500/30">
-              50-70%
+          <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+            {/* 3D Gold Badge for 50-70% (Enhanced as requested) */}
+            <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/25 border-2 border-amber-400/80 shadow-[0_4px_14px_rgba(245,158,11,0.25)]">
+              <div className="w-8 h-8 rounded-xl logo-3d-box flex items-center justify-center text-slate-950 font-black text-xs shrink-0 shadow-md">
+                <Crown className="w-4 h-4 text-slate-950 drop-shadow" />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-base font-black text-3d-gold tracking-wider leading-none">50% — 70%</span>
+                <span className="text-[9.5px] font-bold text-amber-200/90 tracking-tight mt-0.5">दैनिक इंसेंटिव (₹7 - ₹499)</span>
+              </div>
             </div>
             <h3 className="text-sm font-black text-white">1. सीधा 50% से 70% रेफरल इंसेंटिव</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
@@ -436,6 +452,12 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           </div>
         </div>
       </section>
+
+      {/* 3.5 SUCCESS STORIES & EARNINGS TESTIMONIALS CAROUSEL (सफलता की कहानियां) */}
+      <SuccessStoriesCarousel
+        onNavigate={onNavigate}
+        onOpenRegister={onOpenRegister}
+      />
 
       {/* 4. INTERVIEW PREPARATION & QUESTIONS HUB (साक्षात्कार प्रश्न व उत्तर) */}
       <InterviewPreparationSection

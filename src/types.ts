@@ -7,19 +7,25 @@ export interface UserEditLog {
 }
 
 export interface UserPrivacySettings {
-  showFullName: boolean; // default false -> masked (e.g. "R**** K****")
-  showMobile: boolean;   // default false -> masked (e.g. "+91 98******10")
-  showEmail: boolean;    // default false -> masked (e.g. "r***@***.com")
-  showPhoto: boolean;    // default false -> masked (shows official member shield avatar)
-  showLocation: boolean; // default false -> masked (e.g. "भारत (गोपनीयता सुरक्षित)")
+  showFullName?: boolean; // default true -> public full name
+  showUsername?: boolean; // default true -> public @username
+  showPhoto?: boolean;    // default true -> real uploaded photo public
+  showPlan?: boolean;     // default true -> selected plan & badge public
+  showLocation?: boolean; // default true -> state / district public
+  showMobile?: boolean;   // default false -> masked (e.g. "+91 98******10")
+  showEmail?: boolean;    // default false -> masked (e.g. "r***@***.com")
+  showUpi?: boolean;      // default false -> masked (e.g. "u***@upi")
 }
 
 export const DEFAULT_PRIVACY_SETTINGS: UserPrivacySettings = {
-  showFullName: false,
+  showFullName: true,
+  showUsername: true,
+  showPhoto: true,
+  showPlan: true,
+  showLocation: true,
   showMobile: false,
   showEmail: false,
-  showPhoto: false,
-  showLocation: false,
+  showUpi: false,
 };
 
 export interface CustomMarketingTemplate {
@@ -32,6 +38,7 @@ export interface CustomMarketingTemplate {
 
 export interface UserProfile {
   userId: string; // Non-editable custom formula: IOIS + PlanPrice + Initials + Counter (e.g. IOIS10RK01)
+  username?: string; // Optional unique handle (e.g. rahul_kumar, vikas01)
   fullName: string;
   fatherOrHusbandName?: string;
   motherName?: string;
@@ -65,6 +72,20 @@ export interface UserProfile {
   editHistory?: UserEditLog[];
   registrationFormData?: Record<string, any>;
   privacySettings?: UserPrivacySettings;
+}
+
+export interface AdminPrivateMessage {
+  id: string;
+  userId: string; // Recipient user ID or target
+  sender: 'admin' | 'user';
+  senderName: string;
+  text: string;
+  mediaType?: 'image' | 'video' | 'link';
+  mediaUrl?: string; // photo URL or video URL
+  linkUrl?: string; // shared external link
+  linkTitle?: string;
+  createdAt: string;
+  read?: boolean;
 }
 
 export interface HelpTicket {

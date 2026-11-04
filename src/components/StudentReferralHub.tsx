@@ -52,9 +52,10 @@ interface StudentReferralHubProps {
 }
 
 export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, onOpenIdCard }) => {
-  // 1. Referral Link Configuration
-  const GITHUB_LIVE_BASE = 'https://ioisplatform.github.io';
-  const referralUrl = `${GITHUB_LIVE_BASE}/?ref=${encodeURIComponent(user.userId)}&sponsor=${encodeURIComponent(user.userId)}`;
+  // 1. Referral Link Configuration (ACC India / SWACCDK01 Style: ?sponsor=...)
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ioisplatform.github.io';
+  const referralUrl = `${origin}/?sponsor=${encodeURIComponent(user.userId)}`;
+  const githubReferralUrl = `https://ioisplatform.github.io/?sponsor=${encodeURIComponent(user.userId)}`;
 
   // 2. State Management
   const [hubTab, setHubTab] = useState<'overview' | 'planBreakdown' | 'withdrawal' | 'posters'>('overview');

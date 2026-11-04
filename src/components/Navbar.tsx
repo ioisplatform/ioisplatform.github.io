@@ -155,9 +155,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* ================= MAIN LOCKED HEADER BAR (PERMANENT FIXED LOCK - ZERO SCROLL) ================= */}
-      <header id="main-header" className="bg-slate-950/98 backdrop-blur-2xl border-b-2 border-amber-500/40 py-2 px-2 sm:px-4 md:px-6 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_30px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden">
-        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-3 flex-nowrap">
+      {/* ================= MAIN LOCKED HEADER BAR (COMPACT & SLEEK) ================= */}
+      <header id="main-header" className="bg-slate-950/98 backdrop-blur-2xl border-b-2 border-amber-500/40 py-2 px-2 sm:px-4 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden select-none">
+        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap">
           
           {/* 1. Brand Logo & Title */}
           <div 
@@ -165,30 +165,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => handleNavClick('home')}
             title="मुख्य होम पेज पर जाएं"
           >
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-amber-400 bg-gradient-to-tr from-amber-500 via-yellow-400 to-green-500 p-0.5 shadow-md flex items-center justify-center shrink-0">
-              <div className="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center text-center">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl logo-3d-box p-0.5 shadow-md flex items-center justify-center shrink-0 border border-amber-400/80">
+              <div className="w-full h-full rounded-lg bg-slate-950 flex flex-col items-center justify-center text-center">
                 <span className="text-[9px] sm:text-[10px] font-black text-amber-400 leading-none">IOIS</span>
                 <span className="text-[6px] text-green-400 font-bold leading-none mt-0.5">INDIA</span>
               </div>
             </div>
             <div className="shrink-0 flex flex-col justify-center">
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <h1 className="tiranga-text text-xs sm:text-base md:text-lg font-black tracking-tight leading-tight whitespace-nowrap">
+              <div className="flex items-center gap-1">
+                <h1 className="tiranga-text text-xs sm:text-sm md:text-base font-black tracking-tight leading-tight whitespace-nowrap">
                   IOIS PLATFORM
                 </h1>
-                <span className="hidden sm:inline-flex bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-bold px-1.5 py-0.2 rounded-full items-center gap-0.5">
+                <span className="hidden sm:inline-flex bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[7.5px] font-bold px-1.5 py-0.2 rounded-full items-center gap-0.5">
                   <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
                   <span>OFFICIAL</span>
                 </span>
               </div>
-              <p className="gold-metallic-text text-[7px] xs:text-[7.5px] sm:text-[8px] md:text-[9px] uppercase tracking-wider font-black leading-none mt-0.5 whitespace-nowrap">
+              <p className="hidden sm:block gold-metallic-text text-[7px] sm:text-[7.5px] md:text-[8px] uppercase tracking-wider font-black leading-none mt-0.5 whitespace-nowrap">
                 INDIAN ONLINE INCOME SUPPORTING SYSTEM
+              </p>
+              <p className="block sm:hidden text-[7px] text-amber-300/90 font-bold leading-none mt-0.5 whitespace-nowrap">
+                आय व विद्यार्थी सेवा पोर्टल
               </p>
             </div>
           </div>
 
           {/* 2. Desktop Quick Nav: Only shown on extra wide screens (2xl: >=1536px) so it never forces buttons off screen */}
-          <nav className="hidden 2xl:flex items-center gap-1 text-xs font-bold text-slate-300 bg-slate-900/80 p-1 rounded-2xl border border-slate-800 shrink-0">
+          <nav className="hidden 2xl:flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-slate-900/80 p-0.5 rounded-xl border border-slate-800 shrink-0">
             {primaryNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.id;
@@ -196,13 +199,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
-                  className={`px-2.5 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
                     isActive
-                      ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                      ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon className="w-3 h-3" />
                   <span>{item.label}</span>
                 </button>
               );
@@ -216,27 +219,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onToggleMode && (
               <button
                 onClick={onToggleMode}
-                className="p-1.5 sm:p-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center shrink-0"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-amber-400 text-slate-200 transition cursor-pointer flex items-center justify-center shrink-0 shadow-sm active:scale-95 touch-manipulation"
                 title={currentMode === 'dark' ? "लाइट मोड पर स्विच करें" : "डार्क मोड पर स्विच करें"}
                 aria-label="Toggle dark/light mode"
               >
                 {currentMode === 'dark' ? (
-                  <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+                  <Sun className="w-3.5 h-3.5 text-amber-400 drop-shadow" />
                 ) : (
-                  <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
+                  <Moon className="w-3.5 h-3.5 text-indigo-400 drop-shadow" />
                 )}
               </button>
             )}
 
-            {/* AI Assistant Quick Pill Button */}
+            {/* AI Assistant Quick Pill Button (3D Vibrant Rainbow Look) */}
             <button
               id="nav-ai-chat-btn"
               onClick={onOpenChat}
-              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-500/50 hover:border-amber-400 text-amber-300 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-black shadow-sm transition cursor-pointer shrink-0"
-              title="चिंटू AI से सवाल पूछें"
+              className="btn-3d-rainbow px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-black shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
+              title="IOIS AI चैटबॉट से सवाल पूछें"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
-              <span className="hidden xs:inline">Ask AI</span>
+              <Sparkles className="w-3.5 h-3.5 text-black animate-pulse shrink-0 drop-shadow" />
+              <span className="font-black text-black tracking-wide">AI</span>
             </button>
 
             {/* User Session / Login Button */}
@@ -244,45 +247,47 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button
                   onClick={() => handleNavClick('dashboard')}
-                  className={`border px-2 sm:px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
-                    currentPage === 'dashboard'
-                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md'
-                      : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300'
+                  className={`btn-3d-gold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-md touch-manipulation select-none active:scale-95 ${
+                    currentPage === 'dashboard' ? 'ring-2 ring-white' : ''
                   }`}
                   title="यूज़र डैशबोर्ड खोलें"
                 >
-                  <div className="w-4 h-4 rounded-full overflow-hidden border border-amber-400 shrink-0">
+                  <div className="w-4 h-4 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
                     <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
                   </div>
-                  <span className="max-w-[50px] sm:max-w-[80px] md:max-w-[100px] truncate">{currentUser.fullName}</span>
+                  <span className="max-w-[55px] sm:max-w-[85px] truncate text-slate-950 font-black">{currentUser.fullName}</span>
                 </button>
 
                 <button
                   onClick={onLogout}
                   title="लॉगआउट करें"
-                  className="p-1.5 bg-slate-900 hover:bg-red-950 text-slate-400 hover:text-red-400 rounded-xl border border-slate-800 transition cursor-pointer shrink-0"
+                  className="p-1 sm:p-1.5 bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 rounded-xl border border-slate-800 transition cursor-pointer shrink-0 shadow-sm active:scale-95"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {/* 3D Silver Login Button - Completely clear on mobile view */}
                 <button
                   id="nav-login-btn"
                   onClick={onOpenLogin}
-                  className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-200 px-2 sm:px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
+                  className="btn-3d-silver px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-black text-xs transition cursor-pointer shrink-0 shadow-md active:scale-95 touch-manipulation select-none flex items-center gap-1"
+                  title="सदस्य लॉगिन करें"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>लॉगिन</span>
+                  <LogIn className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
+                  <span className="text-slate-950 font-black tracking-wide">लॉगिन</span>
                 </button>
 
+                {/* 3D Gold Join Button - Completely clear on mobile view */}
                 <button
                   id="nav-register-btn"
                   onClick={() => handleNavClick('register')}
-                  className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 px-2 sm:px-3 py-1.5 rounded-xl font-black text-xs shadow-md transition transform hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
+                  className="btn-3d-gold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
+                  title="नया सदस्य रजिस्ट्रेशन करें"
                 >
-                  <UserPlus className="w-3.5 h-3.5 shrink-0" />
-                  <span className="hidden sm:inline">ज्वाइन</span>
+                  <UserPlus className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
+                  <span className="text-slate-950 font-black tracking-wide">ज्वाइन</span>
                 </button>
               </div>
             )}
@@ -291,20 +296,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="master-nav-menu-btn"
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-1.5 border shadow-md shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-1 shadow-md shrink-0 touch-manipulation select-none active:scale-95 ${
                 menuOpen
-                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/25'
-                  : 'bg-gradient-to-r from-slate-900 to-slate-850 hover:bg-slate-800 text-amber-300 border-amber-500/50 hover:border-amber-400'
+                  ? 'btn-3d-gold text-slate-950'
+                  : 'btn-3d-platinum text-slate-900'
               }`}
               title="सभी 17+ सेवाएं व मेन्यू विकल्प खोलें"
               aria-label="Toggle Navigation Menu"
             >
               {menuOpen ? (
-                <X className="w-4 h-4 text-slate-950" />
+                <X className="w-3.5 h-3.5 text-slate-950 drop-shadow shrink-0" />
               ) : (
-                <Menu className="w-4 h-4 text-amber-400" />
+                <Menu className="w-3.5 h-3.5 text-slate-950 drop-shadow shrink-0" />
               )}
-              <span className="font-black">मेनू</span>
+              <span className="font-black tracking-wide">मेन्यू</span>
             </button>
 
           </div>

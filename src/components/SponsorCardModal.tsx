@@ -9,8 +9,11 @@ import {
   X, 
   Sparkles, 
   Lock, 
-  ArrowRight,
-  UserPlus
+  ArrowRight, 
+  UserPlus,
+  Share2,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 
 interface SponsorCardModalProps {
@@ -31,8 +34,13 @@ export const SponsorCardModal: React.FC<SponsorCardModalProps> = ({
   currentUser,
 }) => {
   const [copiedId, setCopiedId] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   if (!isOpen) return null;
+
+  const sponsorUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/?sponsor=${encodeURIComponent(sponsorId)}`
+    : `https://ioisplatform.github.io/?sponsor=${encodeURIComponent(sponsorId)}`;
 
   const handleCopySponsorId = async () => {
     try {
@@ -40,6 +48,19 @@ export const SponsorCardModal: React.FC<SponsorCardModalProps> = ({
       setCopiedId(true);
       setTimeout(() => setCopiedId(false), 2500);
     } catch {}
+  };
+
+  const handleCopySponsorLink = async () => {
+    try {
+      await navigator.clipboard.writeText(sponsorUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {}
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nसत्यापित स्पॉन्सर: *${sponsorUser?.fullName || 'Official Sponsor'}* (ID: *${sponsorId}*)\n\n👉 *इस स्पॉन्सर के तहत सीधे रजिस्टर करने के लिए लिंक खोलें:*\n${sponsorUrl}\n\n🏷️ *Sponsor ID:* ${sponsorId}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   return (
@@ -71,23 +92,50 @@ export const SponsorCardModal: React.FC<SponsorCardModalProps> = ({
             नीचे आपके आधिकारिक स्पॉन्सर का सत्यापित डिजिटल पहचान पत्र है। सुरक्षा व गोपनीयता नीति के तहत व्यक्तिगत जानकारी मास्क्ड है, जबकि यूनिक <strong>User ID</strong> स्पष्ट रूप से उपलब्ध है।
           </p>
 
-          {/* Sponsor ID Highlight Box with 1-Click Copy */}
-          <div className="inline-flex items-center gap-3 p-2 px-4 rounded-2xl bg-slate-950 border border-amber-500/40 shadow-inner">
-            <span className="text-xs text-slate-400 font-bold">आधिकारिक Sponsor ID:</span>
-            <span className="font-mono text-base font-black text-amber-300 tracking-wider">
-              {sponsorId}
-            </span>
+          {/* Action Pills: Copy ID, Copy Link, WhatsApp Share */}
+          <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+            {/* Sponsor ID Highlight Box with 1-Click Copy */}
+            <div className="inline-flex items-center gap-2.5 p-1.5 px-3 rounded-2xl bg-slate-950 border border-amber-500/40 shadow-inner">
+              <span className="text-xs text-slate-400 font-bold">Sponsor ID:</span>
+              <span className="font-mono text-sm font-black text-amber-300 tracking-wider">
+                {sponsorId}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopySponsorId}
+                className={`px-2.5 py-1 rounded-xl font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-sm ${
+                  copiedId
+                    ? 'bg-emerald-500 text-slate-950 font-black'
+                    : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                }`}
+              >
+                {copiedId ? <Check className="w-3 h-3 stroke-[3]" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedId ? 'कॉपी हुआ!' : 'ID कॉपी'}</span>
+              </button>
+            </div>
+
+            {/* Copy Full Sponsor Link Button */}
             <button
               type="button"
-              onClick={handleCopySponsorId}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm ${
-                copiedId
-                  ? 'bg-emerald-500 text-slate-950 font-black'
-                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+              onClick={handleCopySponsorLink}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm border ${
+                copiedLink
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                  : 'bg-slate-950 hover:bg-slate-800 text-sky-300 border-sky-500/40'
               }`}
             >
-              {copiedId ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedId ? 'कॉपी हो गया!' : 'Sponsor ID कॉपी करें'}</span>
+              {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
+              <span>{copiedLink ? 'लिंक कॉपी हो गया!' : 'स्पॉन्सर लिंक कॉपी करें'}</span>
+            </button>
+
+            {/* Direct WhatsApp Share */}
+            <button
+              type="button"
+              onClick={handleShareWhatsApp}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-md active:scale-95"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>WhatsApp पर भेजें</span>
             </button>
           </div>
         </div>

@@ -45,7 +45,17 @@ import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
 import { LockedFooterDock } from './components/LockedFooterDock';
 import { Plan, UserProfile, PageType } from './types';
-import { getCurrentUser, logoutUser, fetchUsersFromServer, setCurrentUser as persistCurrentUser, findUserById } from './services/userService';
+import { 
+  getCurrentUser, 
+  logoutUser, 
+  fetchUsersFromServer, 
+  setCurrentUser as persistCurrentUser, 
+  findUserById,
+  getSponsorUserAsync,
+  validateSponsorIdAsync,
+  OFFICIAL_ROOT_SPONSOR_ID,
+  OFFICIAL_ROOT_SPONSOR_USER
+} from './services/userService';
 import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
 
 const PageFallbackLoader = () => (
@@ -102,40 +112,37 @@ export default function App() {
 
   // Detect ?ref= or ?sponsor= on mount to show sponsor ID card with strict privacy
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
-      if (ref) {
+    let isMounted = true;
+    const checkUrlSponsor = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get('sponsor') || params.get('ref') || params.get('sponsorId');
+        if (!ref) return;
+
         const cleanRef = ref.trim().toUpperCase();
-        setSponsorReferralId(cleanRef);
-        const matched = findUserById(cleanRef);
-        if (matched) {
-          setSponsorUser(matched);
+        // Strict async lookup against Root Sponsor, local database, and cloud Firestore
+        const realSponsor = await getSponsorUserAsync(cleanRef);
+        if (!isMounted) return;
+
+        if (realSponsor) {
+          // Authentic registered sponsor found
+          setSponsorReferralId(realSponsor.userId);
+          setSponsorUser(realSponsor);
+          setIsSponsorModalOpen(true);
         } else {
-          setSponsorUser({
-            userId: cleanRef,
-            fullName: 'IOIS Verified Member',
-            mobileNumber: '+91 9876543210',
-            email: 'member@iois.org.in',
-            selectedPlanId: 7,
-            role: 'Official Verified Member',
-            photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-            paymentStatus: 'approved',
-            createdAt: new Date().toISOString(),
-            privacySettings: {
-              showFullName: false,
-              showMobile: false,
-              showEmail: false,
-              showPhoto: false,
-              showLocation: false,
-            },
-          });
+          // Strictly reject random/fake IDs: default to official root sponsor without fake cards
+          setSponsorReferralId(OFFICIAL_ROOT_SPONSOR_ID);
+          setSponsorUser(OFFICIAL_ROOT_SPONSOR_USER);
         }
-        setIsSponsorModalOpen(true);
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+    };
+
+    checkUrlSponsor();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Fast Non-Blocking Deferred Sync with backend (Prioritizes 0-delay instant initial page paint)
@@ -264,6 +271,44 @@ export default function App() {
 
       {/* 2. Controlled Live News & Instant Payout Ticker */}
       <TickerBar onOpenRegister={(planId) => handleSelectPlanForRegister(planId || 1)} />
+
+      {/* 2.5 Active Verified Sponsor Invitation Bar (ACC India / SWACCDK01 Style) */}
+      {sponsorUser && sponsorReferralId && !currentUser && (
+        <div className="bg-gradient-to-r from-amber-950 via-slate-950 to-amber-950 border-y border-amber-500/40 py-2.5 px-3 text-xs text-white shadow-lg sticky top-16 z-30 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
+            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+              <span className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                🤝 सत्यापित स्पॉन्सर आमंत्रण
+              </span>
+              <span className="text-slate-300">
+                आमंत्रितकर्ता: <strong className="text-white font-bold">{sponsorUser.fullName}</strong>
+              </span>
+              <span className="font-mono text-amber-300 bg-slate-900 px-2 py-0.5 rounded-md border border-amber-500/40 font-bold tracking-wider">
+                Sponsor ID: {sponsorReferralId}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <button
+                type="button"
+                onClick={() => handleOpenRegisterWithSponsor(sponsorReferralId)}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[11px] uppercase transition cursor-pointer shadow-md active:scale-95 flex items-center gap-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>इस स्पॉन्सर से रजिस्टर करें →</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSponsorModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/50 text-amber-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+              >
+                <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                <span>मास्क्ड ID कार्ड देखें</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Main Dynamic Content Area based on Current Page - Full width & responsive */}
       <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-36 sm:pb-16">
@@ -488,7 +533,11 @@ export default function App() {
               title="लाइव 24x7 टीवी चैनल्स व ई-अखबार डायरेक्टरी (Live News & E-Papers)"
               subtitle="देश-दुनिया की ताजा खबरें, 6 प्रमुख टीवी लाइव स्ट्रीम व डिजिटल समाचार पत्र"
             />
-            <LiveNewsPage />
+            <LiveNewsPage
+              onNavigate={navigateTo}
+              onOpenRegister={handleOpenRegister}
+              onOpenAiChat={() => setIsChatOpen(true)}
+            />
           </div>
         )}
 
@@ -576,13 +625,7 @@ export default function App() {
 
         {/* ================= PAGE 9: ADMIN APPROVAL PANEL PAGE ================= */}
         {currentPage === 'admin' && (
-          <div className="space-y-8">
-            <PageHeader
-              currentPage="admin"
-              onNavigate={navigateTo}
-              title="आधिकारिक एडमिन पैनल (Admin Approval & Verification)"
-              subtitle="सदस्य वेरिफिकेशन, पेमेंट प्रूफ अप्रूवल/रिजेक्शन व हेल्पडेस्क सपोर्ट"
-            />
+          <div className="space-y-4">
             <AdminPanel
               onUserStatusChange={() => {
                 const current = getCurrentUser();
@@ -653,7 +696,7 @@ export default function App() {
               currentPage="contact"
               onNavigate={navigateTo}
               title="आधिकारिक संपर्क व अक्सर पूछे जाने वाले प्रश्न (Help & FAQs)"
-              subtitle="24x7 WhatsApp, Telegram सपोर्ट व आपके सभी संशयों का त्वरित समाधान"
+              subtitle="🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】Telegram व Email सपोर्ट (newuserhelpline@gmail.com)"
             />
             <ContactFaq onAskAI={handleOpenChatWithQuery} />
           </div>
@@ -686,6 +729,7 @@ export default function App() {
 
       {/* 4. Official Footer with AdSense Compliance Navigation & Locked Options Hub */}
       <Footer 
+        currentPage={currentPage}
         onNavigate={navigateTo}
         currentUser={currentUser}
         sponsorId={sponsorReferralId}

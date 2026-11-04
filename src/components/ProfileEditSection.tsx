@@ -157,6 +157,27 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setIsEditing(false);
   };
 
+  const handleTogglePrivacy = (key: keyof UserPrivacySettings) => {
+    const updatedSettings: UserPrivacySettings = {
+      ...privacySettings,
+      [key]: !privacySettings[key],
+    };
+    setPrivacySettings(updatedSettings);
+    try {
+      const updatedUser = updateUserProfile({
+        ...user,
+        privacySettings: updatedSettings,
+      });
+      if (updatedUser) {
+        onUserUpdated(updatedUser);
+        setSaveSuccessMsg('✅ प्राइवेसी सेटिंग्स तुरंत अपडेट हो गई!');
+        setTimeout(() => setSaveSuccessMsg(''), 2500);
+      }
+    } catch (e) {
+      console.warn('Privacy toggle update note:', e);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -756,106 +777,160 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
             </span>
           </div>
 
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            नियंत्रित करें कि जब कोई नया आगंतुक या छात्र आपके रेफरल लिंक पर आए, तो वह आपका ID कार्ड देखते समय क्या देख सकता है। डिफ़ॉल्ट रूप से सुरक्षा हेतु सभी व्यक्तिगत विवरण मास्क्ड (छिपे हुए) रहते हैं।
-          </p>
+          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+            <span>
+              ℹ️ <strong>डिफ़ॉल्ट नियम:</strong> आपका असली फोटो, पूरा नाम, यूजरनेम, प्लान व राज्य पब्लिक रहता है। केवल मोबाइल, ईमेल और UPI सुरक्षित (मास्क्ड) रहते हैं। आप नीचे किसी भी विकल्प को 1-क्लिक में चालू/बंद कर सकते हैं।
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            {/* 1. Full Name */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
-              <div className="space-y-0.5 pr-2">
-                <span className="text-xs font-bold text-white block">👤 पूरा नाम (Full Name)</span>
-                <span className="text-[10px] text-slate-400 block">
-                  {privacySettings.showFullName ? 'सार्वजनिक (पूरा दिखेगा)' : 'सुरक्षित / मास्क्ड (उदा. R**** K****)'}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={!isEditing}
-                onClick={() => setPrivacySettings((prev) => ({ ...prev, showFullName: !prev.showFullName }))}
-                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
-                  privacySettings.showFullName ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
-              </button>
-            </div>
-
-            {/* 2. Mobile Number */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
-              <div className="space-y-0.5 pr-2">
-                <span className="text-xs font-bold text-white block">📱 मोबाइल नंबर (Mobile Number)</span>
-                <span className="text-[10px] text-slate-400 block">
-                  {privacySettings.showMobile ? 'सार्वजनिक' : 'सुरक्षित (उदा. +91 ******1234)'}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={!isEditing}
-                onClick={() => setPrivacySettings((prev) => ({ ...prev, showMobile: !prev.showMobile }))}
-                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
-                  privacySettings.showMobile ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
-              </button>
-            </div>
-
-            {/* 3. Email */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
-              <div className="space-y-0.5 pr-2">
-                <span className="text-xs font-bold text-white block">✉️ ईमेल पता (Email)</span>
-                <span className="text-[10px] text-slate-400 block">
-                  {privacySettings.showEmail ? 'सार्वजनिक' : 'सुरक्षित (उदा. r***@***.com)'}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={!isEditing}
-                onClick={() => setPrivacySettings((prev) => ({ ...prev, showEmail: !prev.showEmail }))}
-                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
-                  privacySettings.showEmail ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
-              </button>
-            </div>
-
-            {/* 4. Profile Photo */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
+            {/* 1. Profile Photo */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
               <div className="space-y-0.5 pr-2">
                 <span className="text-xs font-bold text-white block">🖼️ व्यक्तिगत फ़ोटो (Photo)</span>
-                <span className="text-[10px] text-slate-400 block">
-                  {privacySettings.showPhoto ? 'सार्वजनिक' : 'सुरक्षित (आधिकारिक मेम्बर अवतार)'}
+                <span className={`text-[10px] font-bold block ${privacySettings.showPhoto ?? true ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {privacySettings.showPhoto ?? true ? 'सार्वजनिक (असली फोटो दिखेगी)' : 'सुरक्षित (आधिकारिक मेम्बर शील्ड)'}
                 </span>
               </div>
               <button
                 type="button"
-                disabled={!isEditing}
-                onClick={() => setPrivacySettings((prev) => ({ ...prev, showPhoto: !prev.showPhoto }))}
+                onClick={() => handleTogglePrivacy('showPhoto')}
                 className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
-                  privacySettings.showPhoto ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  privacySettings.showPhoto ?? true ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
               >
                 <div className="w-5 h-5 rounded-full bg-white shadow-md" />
               </button>
             </div>
 
-            {/* 5. Location / State */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between sm:col-span-2">
+            {/* 2. Full Name */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
               <div className="space-y-0.5 pr-2">
-                <span className="text-xs font-bold text-white block">📍 स्थान / राज्य (Location)</span>
-                <span className="text-[10px] text-slate-400 block">
-                  {privacySettings.showLocation ? 'सार्वजनिक (राज्य दिखेगा)' : 'सुरक्षित (भारत - सुरक्षित)'}
+                <span className="text-xs font-bold text-white block">👤 पूरा नाम (Full Name)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showFullName ?? true ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {privacySettings.showFullName ?? true ? 'सार्वजनिक (पूरा दिखेगा)' : 'सुरक्षित / मास्क्ड (उदा. R**** K****)'}
                 </span>
               </div>
               <button
                 type="button"
-                disabled={!isEditing}
-                onClick={() => setPrivacySettings((prev) => ({ ...prev, showLocation: !prev.showLocation }))}
+                onClick={() => handleTogglePrivacy('showFullName')}
                 className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
-                  privacySettings.showLocation ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                } ${!isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  privacySettings.showFullName ?? true ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 3. Username */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">🏷️ यूजरनेम (@username)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showUsername ?? true ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {privacySettings.showUsername ?? true ? 'सार्वजनिक (हैंडल दिखेगा)' : 'छिपा हुआ (केवल ID)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showUsername')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showUsername ?? true ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 4. Plan & Badge */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">👑 एक्टिव प्लान (Plan)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showPlan ?? true ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {privacySettings.showPlan ?? true ? 'सार्वजनिक (प्लान नाम व बैज)' : 'सामान्य सदस्य'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showPlan')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showPlan ?? true ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 5. Mobile Number */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">📱 मोबाइल नंबर (Mobile Number)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showMobile ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {privacySettings.showMobile ? 'सार्वजनिक' : '🔒 सुरक्षित (उदा. +91 ******1234)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showMobile')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showMobile ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 6. Email */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">✉️ ईमेल पता (Email)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showEmail ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {privacySettings.showEmail ? 'सार्वजनिक' : '🔒 सुरक्षित (उदा. r***@***.com)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showEmail')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showEmail ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 7. Payout UPI */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">💳 पेआउट UPI ID (Payout UPI)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showUpi ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {privacySettings.showUpi ? 'सार्वजनिक' : '🔒 सुरक्षित (उदा. 88****45@upi)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showUpi')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showUpi ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+              </button>
+            </div>
+
+            {/* 8. Location / State */}
+            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
+              <div className="space-y-0.5 pr-2">
+                <span className="text-xs font-bold text-white block">📍 स्थान / राज्य (Location)</span>
+                <span className={`text-[10px] font-bold block ${privacySettings.showLocation ?? true ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {privacySettings.showLocation ?? true ? 'सार्वजनिक (राज्य दिखेगा)' : 'सुरक्षित (भारत - सुरक्षित)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacy('showLocation')}
+                className={`w-12 h-6 rounded-full transition cursor-pointer p-0.5 flex items-center shrink-0 ${
+                  privacySettings.showLocation ?? true ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                }`}
               >
                 <div className="w-5 h-5 rounded-full bg-white shadow-md" />
               </button>

@@ -436,12 +436,12 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
         actions.push({ id: 'auto-jobs', type: 'navigate', target: 'jobs', label: '💼 सरकारी व प्राइवेट जॉब अलर्ट' });
       } else if (combined.includes('scheme') || combined.includes('योजना') || combined.includes('ayushman') || combined.includes('आयुष्मान')) {
         actions.push({ id: 'auto-schemes', type: 'navigate', target: 'govt-schemes', label: '🇮🇳 सरकारी योजनाएं पोर्टल देखें' });
-      } else if (combined.includes('contact') || combined.includes('संपर्क') || combined.includes('whatsapp') || combined.includes('help')) {
+      } else if (combined.includes('contact') || combined.includes('संपर्क') || combined.includes('help') || combined.includes('सहायता') || combined.includes('helpline') || combined.includes('telegram') || combined.includes('व्हाट्सएप') || combined.includes('whatsapp')) {
         actions.push({
-          id: 'auto-wa',
-          type: 'whatsapp',
-          target: 'https://wa.me/918877490845',
-          label: '💬 व्हाट्सएप पर सीधी चैट करें'
+          id: 'auto-tg-helpline',
+          type: 'external_link',
+          target: 'https://t.me/newuserhelpline',
+          label: '🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】 (Telegram)'
         });
       }
     }
@@ -624,8 +624,8 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
           replyContent = `IOIS के सभी 7 प्लान्स का संक्षिप्त विवरण:\n\n1. Plan 01 (₹10): ₹7 इंस्टेंट पेआउट (70%)\n2. Plan 02 (₹49): ₹34 इंस्टेंट पेआउट (70%)\n3. Plan 03 (₹99): ₹64 इंस्टेंट पेआउट (65%)\n4. Plan 04 (₹199): ₹119 इंस्टेंट पेआउट (60%)\n5. Plan 05 (₹299): ₹179 इंस्टेंट पेआउट (60%)\n6. Plan 06 (₹499): ₹274 इंस्टेंट पेआउट (55%)\n7. Plan 07 (₹999): ₹499 इंस्टेंट पेआउट (50%)\n\n[[NAV:page:plans|7 मास्टर प्लांस विवरण देखें]]\n[[NAV:page:register|नया रजिस्ट्रेशन करें]]`;
         } else if (lower.includes('payout') || lower.includes('पेआउट') || lower.includes('पैसे') || lower.includes('कमाई')) {
           replyContent = `IOIS में स्मार्ट इंस्टेंट पेआउट प्रोटोकॉल है। जब भी आपके रेफरल से कोई यूजर वेरिफाई होता है, उसका पैसा (₹7 से ₹499) तुरंत आपके खाते/वॉलेट में ट्रांसफर कर दिया जाता है।\n\n[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]`;
-        } else if (lower.includes('contact') || lower.includes('संपर्क') || lower.includes('whatsapp') || lower.includes('help')) {
-          replyContent = `आप हमसे सीधे संपर्क कर सकते हैं:\n- WhatsApp Support: +91 8877490845\n- Official Telegram: @ioisplatform\n- Email: ioisplatform@gmail.com\n\n[[NAV:whatsapp:918877490845|व्हाट्सएप पर संपर्क करें (+91 8877490845)]]`;
+        } else if (lower.includes('contact') || lower.includes('संपर्क') || lower.includes('whatsapp') || lower.includes('help') || lower.includes('telegram') || lower.includes('helpline')) {
+          replyContent = `🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】\n\nआप आधिकारिक सहायता हेतु संपर्क कर सकते हैं:\n• Telegram Link: t.me/newuserhelpline\n• Contact us on Email - newuserhelpline@gmail.com 🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】\n\n[[NAV:external:https://t.me/newuserhelpline|🎧 𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘 (Telegram)]]`;
         } else {
           syncUnansweredToFirestore({
             id: `unans-${Date.now()}`,
@@ -634,7 +634,7 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
             status: 'pending'
           });
 
-          replyContent = `नमस्ते! मैं IOIS बाल विकास चिंटू AI शिक्षक हूँ।\n\nआप मुझसे IOIS प्लेटफॉर्म, 7 डिजिटल प्लांस (₹10 से ₹999), 15-सवाल कौशल साक्षात्कार, कक्षा 1-12 NCERT नोट्स या सरकारी नागरिक सेवाओं के बारे में कोई भी सीधा सवाल पूछ सकते हैं।\n\n[[NAV:page:register|नया रजिस्ट्रेशन पोर्टल खोलें]]\n[[NAV:page:assessment|15-सवाल असेसमेंट दें]]\n[[NAV:page:plans|7 मास्टर प्लांस देखें]]\n[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स खोलें]]\n[[NAV:whatsapp:918877490845|व्हाट्सएप हेल्पलाइन (+91 8877490845)]]`;
+          replyContent = `नमस्ते! मैं IOIS बाल विकास चिंटू AI शिक्षक हूँ।\n\nआप मुझसे IOIS प्लेटफॉर्म, 7 डिजिटल प्लांस (₹10 से ₹999), 15-सवाल कौशल साक्षात्कार, कक्षा 1-12 NCERT नोट्स या सरकारी नागरिक सेवाओं के बारे में कोई भी सीधा सवाल पूछ सकते हैं।\n\n[[NAV:page:register|नया रजिस्ट्रेशन पोर्टल खोलें]]\n[[NAV:page:assessment|15-सवाल असेसमेंट दें]]\n[[NAV:page:plans|7 मास्टर प्लांस देखें]]\n[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स खोलें]]\n[[NAV:external:https://t.me/newuserhelpline|🎧 𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘 (Telegram)]]`;
         }
       }
 

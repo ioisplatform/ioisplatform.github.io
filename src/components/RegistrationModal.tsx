@@ -1,7 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { PLANS, OFFICIAL_PHONE, OFFICIAL_UPI_ID, OFFICIAL_PAYEE_NAME } from '../data/plansData';
-import { registerNewUserAsync, checkUserAlreadyExists } from '../services/userService';
+import { 
+  registerNewUserAsync, 
+  checkUserAlreadyExists,
+  validateFullName,
+  validateMobileNumber,
+  validateEmailAddress,
+  validateSponsorIdAsync,
+  OFFICIAL_ROOT_SPONSOR_ID,
+  OFFICIAL_ROOT_SPONSOR_NAME
+} from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { 
   ShieldCheck, 
@@ -21,7 +30,9 @@ import {
   CreditCard,
   User,
   LogIn,
-  Send
+  Send,
+  XCircle,
+  UserCheck
 } from 'lucide-react';
 
 interface RegistrationModalProps {
@@ -53,7 +64,18 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   const [email, setEmail] = useState<string>('');
   const [address, setAddress] = useState<string>('');
   const [telegramUsername, setTelegramUsername] = useState<string>('');
-  const [sponsorId, setSponsorId] = useState<string>(initialSponsorId || '');
+  const [sponsorId, setSponsorId] = useState<string>(initialSponsorId || OFFICIAL_ROOT_SPONSOR_ID);
+
+  // Live Field Validation States
+  const [nameError, setNameError] = useState<string>('');
+  const [mobileError, setMobileError] = useState<string>('');
+  const [emailError, setEmailError] = useState<string>('');
+
+  // Sponsor Verification State
+  const [sponsorStatus, setSponsorStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [sponsorVerifiedName, setSponsorVerifiedName] = useState<string>('');
+  const [sponsorError, setSponsorError] = useState<string>('');
+  const sponsorTimerRef = useRef<any>(null);
 
   const [selectedPlanId, setSelectedPlanId] = useState<number>(initialPlanId);
   const [role, setRole] = useState<string>('Verified Elite Member');
@@ -89,22 +111,124 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   }, [initialPlanId]);
 
   useEffect(() => {
-    if (initialSponsorId) {
-      setSponsorId(initialSponsorId.trim().toUpperCase());
-      return;
+    let initialSponsor = initialSponsorId;
+    if (!initialSponsor) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
+        if (ref) initialSponsor = ref.toUpperCase();
+      } catch {
+        // ignore
+      }
     }
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
-      if (ref) setSponsorId(ref.toUpperCase());
-    } catch {
-      // ignore
-    }
+    const targetSponsor = (initialSponsor || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
+    setSponsorId(targetSponsor);
+    checkSponsor(targetSponsor);
   }, [initialSponsorId]);
 
-  if (!isOpen) return null;
+  const checkSponsor = async (idToVerify: string) => {
+    const clean = idToVerify.trim().toUpperCase();
+    if (!clean) {
+      setSponsorStatus('invalid');
+      setSponsorVerifiedName('');
+      setSponsorError('स्पॉन्सर ID दर्ज करना अनिवार्य है।');
+      return;
+    }
 
-  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
+    setSponsorStatus('checking');
+    setSponsorError('');
+
+    try {
+      const res = await validateSponsorIdAsync(clean);
+      if (res.isValid) {
+        setSponsorStatus('valid');
+        setSponsorVerifiedName(res.sponsorName || 'सत्यापित स्पॉन्सर');
+        setSponsorError('');
+      } else {
+        setSponsorStatus('invalid');
+        setSponsorVerifiedName('');
+        setSponsorError(res.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
+      }
+    } catch {
+      setSponsorStatus('invalid');
+      setSponsorVerifiedName('');
+      setSponsorError('स्पॉन्सर सत्यापन में त्रुटि आई।');
+    }
+  };
+
+  const handleSponsorChange = (val: string) => {
+    const upper = val.toUpperCase().trim();
+    setSponsorId(upper);
+    setSponsorError('');
+
+    if (sponsorTimerRef.current) clearTimeout(sponsorTimerRef.current);
+    if (!upper) {
+      setSponsorStatus('idle');
+      setSponsorVerifiedName('');
+      return;
+    }
+
+    setSponsorStatus('checking');
+    sponsorTimerRef.current = setTimeout(() => {
+      checkSponsor(upper);
+    }, 400);
+  };
+
+  const handleFillDefaultSponsor = () => {
+    setSponsorId(OFFICIAL_ROOT_SPONSOR_ID);
+    checkSponsor(OFFICIAL_ROOT_SPONSOR_ID);
+  };
+
+  const handleMobileChange = (val: string) => {
+    setMobileNumber(val);
+    const cleanDigits = val.replace(/\D/g, '');
+    if (cleanDigits.length >= 10) {
+      const check = validateMobileNumber(val);
+      if (!check.isValid) {
+        setMobileError(check.error || 'अमान्य मोबाइल नंबर');
+      } else {
+        setMobileError('');
+        verifyUniqueness(val, email);
+      }
+    } else if (cleanDigits.length > 0 && cleanDigits.length < 10) {
+      setMobileError('10 अंकों का मोबाइल नंबर होना चाहिए');
+    } else {
+      setMobileError('');
+    }
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (val.trim()) {
+      const check = validateEmailAddress(val);
+      if (!check.isValid && val.includes('@')) {
+        setEmailError(check.error || 'अमान्य ईमेल');
+      } else {
+        setEmailError('');
+        if (check.isValid) {
+          verifyUniqueness(mobileNumber, val);
+        }
+      }
+    } else {
+      setEmailError('');
+    }
+  };
+
+  const handleFullNameChange = (val: string) => {
+    setFullName(val);
+    if (val.trim().length >= 3) {
+      const check = validateFullName(val);
+      if (!check.isValid) {
+        setNameError(check.error || 'अमान्य नाम');
+      } else {
+        setNameError('');
+      }
+    } else if (val.trim().length > 0) {
+      setNameError('नाम कम से कम 3 अक्षरों का होना चाहिए');
+    } else {
+      setNameError('');
+    }
+  };
 
   const verifyUniqueness = async (mob: string, em: string) => {
     const cleanDigits = mob.replace(/\D/g, '');
@@ -143,23 +267,59 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     }
   };
 
+  // Step Validation: Strict validation
   const validateStep1 = async (): Promise<boolean> => {
     setErrorMsg('');
-    if (!fullName.trim()) {
-      setErrorMsg('कृपया अपना पूरा नाम दर्ज करें।');
+
+    // 1. Full name validation
+    const nameCheck = validateFullName(fullName);
+    if (!nameCheck.isValid) {
+      setNameError(nameCheck.error || 'अमान्य नाम');
+      setErrorMsg(nameCheck.error || 'कृपया अपना वास्तविक पूरा नाम दर्ज करें।');
       return false;
     }
-    const cleanDigits = mobileNumber.replace(/\D/g, '');
-    if (cleanDigits.length < 10) {
-      setErrorMsg('कृपया वैध 10 अंकों का मोबाइल नंबर दर्ज करें।');
+    setNameError('');
+
+    // 2. Mobile validation
+    const mobCheck = validateMobileNumber(mobileNumber);
+    if (!mobCheck.isValid) {
+      setMobileError(mobCheck.error || 'अमान्य मोबाइल नंबर');
+      setErrorMsg(mobCheck.error || 'कृपया 10-अंकों का वैध भारतीय मोबाइल नंबर दर्ज करें (6, 7, 8 या 9 से शुरू होने वाला)। फर्जी या रैंडम नंबर स्वीकार्य नहीं हैं।');
       return false;
     }
+    setMobileError('');
+
+    // 3. Email validation (if entered)
+    if (email.trim()) {
+      const emCheck = validateEmailAddress(email);
+      if (!emCheck.isValid) {
+        setEmailError(emCheck.error || 'अमान्य ईमेल');
+        setErrorMsg(emCheck.error || 'कृपया एक वैध ईमेल आईडी दर्ज करें।');
+        return false;
+      }
+    }
+    setEmailError('');
+
+    // 4. Strict Sponsor ID validation (NO RANDOM SPONSOR ID)
     if (!sponsorId.trim()) {
-      setErrorMsg('कृपया Sponsor ID दर्ज करें (डिफ़ॉल्ट: IOIS999VK01)।');
+      setSponsorStatus('invalid');
+      setSponsorError('स्पॉन्सर ID दर्ज करना अनिवार्य है।');
+      setErrorMsg('स्पॉन्सर ID दर्ज करना अनिवार्य है। आप डिफ़ॉल्ट "IOIS999VK01" का उपयोग कर सकते हैं।');
       return false;
     }
 
-    const dupCheck = await checkUserAlreadyExists(mobileNumber, email);
+    const sponsorCheck = await validateSponsorIdAsync(sponsorId);
+    if (!sponsorCheck.isValid) {
+      setSponsorStatus('invalid');
+      setSponsorError(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
+      setErrorMsg(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! कोई भी रैंडम स्पॉन्सर ID काम नहीं करेगा। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "IOIS999VK01" का उपयोग करें।');
+      return false;
+    }
+    setSponsorStatus('valid');
+    setSponsorVerifiedName(sponsorCheck.sponsorName || 'सत्यापित स्पॉन्सर');
+
+    // 5. Duplicate Check
+    const dupCheck = await checkUserAlreadyExists(mobCheck.cleanDigits, email);
     if (dupCheck.exists) {
       setDuplicateNotice({
         exists: true,
@@ -283,6 +443,9 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       setErrorMsg(err.message || 'पंजीकरण के दौरान कोई त्रुटि आई।');
     }
   };
+
+  if (!isOpen) return null;
+  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fadeIn">
@@ -496,81 +659,168 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   {/* Full Name */}
                   <div>
-                    <label className="block text-slate-300 font-bold mb-1.5">
-                      पूरा नाम (Full Name) <span className="text-red-400">*</span>:
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span>पूरा नाम (Full Name) <span className="text-red-400">*</span>:</span>
+                      {fullName.trim().length >= 3 && !nameError && (
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> मान्य नाम
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
                       required
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      onChange={(e) => handleFullNameChange(e.target.value)}
+                      onBlur={() => handleFullNameChange(fullName)}
                       placeholder="जैसे: Rahul Kumar"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2.5 outline-none transition"
+                      className={`w-full bg-slate-950 border text-white rounded-xl px-3 py-2.5 outline-none transition ${
+                        nameError ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-amber-400'
+                      }`}
                     />
+                    {nameError && (
+                      <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{nameError}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Mobile Number */}
                   <div>
                     <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
                       <span>मोबाइल / WhatsApp <span className="text-red-400">*</span>:</span>
-                      {isCheckingDuplicate && (
+                      {isCheckingDuplicate ? (
                         <span className="text-[10px] text-amber-400 flex items-center gap-1">
                           <Loader2 className="w-3 h-3 animate-spin" /> जांच...
                         </span>
-                      )}
+                      ) : mobileNumber.replace(/\D/g, '').length === 10 && !mobileError ? (
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> मान्य 10-अंक
+                        </span>
+                      ) : null}
                     </label>
                     <input
                       type="tel"
                       required
+                      maxLength={10}
                       value={mobileNumber}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setMobileNumber(val);
-                        if (val.replace(/\D/g, '').length >= 10) {
-                          verifyUniqueness(val, email);
-                        }
-                      }}
-                      onBlur={() => verifyUniqueness(mobileNumber, email)}
-                      placeholder="10 अंकों का मोबाइल नंबर"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2.5 outline-none transition"
+                      onChange={(e) => handleMobileChange(e.target.value)}
+                      onBlur={() => handleMobileChange(mobileNumber)}
+                      placeholder="10 अंकों का मोबाइल (उदा: 9876543210)"
+                      className={`w-full bg-slate-950 border text-white rounded-xl px-3 py-2.5 outline-none transition font-mono ${
+                        mobileError ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-amber-400'
+                      }`}
                     />
+                    {mobileError && (
+                      <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{mobileError}</span>
+                      </p>
+                    )}
                   </div>
 
-                  {/* Sponsor ID */}
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
-                      <span>स्पॉन्सर ID <span className="text-red-400">*</span>:</span>
-                      <span className="text-[10px] text-amber-400">IOIS999VK01</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={sponsorId}
-                      onChange={(e) => setSponsorId(e.target.value.toUpperCase())}
-                      placeholder="IOIS999VK01"
-                      className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3 py-2.5 outline-none transition uppercase"
-                    />
+                  {/* Sponsor ID with Live Real Verification */}
+                  <div className="sm:col-span-2 p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-slate-200 font-bold flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-amber-400" />
+                        <span>स्पॉन्सर ID (Sponsor ID) <span className="text-red-400">*</span>:</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleFillDefaultSponsor}
+                        className="text-[10px] text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>आधिकारिक ID भरें (IOIS999VK01)</span>
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={sponsorId}
+                        onChange={(e) => handleSponsorChange(e.target.value)}
+                        onBlur={() => checkSponsor(sponsorId)}
+                        placeholder="जैसे: IOIS999VK01"
+                        className={`w-full bg-slate-900 border text-amber-300 font-mono font-bold rounded-xl px-3 py-2.5 outline-none transition uppercase tracking-wider ${
+                          sponsorStatus === 'valid'
+                            ? 'border-emerald-500 bg-emerald-950/20 text-emerald-300'
+                            : sponsorStatus === 'invalid'
+                            ? 'border-red-500 bg-red-950/20 text-red-300'
+                            : 'border-amber-500/60 focus:border-amber-400'
+                        }`}
+                      />
+
+                      <div className="absolute right-3 top-2.5 flex items-center">
+                        {sponsorStatus === 'checking' && (
+                          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                        )}
+                        {sponsorStatus === 'valid' && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        )}
+                        {sponsorStatus === 'invalid' && (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        )}
+                      </div>
+                    </div>
+
+                    {sponsorStatus === 'valid' && (
+                      <div className="p-2 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-emerald-300 text-xs">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div>
+                            <span className="font-bold">सत्यापित स्पॉन्सर: </span>
+                            <span className="text-white font-black">{sponsorVerifiedName}</span>
+                            <span className="text-emerald-400 ml-1 font-mono">({sponsorId})</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                          ✓ मान्य
+                        </span>
+                      </div>
+                    )}
+
+                    {sponsorStatus === 'invalid' && (
+                      <div className="p-2 bg-red-950/70 border border-red-500/60 rounded-xl text-red-200 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-red-300">
+                          <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                          <span>{sponsorError || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।'}</span>
+                        </div>
+                        <p className="text-[10px] text-red-300/80 pl-5">
+                          ⚠️ सुरक्षा नीति: कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। यदि आपके पास स्पॉन्सर नहीं है तो <b>IOIS999VK01</b> भरें।
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Email */}
                   <div>
-                    <label className="block text-slate-300 font-bold mb-1.5">
-                      ईमेल पता (Email ID):
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                      <span>ईमेल पता (Email ID):</span>
+                      {email && !emailError && (
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> मान्य
+                        </span>
+                      )}
                     </label>
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEmail(val);
-                        if (val.includes('@') && val.includes('.')) {
-                          verifyUniqueness(mobileNumber, val);
-                        }
-                      }}
-                      onBlur={() => verifyUniqueness(mobileNumber, email)}
-                      placeholder="name@example.com (वैकल्पिक)"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl px-3 py-2.5 outline-none transition"
+                      onChange={(e) => handleEmailChange(e.target.value)}
+                      onBlur={() => handleEmailChange(email)}
+                      placeholder="name@example.com (उदा. rahul@gmail.com)"
+                      className={`w-full bg-slate-950 border text-white rounded-xl px-3 py-2.5 outline-none transition ${
+                        emailError ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-amber-400'
+                      }`}
                     />
+                    {emailError && (
+                      <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{emailError}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Address */}

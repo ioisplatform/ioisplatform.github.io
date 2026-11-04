@@ -384,3 +384,272 @@ html.light .tiranga-text {
   z-index: 20;
   border: 1.5px solid #000;
 }
+
+/* ========================================================================= */
+/* 3D TACTILE BUTTONS & 3D LOGO EMBLEMS (CRISP, NON-BLURRY, HIGH CONTRAST)   */
+/* ========================================================================= */
+.btn-3d-gold {
+  background: linear-gradient(180deg, #fef08a 0%, #facc15 35%, #eab308 70%, #d97706 100%);
+  color: #0f172a !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(180, 83, 9, 0.8);
+  border-bottom: 3px solid #92400e;
+  box-shadow: 0 3px 0 #78350f, 0 6px 14px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-gold:hover {
+  background: linear-gradient(180deg, #fef9c3 0%, #fde047 35%, #f59e0b 70%, #d97706 100%);
+  box-shadow: 0 3.5px 0 #78350f, 0 8px 16px rgba(245, 158, 11, 0.35);
+}
+.btn-3d-gold:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #92400e;
+  box-shadow: 0 1px 0 #78350f, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.btn-3d-emerald {
+  background: linear-gradient(180deg, #86efac 0%, #22c55e 35%, #16a34a 70%, #15803d 100%);
+  color: #022c22 !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  border-right: 1px solid rgba(21, 128, 61, 0.8);
+  border-bottom: 3px solid #14532d;
+  box-shadow: 0 3px 0 #0f3d21, 0 6px 14px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-emerald:hover {
+  background: linear-gradient(180deg, #bbf7d0 0%, #4ade80 35%, #16a34a 70%, #166534 100%);
+  box-shadow: 0 3.5px 0 #0f3d21, 0 8px 16px rgba(34, 197, 94, 0.35);
+}
+.btn-3d-emerald:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #14532d;
+  box-shadow: 0 1px 0 #0f3d21, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.btn-3d-blue {
+  background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 35%, #0284c7 70%, #0369a1 100%);
+  color: #082f49 !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  border-right: 1px solid rgba(3, 105, 161, 0.8);
+  border-bottom: 3px solid #075985;
+  box-shadow: 0 3px 0 #0c4a6e, 0 6px 14px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-blue:hover {
+  background: linear-gradient(180deg, #bae6fd 0%, #60a5fa 35%, #0284c7 70%, #1e40af 100%);
+  box-shadow: 0 3.5px 0 #0c4a6e, 0 8px 16px rgba(14, 165, 233, 0.35);
+}
+.btn-3d-blue:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #075985;
+  box-shadow: 0 1px 0 #0c4a6e, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.btn-3d-dark {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 45%, #0f172a 100%);
+  color: #ffffff !important;
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(15, 23, 42, 0.9);
+  border-bottom: 3px solid #020617;
+  box-shadow: 0 3px 0 #020617, 0 6px 14px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.9);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-dark:hover {
+  background: linear-gradient(180deg, #475569 0%, #334155 45%, #1e293b 100%);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.btn-3d-dark:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #020617;
+  box-shadow: 0 1px 0 #020617, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+/* 3D Coin/Icon container - Sharp and compact */
+.logo-3d-box {
+  background: radial-gradient(circle at 30% 30%, #fef08a 0%, #eab308 50%, #854d0e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 2px solid #713f12;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.logo-3d-box-emerald {
+  background: radial-gradient(circle at 30% 30%, #86efac 0%, #16a34a 50%, #14532d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 2px solid #052e16;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.logo-3d-box-blue {
+  background: radial-gradient(circle at 30% 30%, #7dd3fc 0%, #0284c7 50%, #0c4a6e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 2px solid #082f49;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.btn-3d-silver {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 30%, #cbd5e1 70%, #94a3b8 100%);
+  color: #0f172a !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 1);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(148, 163, 184, 0.8);
+  border-bottom: 3px solid #64748b;
+  box-shadow: 0 3px 0 #475569, 0 6px 14px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-silver:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 35%, #e2e8f0 70%, #cbd5e1 100%);
+  box-shadow: 0 3.5px 0 #475569, 0 8px 16px rgba(255, 255, 255, 0.4);
+}
+.btn-3d-silver:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #64748b;
+  box-shadow: 0 1px 0 #475569, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.btn-3d-platinum {
+  background: linear-gradient(180deg, #ffffff 0%, #e0e7ff 35%, #c7d2fe 70%, #818cf8 100%);
+  color: #1e1b4b !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 1);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(99, 102, 241, 0.8);
+  border-bottom: 3px solid #4f46e5;
+  box-shadow: 0 3px 0 #3730a3, 0 6px 14px rgba(99, 102, 241, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-platinum:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #eef2ff 35%, #e0e7ff 70%, #a5b4fc 100%);
+  box-shadow: 0 3.5px 0 #3730a3, 0 8px 16px rgba(99, 102, 241, 0.45);
+}
+.btn-3d-platinum:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #4f46e5;
+  box-shadow: 0 1px 0 #3730a3, 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.logo-3d-box-silver {
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 50%, #64748b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-bottom: 2px solid #475569;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.logo-3d-box-platinum {
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #c7d2fe 50%, #4f46e5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-bottom: 2px solid #3730a3;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ========================================================================= */
+/* 3D RAINBOW METALLIC TACTILE BUTTON (VIBRANT, ULTRA-CRISP, HIGH CONTRAST) */
+/* ========================================================================= */
+.btn-3d-rainbow {
+  background: linear-gradient(135deg, #ff3366 0%, #ff9900 20%, #ffea00 40%, #00e676 60%, #00b0ff 80%, #9c27b0 100%);
+  color: #000000 !important;
+  font-weight: 900;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 1);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 3px solid #6a0080;
+  box-shadow: 0 3px 0 #4a0050, 0 6px 16px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-rainbow:hover {
+  background: linear-gradient(135deg, #ff4d79 0%, #ffa726 20%, #fff133 40%, #2bf78e 60%, #33c2ff 80%, #ba46ce 100%);
+  box-shadow: 0 3.5px 0 #4a0050, 0 8px 18px rgba(255, 153, 0, 0.45);
+}
+.btn-3d-rainbow:active {
+  transform: translateY(2px);
+  border-bottom: 1px solid #6a0080;
+  box-shadow: 0 1px 0 #4a0050, 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.logo-3d-box-rainbow {
+  background: linear-gradient(135deg, #ff3366 0%, #ff9900 25%, #00e676 50%, #00b0ff 75%, #9c27b0 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-bottom: 2px solid #6a0080;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* 3D VIP Telegram Helpline Button */
+.btn-3d-helpline {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 45%, #0369a1 80%, #075985 100%);
+  color: #ffffff !important;
+  font-weight: 900;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(12, 74, 110, 0.9);
+  border-bottom: 3.5px solid #082f49;
+  box-shadow: 0 4px 0 #082f49, 0 8px 24px rgba(2, 132, 199, 0.45);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  transition: all 0.15s ease-out;
+}
+.btn-3d-helpline:hover {
+  background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 45%, #0284c7 80%, #0369a1 100%);
+  box-shadow: 0 4.5px 0 #082f49, 0 10px 28px rgba(2, 132, 199, 0.6);
+  transform: translateY(-1px);
+}
+.btn-3d-helpline:active {
+  transform: translateY(2px);
+  border-bottom: 1.5px solid #082f49;
+  box-shadow: 0 1.5px 0 #082f49, 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Crystal Sharp Text Utilities - Anti-Aliased with zero blur */
+.text-3d-gold {
+  color: #000000 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  letter-spacing: 0.015em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.text-3d-white {
+  color: #000000 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  letter-spacing: 0.015em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.text-sharp-black {
+  color: #000000 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+
