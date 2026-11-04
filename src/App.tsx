@@ -823,6 +823,10 @@ export default function App() {
           setIsAuthModalOpen(false);
           setIsRegisterModalOpen(true);
         }}
+        onSelectPlanAndRegister={(planId) => {
+          setIsAuthModalOpen(false);
+          handleSelectPlanForRegister(planId);
+        }}
         initialMode={authModalInitialMode}
         initialIdentifier={authModalPrefill.identifier}
         initialMobile={authModalPrefill.mobile}

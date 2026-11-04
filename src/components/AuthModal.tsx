@@ -24,14 +24,18 @@ import {
   ShieldAlert,
   MapPin,
   Eye,
-  EyeOff
+  EyeOff,
+  Crown,
+  UserPlus
 } from 'lucide-react';
+import { Plan3DSelector } from './Plan3DSelector';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccessLogin: (user: UserProfile) => void;
   onSwitchToRegister: () => void;
+  onSelectPlanAndRegister?: (planId: number) => void;
   initialMode?: 'login' | 'forgot_user_id' | 'forgot_password';
   initialIdentifier?: string;
   initialMobile?: string;
@@ -43,12 +47,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onSuccessLogin,
   onSwitchToRegister,
+  onSelectPlanAndRegister,
   initialMode = 'login',
   initialIdentifier = '',
   initialMobile = '',
   initialUserId = '',
 }) => {
   const [mode, setMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>(initialMode);
+  const [selectedPlanId, setSelectedPlanId] = useState<number>(1);
   
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState<string>(initialIdentifier || initialUserId || '');
@@ -402,6 +408,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 className="text-amber-400 hover:text-amber-300 font-extrabold cursor-pointer"
               >
                 नया रजिस्ट्रेशन करें →
+              </button>
+            </div>
+
+            {/* 👑 3D PLAN SELECTOR WITH 3D TEXT & LOGO OPTION FOR LOGIN PAGE */}
+            <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-amber-300 flex items-center gap-1.5 uppercase">
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span>नया खाता या प्लान चुनना है? (3D Plan Select):</span>
+                </span>
+                <span className="text-[9px] font-bold text-slate-400">
+                  क्लिक करके डायरेक्ट जॉइन करें
+                </span>
+              </div>
+
+              <Plan3DSelector 
+                selectedPlanId={selectedPlanId}
+                onSelectPlan={(id) => {
+                  setSelectedPlanId(id);
+                }}
+                compact={true}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onSelectPlanAndRegister) {
+                    onSelectPlanAndRegister(selectedPlanId);
+                  } else {
+                    onSwitchToRegister();
+                  }
+                }}
+                className="btn-3d-rainbow w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-95 transition"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-black" />
+                <span className="text-black font-black">इस प्लान से नया रजिस्ट्रेशन करें (Join Now) →</span>
               </button>
             </div>
           </form>

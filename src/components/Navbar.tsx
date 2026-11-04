@@ -231,6 +231,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* 3D Theme Palette Change Button */}
+            {onOpenThemeModal && (
+              <button
+                id="nav-theme-color-btn"
+                onClick={onOpenThemeModal}
+                className="btn-3d-palette w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 cursor-pointer shadow-md active:scale-95 touch-manipulation"
+                title="थीम रंग बदलें (3D Color Palettes)"
+                aria-label="Change Color Theme"
+              >
+                <Palette className="w-3.5 h-3.5 text-black drop-shadow" />
+              </button>
+            )}
+
             {/* AI Assistant Quick Pill Button (3D Vibrant Rainbow Look) */}
             <button
               id="nav-ai-chat-btn"
@@ -320,16 +333,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* ================= UNIFIED UNIVERSAL NAVIGATION MENU (PC & MOBILE) ================= */}
         {menuOpen && (
-          <div className="mt-2 pt-3 border-t border-slate-800 space-y-3 bg-slate-950/98 backdrop-blur-2xl p-3 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-amber-500/40 max-h-[82vh] overflow-y-auto shadow-[0_25px_80px_rgba(0,0,0,0.9)] animate-fadeIn">
+          <div 
+            style={{ backgroundColor: '#000000' }}
+            className="mt-2 pt-3 border-t border-slate-800 space-y-3 bg-black backdrop-blur-2xl p-3 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-amber-500/40 max-h-[82vh] overflow-y-auto shadow-[0_25px_80px_rgba(0,0,0,0.95)] animate-fadeIn"
+          >
             
-            {/* Top Bar inside Menu: Share, Theme Color, 17+ Full Drawer, Close */}
+            {/* Top Bar inside Menu: Share, 3D Theme Color, 17+ Full Drawer, Close */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 onClick={() => {
                   setMenuOpen(false);
                   setServicesModalOpen(true);
                 }}
-                className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] transition"
+                className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] transition cursor-pointer"
               >
                 <Grid className="w-3.5 h-3.5 text-amber-400" />
                 <span>17+ खोज डायरेक्टरी</span>
@@ -337,7 +353,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={handleShareOrCopy}
-                className="p-2 sm:p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                className="p-2 sm:p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Share2 className="w-3.5 h-3.5 text-amber-400" />}
                 <span>{copied ? 'लिंक कॉपी हो गया!' : 'शेयर पोर्टल'}</span>
@@ -349,10 +365,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setMenuOpen(false);
                     onOpenThemeModal();
                   }}
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                  className="btn-3d-palette p-2 sm:p-2.5 rounded-xl text-black font-black text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                  title="3D थीम रंग पैलेट बदलें"
                 >
-                  <Palette className="w-3.5 h-3.5 text-amber-400" />
-                  <span>थीम रंग चुनें</span>
+                  <Palette className="w-3.5 h-3.5 text-black drop-shadow" />
+                  <span className="text-black font-black tracking-wide">3D थीम रंग चुनें</span>
                 </button>
               )}
 

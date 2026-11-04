@@ -16,6 +16,7 @@ import {
 } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { IDCardGenerator } from './IDCardGenerator';
+import { Plan3DSelector } from './Plan3DSelector';
 import { 
   UserPlus, 
   ShieldCheck, 
@@ -922,25 +923,12 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
             {currentStep === 2 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Select Plan */}
+                  {/* 3D Plan Selector with 3D Text & Logo */}
                   <div className="sm:col-span-2">
-                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
-                      <span>IOIS सदस्यता प्लान <span className="text-red-400">*</span>:</span>
-                      <span className="text-[10px] text-amber-400 font-bold">
-                        चुना हुआ: ₹{selectedPlan.price} ({selectedPlan.percentage}% पेआउट)
-                      </span>
-                    </label>
-                    <select
-                      value={selectedPlanId}
-                      onChange={(e) => setSelectedPlanId(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-amber-500/60 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 outline-none transition cursor-pointer font-bold"
-                    >
-                      {PLANS.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          Plan 0{p.id}: {p.name} — ₹{p.price} ({p.percentage}% Payout)
-                        </option>
-                      ))}
-                    </select>
+                    <Plan3DSelector 
+                      selectedPlanId={selectedPlanId} 
+                      onSelectPlan={(id) => setSelectedPlanId(id)} 
+                    />
                   </div>
 
                   {/* Role */}
