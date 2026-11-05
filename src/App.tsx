@@ -283,6 +283,7 @@ export default function App() {
         currentMode={themeMode}
         onToggleMode={handleToggleMode}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
+        onOpenReferralModal={() => setIsReferralModalOpen(true)}
       />
 
       {/* 2. Controlled Live News & Instant Payout Ticker */}

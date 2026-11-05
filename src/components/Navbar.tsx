@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { UserProfile, PageType } from '../types';
 import { 
   ShieldCheck, 
-  Lock,
   Sparkles, 
   Share2, 
   Check, 
-  User, 
   LogIn, 
   LogOut, 
   ShieldAlert, 
@@ -26,7 +24,6 @@ import {
   Briefcase,
   Clock,
   FileText,
-  HelpCircle,
   PhoneCall,
   Compass,
   Grid,
@@ -50,6 +47,7 @@ interface NavbarProps {
   currentMode?: 'dark' | 'light';
   onToggleMode?: () => void;
   onOpenThemeModal?: () => void;
+  onOpenReferralModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -65,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentMode = 'dark',
   onToggleMode,
   onOpenThemeModal,
+  onOpenReferralModal,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [servicesModalOpen, setServicesModalOpen] = useState<boolean>(false);
@@ -155,180 +154,306 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* ================= MAIN LOCKED HEADER BAR (COMPACT & SLEEK) ================= */}
-      <header id="main-header" className="bg-slate-950 border-b-2 border-amber-500/40 py-1.5 px-1.5 sm:px-4 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden select-none">
-        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-1 sm:gap-2.5 flex-nowrap min-w-0">
+      {/* ================= MAIN LOCKED HEADER BAR (PERFECT RESPONSIVE 2-TIER MOBILE ARCHITECTURE) ================= */}
+      <header id="main-header" className="bg-slate-950/98 backdrop-blur-md border-b-2 border-amber-500/40 py-1.5 px-2 sm:px-4 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden select-none">
+        <div className="w-full max-w-7xl mx-auto flex flex-col gap-1.5">
           
-          {/* 1. Brand Logo & Title */}
-          <div 
-            className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none shrink-0" 
-            onClick={() => handleNavClick('home')}
-            title="मुख्य होम पेज पर जाएं"
-          >
-            <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-xl logo-3d-box p-0.5 shadow-md flex items-center justify-center shrink-0 border border-amber-400/80">
-              <div className="w-full h-full rounded-lg bg-slate-950 flex flex-col items-center justify-center text-center">
-                <span className="text-[8.5px] sm:text-[10px] font-black text-amber-400 leading-none">IOIS</span>
-                <span className="text-[5.5px] text-green-400 font-bold leading-none mt-0.5">INDIA</span>
+          {/* ================= ROW 1: BRAND LOGO + 4 TACTILE 3D SQUIRCLE UTILITY BUTTONS ================= */}
+          <div className="flex items-center justify-between gap-1.5 sm:gap-3 flex-nowrap min-w-0 w-full">
+            
+            {/* 1. Brand Logo & Title */}
+            <div 
+              className="flex items-center gap-1.5 sm:gap-2.5 cursor-pointer select-none shrink-0 min-w-0" 
+              onClick={() => handleNavClick('home')}
+              title="मुख्य होम पेज पर जाएं"
+            >
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl logo-3d-box p-0.5 shadow-md flex items-center justify-center shrink-0 border border-amber-400/80">
+                <div className="w-full h-full rounded-lg bg-slate-950 flex flex-col items-center justify-center text-center">
+                  <span className="text-[9px] sm:text-[10px] font-black text-amber-400 leading-none">IOIS</span>
+                  <span className="text-[6px] text-green-400 font-bold leading-none mt-0.5">INDIA</span>
+                </div>
+              </div>
+              <div className="shrink-0 flex flex-col justify-center min-w-0">
+                <div className="flex items-center gap-1">
+                  <h1 className="text-xs sm:text-sm md:text-base font-black tracking-tight leading-tight whitespace-nowrap">
+                    <span className="text-amber-400">IOIS</span>{' '}
+                    <span className="text-white">PLATFORM</span>
+                  </h1>
+                  <span className="inline-flex bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[7px] sm:text-[7.5px] font-bold px-1 sm:px-1.5 py-0.2 rounded-full items-center gap-0.5">
+                    <ShieldCheck className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                    <span>OFFICIAL</span>
+                  </span>
+                </div>
+                <p className="text-[7px] sm:text-[8px] md:text-[8.5px] uppercase tracking-wider font-extrabold leading-none mt-0.5 whitespace-nowrap text-amber-300">
+                  INDIAN ONLINE INCOME SUPPORTING SYSTEM
+                </p>
               </div>
             </div>
-            <div className="shrink-0 flex flex-col justify-center">
-              <div className="flex items-center gap-1">
-                <h1 className="text-[12px] xs:text-[13px] sm:text-sm md:text-base font-black tracking-tight leading-tight whitespace-nowrap">
-                  <span className="text-amber-400">IOIS</span>{' '}
-                  <span className="text-white">PLATFORM</span>
-                </h1>
-                <span className="hidden sm:inline-flex bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[7.5px] font-bold px-1.5 py-0.2 rounded-full items-center gap-0.5">
-                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                  <span>OFFICIAL</span>
-                </span>
-              </div>
-              <p className="text-[7.5px] xs:text-[8px] sm:text-[8.5px] md:text-[9px] uppercase tracking-wider font-extrabold leading-none mt-0.5 whitespace-nowrap text-amber-300">
-                INDIAN ONLINE INCOME SUPPORTING SYSTEM
-              </p>
+
+            {/* 2. Desktop Quick Nav: Only shown on extra wide screens (2xl: >=1536px) */}
+            <nav className="hidden 2xl:flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-slate-900/80 p-0.5 rounded-xl border border-slate-800 shrink-0">
+              {primaryNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNavClick(item.id)}
+                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-3 h-3" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* 3. Right Action Controls: 100% VISIBLE ON BOTH MOBILE AND DESKTOP */}
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
+              
+              {/* Dark / Light Mode Toggle Button (3D Tactile Squircle - ALWAYS VISIBLE) */}
+              {onToggleMode && (
+                <button
+                  type="button"
+                  onClick={onToggleMode}
+                  className="h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-amber-400 text-slate-200 transition cursor-pointer flex items-center justify-center shrink-0 shadow-sm active:scale-95 touch-manipulation"
+                  title={currentMode === 'dark' ? "लाइट मोड पर स्विच करें" : "डार्क मोड पर स्विच करें"}
+                  aria-label="Toggle dark/light mode"
+                >
+                  {currentMode === 'dark' ? (
+                    <Sun className="w-3.5 h-3.5 text-amber-400 drop-shadow" />
+                  ) : (
+                    <Moon className="w-3.5 h-3.5 text-indigo-400 drop-shadow" />
+                  )}
+                </button>
+              )}
+
+              {/* 3D Theme Palette Change Button (3D Vibrant Sheen - ALWAYS VISIBLE) */}
+              {onOpenThemeModal && (
+                <button
+                  id="nav-theme-color-btn"
+                  type="button"
+                  onClick={onOpenThemeModal}
+                  className="btn-3d-palette h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer shadow-md active:scale-95 touch-manipulation"
+                  title="थीम रंग बदलें (3D Color Palettes)"
+                  aria-label="Change Color Theme"
+                >
+                  <Palette className="w-3.5 h-3.5 text-black drop-shadow" />
+                </button>
+              )}
+
+              {/* AI Assistant Quick Button (3D Vibrant Rainbow Look - ALWAYS VISIBLE) */}
+              <button
+                id="nav-ai-chat-btn"
+                type="button"
+                onClick={onOpenChat}
+                className="btn-3d-rainbow h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-auto md:px-2.5 rounded-xl text-xs font-black shadow-md transition active:scale-95 flex items-center justify-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
+                title="IOIS AI चैटबॉट से सवाल पूछें"
+                aria-label="Ask IOIS AI"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-black animate-pulse shrink-0 drop-shadow" />
+                <span className="hidden md:inline font-black text-black tracking-wide leading-none">AI</span>
+              </button>
+
+              {/* Desktop User Session / Login Button System (Hidden on mobile < md, shown on md:) */}
+              {currentUser ? (
+                <div className="hidden md:flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('dashboard')}
+                    className={`btn-3d-gold h-9 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md touch-manipulation select-none active:scale-95 ${
+                      currentPage === 'dashboard' ? 'ring-2 ring-white' : ''
+                    }`}
+                    title="यूज़र डैशबोर्ड खोलें"
+                  >
+                    <div className="w-4 h-4 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
+                      <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="max-w-[85px] truncate text-slate-950 font-black leading-none">
+                      {currentUser.fullName.split(' ')[0]}
+                    </span>
+                  </button>
+
+                  {/* 3D Rainbow Special Effect Invite & Earn Button (Desktop) */}
+                  <button
+                    id="nav-invite-earn-btn-desktop"
+                    type="button"
+                    onClick={() => {
+                      if (onOpenReferralModal) onOpenReferralModal();
+                      else handleNavClick('dashboard');
+                    }}
+                    className="btn-3d-rainbow-special h-9 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-lg active:scale-95 text-black"
+                    title="Invite & Earn: 50%-70% इंसेंटिव रेफरल प्रोग्राम व प्रचार पोस्टर स्टूडियो"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-black animate-spin shrink-0" style={{ animationDuration: '3s' }} />
+                    <span className="font-black text-black tracking-wide leading-none">Invite & Earn</span>
+                    <span className="text-[9px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none shrink-0">70%</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('idcard')}
+                    className="btn-3d-platinum h-9 px-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 transition cursor-pointer shrink-0 shadow-md active:scale-95"
+                    title="डिजिटल ID कार्ड खोलें"
+                  >
+                    <CreditCard className="w-3.5 h-3.5 text-indigo-950" />
+                    <span className="text-indigo-950 font-black">ID कार्ड</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    title="लॉगआउट करें"
+                    className="h-9 w-9 p-1 rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shrink-0 shadow-sm active:scale-95 flex items-center justify-center"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="hidden md:flex items-center gap-1.5 shrink-0">
+                  {/* 3D Silver Login Button */}
+                  <button
+                    id="nav-login-btn-desktop"
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="btn-3d-silver h-9 px-3 rounded-xl font-black text-xs transition cursor-pointer shrink-0 shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1"
+                    title="सदस्य लॉगिन करें"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
+                    <span className="text-slate-950 font-black tracking-wide leading-none">लॉगिन</span>
+                  </button>
+
+                  {/* 3D Gold Join Button */}
+                  <button
+                    id="nav-register-btn-desktop"
+                    type="button"
+                    onClick={() => {
+                      if (onOpenRegister) onOpenRegister();
+                      else handleNavClick('register');
+                    }}
+                    className="btn-3d-gold h-9 px-3.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
+                    title="नया सदस्य रजिस्ट्रेशन करें"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
+                    <span className="text-black font-black tracking-wide leading-none">ज्वाइन</span>
+                  </button>
+                </div>
+              )}
+
+              {/* 4. MASTER MENU ICON BUTTON (ALWAYS VISIBLE ON ALL SCREENS) */}
+              <button
+                id="master-nav-menu-btn"
+                type="button"
+                onClick={() => setMenuOpen(!menuOpen)}
+                className={`h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-auto md:px-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-md shrink-0 touch-manipulation select-none active:scale-95 ${
+                  menuOpen
+                    ? 'btn-3d-gold text-slate-950'
+                    : 'btn-3d-platinum text-slate-900'
+                }`}
+                title="सभी 17+ सेवाएं व मेन्यू विकल्प खोलें"
+                aria-label="Toggle Navigation Menu"
+              >
+                {menuOpen ? (
+                  <X className="w-4 h-4 text-slate-950 drop-shadow shrink-0" />
+                ) : (
+                  <Menu className="w-4 h-4 text-slate-950 drop-shadow shrink-0" />
+                )}
+                <span className="hidden md:inline font-black tracking-wide leading-none">मेन्यू</span>
+              </button>
+
             </div>
           </div>
 
-          {/* 2. Desktop Quick Nav: Only shown on extra wide screens (2xl: >=1536px) so it never forces buttons off screen */}
-          <nav className="hidden 2xl:flex items-center gap-1 text-[11px] font-bold text-slate-300 bg-slate-900/80 p-0.5 rounded-xl border border-slate-800 shrink-0">
-            {primaryNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentPage === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
-                    isActive
-                      ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* 3. Right Action Controls: 100% Zero-Overflow on ALL Screens */}
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
-            
-            {/* Dark / Light Mode Toggle Button (Desktop & Tablet) */}
-            {onToggleMode && (
-              <button
-                onClick={onToggleMode}
-                className="hidden md:flex h-7.5 w-7.5 sm:h-8 sm:w-8 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/90 hover:border-amber-400 text-slate-200 transition cursor-pointer items-center justify-center shrink-0 shadow-sm active:scale-95 touch-manipulation"
-                title={currentMode === 'dark' ? "लाइट मोड पर स्विच करें" : "डार्क मोड पर स्विच करें"}
-                aria-label="Toggle dark/light mode"
-              >
-                {currentMode === 'dark' ? (
-                  <Sun className="w-3.5 h-3.5 text-amber-400 drop-shadow" />
-                ) : (
-                  <Moon className="w-3.5 h-3.5 text-indigo-400 drop-shadow" />
-                )}
-              </button>
-            )}
-
-            {/* 3D Theme Palette Change Button (Desktop & Tablet) */}
-            {onOpenThemeModal && (
-              <button
-                id="nav-theme-color-btn"
-                onClick={onOpenThemeModal}
-                className="hidden sm:flex btn-3d-palette h-7.5 w-7.5 sm:h-8 sm:w-8 rounded-xl items-center justify-center shrink-0 cursor-pointer shadow-md active:scale-95 touch-manipulation"
-                title="थीम रंग बदलें (3D Color Palettes)"
-                aria-label="Change Color Theme"
-              >
-                <Palette className="w-3.5 h-3.5 text-black drop-shadow" />
-              </button>
-            )}
-
-            {/* AI Assistant Quick Pill Button (3D Vibrant Rainbow Look - Touch-friendly on Mobile) */}
-            <button
-              id="nav-ai-chat-btn"
-              onClick={onOpenChat}
-              className="btn-3d-rainbow h-7 sm:h-8 px-1.5 sm:px-2 rounded-xl text-[9.5px] sm:text-xs font-black shadow-md transition active:scale-95 flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
-              title="IOIS AI चैटबॉट से सवाल पूछें"
-            >
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black animate-pulse shrink-0 drop-shadow" />
-              <span className="font-black text-black tracking-wide leading-none">AI</span>
-            </button>
-
-            {/* User Session / Login Button System */}
+          {/* ================= ROW 2: DEDICATED MOBILE ACTION BAR (< md SCREENS) ================= */}
+          {/* Guarantees that Login, Join, Dashboard, and ID Card buttons are 100% visible and thumb-friendly */}
+          <div className="flex md:hidden items-center gap-1 sm:gap-1.5 w-full pt-1 border-t border-slate-800/80">
             {currentUser ? (
-              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              <>
                 <button
+                  type="button"
                   onClick={() => handleNavClick('dashboard')}
-                  className={`btn-3d-gold h-7 sm:h-8 px-1.5 sm:px-3 rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 transition cursor-pointer shrink-0 shadow-md touch-manipulation select-none active:scale-95 ${
+                  className={`btn-3d-gold flex-1 h-8 px-1.5 sm:px-2 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md touch-manipulation select-none active:scale-95 min-w-0 ${
                     currentPage === 'dashboard' ? 'ring-2 ring-white' : ''
                   }`}
                   title="यूज़र डैशबोर्ड खोलें"
                 >
-                  <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
+                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
                     <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
                   </div>
-                  <span className="max-w-[42px] sm:max-w-[85px] truncate text-slate-950 font-black leading-none">
-                    {currentUser.fullName.split(' ')[0]}
+                  <span className="truncate text-slate-950 font-black leading-none">
+                    डैशबोर्ड
                   </span>
                 </button>
 
+                {/* 3D Rainbow Special Effect Invite & Earn Button (Mobile) */}
                 <button
-                  onClick={onLogout}
-                  title="लॉगआउट करें"
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-1 rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shrink-0 shadow-sm active:scale-95 flex items-center justify-center"
+                  id="nav-invite-earn-btn-mobile"
+                  type="button"
+                  onClick={() => {
+                    if (onOpenReferralModal) onOpenReferralModal();
+                    else handleNavClick('dashboard');
+                  }}
+                  className="btn-3d-rainbow-special h-8 px-2 sm:px-2.5 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 text-black shrink-0"
+                  title="Invite & Earn: अपना रेफरल लिंक, QR कोड व पोस्टर शेयर करें"
                 >
-                  <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                {/* 3D Silver Login Button */}
-                <button
-                  id="nav-login-btn"
-                  onClick={onOpenLogin}
-                  className="btn-3d-silver h-7 sm:h-8 px-1.5 sm:px-2.5 rounded-xl font-black text-[10px] sm:text-xs transition cursor-pointer shrink-0 shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-0.5 sm:gap-1"
-                  title="सदस्य लॉगिन करें"
-                >
-                  <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0 drop-shadow" />
-                  <span className="text-slate-950 font-black tracking-wide leading-none">लॉगिन</span>
+                  <Sparkles className="w-3 h-3 text-black animate-pulse shrink-0" />
+                  <span className="font-black text-black leading-none whitespace-nowrap">Invite & Earn</span>
+                  <span className="hidden xs:inline text-[8px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none">70%</span>
                 </button>
 
-                {/* 3D Gold Join Button */}
                 <button
-                  id="nav-register-btn"
+                  type="button"
+                  onClick={() => handleNavClick('idcard')}
+                  className="btn-3d-platinum h-8 px-1.5 sm:px-2 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 shrink-0"
+                  title="डिजिटल ID कार्ड खोलें"
+                >
+                  <CreditCard className="w-3 h-3 text-indigo-950 shrink-0" />
+                  <span className="text-indigo-950 font-black leading-none">ID कार्ड</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  title="लॉगआउट करें"
+                  className="h-8 w-8 rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  id="nav-login-btn-mobile"
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="btn-3d-silver flex-1 h-8 px-2 rounded-xl font-black text-xs transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1.5"
+                  title="सदस्य लॉगिन करें"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
+                  <span className="text-slate-950 font-black tracking-wide leading-none">सदस्य लॉगिन</span>
+                </button>
+
+                <button
+                  id="nav-register-btn-mobile"
+                  type="button"
                   onClick={() => {
                     if (onOpenRegister) onOpenRegister();
                     else handleNavClick('register');
                   }}
-                  className="btn-3d-gold h-7 sm:h-8 px-1.5 sm:px-2.5 rounded-xl font-black text-[10px] sm:text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
+                  className="btn-3d-gold flex-1 h-8 px-2 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none"
                   title="नया सदस्य रजिस्ट्रेशन करें"
                 >
-                  <UserPlus className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black shrink-0 drop-shadow" />
-                  <span className="text-black font-black tracking-wide leading-none">ज्वाइन</span>
+                  <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
+                  <span className="text-black font-black tracking-wide leading-none">नया रजिस्ट्रेशन (Join)</span>
                 </button>
-              </div>
+              </>
             )}
-
-            {/* 4. MASTER MENU ICON BUTTON (ALWAYS VISIBLE & 100% IN SCREEN BOUNDS) */}
-            <button
-              id="master-nav-menu-btn"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className={`h-7 sm:h-8 px-1.5 sm:px-2.5 rounded-xl font-black text-[10px] sm:text-xs transition cursor-pointer flex items-center justify-center gap-0.5 sm:gap-1 shadow-md shrink-0 touch-manipulation select-none active:scale-95 ${
-                menuOpen
-                  ? 'btn-3d-gold text-slate-950'
-                  : 'btn-3d-platinum text-slate-900'
-              }`}
-              title="सभी 17+ सेवाएं व मेन्यू विकल्प खोलें"
-              aria-label="Toggle Navigation Menu"
-            >
-              {menuOpen ? (
-                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 drop-shadow shrink-0" />
-              ) : (
-                <Menu className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 drop-shadow shrink-0" />
-              )}
-              <span className="font-black tracking-wide leading-none">मेन्यू</span>
-            </button>
-
           </div>
+
         </div>
 
         {/* ================= UNIFIED UNIVERSAL NAVIGATION MENU (PC & MOBILE) ================= */}
@@ -341,6 +466,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Top Bar inside Menu: 17+ Full Drawer, Dark/Light Mode, 3D Theme Color, Share, Close */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   setServicesModalOpen(true);
@@ -353,6 +479,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {onToggleMode && (
                 <button
+                  type="button"
                   onClick={onToggleMode}
                   className="p-2 sm:p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                   title="लाइट व डार्क मोड बदलें"
@@ -373,6 +500,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {onOpenThemeModal && (
                 <button
+                  type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     onOpenThemeModal();
@@ -386,6 +514,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               <button
+                type="button"
                 onClick={handleShareOrCopy}
                 className="p-2 sm:p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
@@ -394,6 +523,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setMenuOpen(false)}
                 className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 transition col-span-2 sm:col-span-1"
               >
@@ -420,19 +550,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
                   <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (onOpenReferralModal) onOpenReferralModal();
+                      else handleNavClick('dashboard');
+                    }}
+                    className="btn-3d-rainbow-special px-3 py-2 rounded-xl text-black font-black text-xs flex items-center justify-center gap-1.5 shadow-md hover:scale-[1.02] transition cursor-pointer shrink-0"
+                    title="रेफरल प्रोग्राम व प्रचार पोस्टर स्टूडियो खोलें"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-black animate-pulse" />
+                    <span className="font-black text-black">Invite & Earn (रेफरल हब)</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleNavClick('dashboard')}
-                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition shadow-sm"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition shadow-sm cursor-pointer"
                   >
                     मेरा डैशबोर्ड खोलें →
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setMenuOpen(false);
                       onLogout();
                     }}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-red-950 text-red-300 border border-slate-800 text-xs font-bold transition"
+                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-red-950 text-red-300 border border-slate-800 text-xs font-bold transition cursor-pointer"
                   >
                     लॉगआउट
                   </button>
@@ -446,17 +591,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                   <button
+                    type="button"
                     onClick={() => {
                       setMenuOpen(false);
                       onOpenLogin();
                     }}
-                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition cursor-pointer"
                   >
                     लॉगिन
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleNavClick('register')}
-                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 text-xs font-black shadow-md transition hover:scale-105"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 text-xs font-black shadow-md transition hover:scale-105 cursor-pointer"
                   >
                     नया रजिस्ट्रेशन (Join)
                   </button>
@@ -470,7 +617,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Compass className="w-3.5 h-3.5" />
                 <span>सभी IOIS सेवाएं व पोर्टल (1-Click Access)</span>
               </span>
-              <span className="text-[10px] text-slate-400">स्क्रीन से बाहर कोई बटन नहीं जाएगा</span>
+              <span className="text-[10px] text-slate-400">सभी 17+ सेवाएं स्क्रीन में सुरक्षित</span>
             </div>
 
             {/* Grid of All Services: Responsive 2 cols on phone, 3 on tablet, 4 on PC */}
@@ -481,6 +628,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 return (
                   <button
                     key={srv.id}
+                    type="button"
                     onClick={() => handleNavClick(srv.id)}
                     className={`p-2.5 sm:p-3 rounded-2xl text-left transition flex items-start gap-2.5 border cursor-pointer group ${
                       isActive
@@ -519,6 +667,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => handleNavClick('admin')}
                   className="text-red-400 hover:text-red-300 text-xs font-bold underline cursor-pointer"
                 >
@@ -526,6 +675,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <span>•</span>
                 <button
+                  type="button"
                   onClick={() => handleNavClick('contact')}
                   className="text-amber-400 hover:text-amber-300 text-xs font-bold underline cursor-pointer"
                 >
@@ -537,8 +687,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </header>
 
-      {/* Spacer div to account for fixed header height (ensures zero overlap) */}
-      <div className="h-[50px] sm:h-[58px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
+      {/* Spacer div to account for fixed header height (ensures zero overlap on both mobile 2-tier and desktop) */}
+      <div className="h-[80px] md:h-[56px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
 
       {/* Global IOIS Services Modal (Deep Search & Categories) */}
       <IoisServicesDrawerModal

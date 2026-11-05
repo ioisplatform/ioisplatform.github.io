@@ -8,12 +8,11 @@ interface TickerBarProps {
 }
 
 export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
-  // Announcements run continuously by default
+  // Announcements run continuously by default at smooth 60fps linear velocity
   const [speed, setSpeed] = useState<TickerSpeed>('slow');
-  const [isHovered, setIsHovered] = useState<boolean>(false);
 
   const getTrackClass = () => {
-    if (speed === 'paused' || isHovered) {
+    if (speed === 'paused') {
       return 'ticker-track-slow ticker-paused';
     }
     if (speed === 'slow') return 'ticker-track-slow';
@@ -25,21 +24,22 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
   return (
     <>
       {/* ================= FIXED LOCKED ANNOUNCEMENT TICKER (ZERO PAGE SCROLL) ================= */}
+      {/* Positioned right below the mobile 2-tier header (80px) and desktop header (56px) */}
       <div 
         id="live-news-ticker-container" 
-        className="bg-black/98 border-b-2 border-amber-500/80 fixed top-[50px] sm:top-[58px] left-0 right-0 z-40 shadow-2xl select-none w-full backdrop-blur-xl"
+        className="bg-black/98 border-b-2 border-amber-500/80 fixed top-[80px] md:top-[56px] left-0 right-0 z-40 shadow-2xl select-none w-full backdrop-blur-xl"
       >
         {/* Top Announcement Bar Header */}
-        <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-slate-950/90 border-b border-slate-800 text-[11px] text-slate-300">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-slate-950/95 border-b border-slate-800 text-[11px] text-slate-300">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="flex h-2 w-2 relative">
+            <span className="flex h-2 w-2 relative shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
             <span className="font-black text-amber-400 tracking-wider uppercase text-[10px] sm:text-xs whitespace-nowrap">
               📢 आधिकारिक घोषणा (OFFICIAL ANNOUNCEMENTS)
             </span>
-            <span className="hidden md:inline text-slate-500">| गति नियंत्रित करें:</span>
+            <span className="hidden md:inline text-slate-500">| गति:</span>
           </div>
 
           {/* Speed Controls (Pause/Play & Slow/Normal/Fast) */}
@@ -48,14 +48,14 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
               id="ticker-pause-btn"
               type="button"
               onClick={() => setSpeed(speed === 'paused' ? 'slow' : 'paused')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer ${
-                speed === 'paused' || isHovered
-                  ? 'bg-amber-500 text-black border-amber-400'
+              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer active:scale-95 ${
+                speed === 'paused'
+                  ? 'bg-amber-500 text-black border-amber-400 font-black'
                   : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white'
               }`}
               title="रोकें या शुरू करें"
             >
-              {speed === 'paused' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+              {speed === 'paused' ? <Play className="w-3 h-3 text-black" /> : <Pause className="w-3 h-3 text-amber-400" />}
               <span>{speed === 'paused' ? 'प्ले' : 'पॉज़'}</span>
             </button>
 
@@ -95,25 +95,27 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
         {/* Continuously Running Announcement Marquee Track (Smooth Continuous Loop) */}
         {/* ========================================================================= */}
         <div
-          className="overflow-hidden py-2.5 bg-black"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          className="ticker-wrapper overflow-hidden py-2 bg-black select-none"
+          style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
         >
           <div className={getTrackClass()}>
             {/* Loop 1 */}
             {PLANS.map((plan) => (
               <div
                 key={`ticker-1-${plan.id}`}
-                className="inline-flex items-center px-6 sm:px-10 shrink-0 font-black text-xs sm:text-sm"
+                className="inline-flex items-center px-4 sm:px-8 shrink-0 font-bold text-xs sm:text-sm whitespace-nowrap"
               >
-                <span className="tiranga-text font-black tracking-wide">
-                  {plan.code}: {plan.name} - ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔ ₹{plan.instantPayout} Instant Payout per Referral ({plan.percentage}%)
+                <span className="text-white font-bold tracking-wide">
+                  <span className="text-amber-400 font-black">{plan.code}: {plan.name}</span>
+                  {' '}— ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔{' '}
+                  <span className="text-emerald-400 font-black">₹{plan.instantPayout} Instant Payout</span>
+                  {' '}per Referral ({plan.percentage}%)
                 </span>
                 {onOpenRegister ? (
                   <button
                     type="button"
                     onClick={() => onOpenRegister(plan.id)}
-                    className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
                   >
                     <span>JOIN NOW</span>
                     <ChevronRight className="w-2.5 h-2.5" />
@@ -123,13 +125,13 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
                     href={OFFICIAL_FORM_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
+                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 shadow-sm"
                   >
                     <span>JOIN NOW</span>
                     <ChevronRight className="w-2.5 h-2.5" />
                   </a>
                 )}
-                <span className="mx-6 text-amber-500/60 font-black">•</span>
+                <span className="mx-4 sm:mx-6 text-amber-500/70 font-black">•</span>
               </div>
             ))}
 
@@ -137,16 +139,19 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
             {PLANS.map((plan) => (
               <div
                 key={`ticker-2-${plan.id}`}
-                className="inline-flex items-center px-6 sm:px-10 shrink-0 font-black text-xs sm:text-sm"
+                className="inline-flex items-center px-4 sm:px-8 shrink-0 font-bold text-xs sm:text-sm whitespace-nowrap"
               >
-                <span className="tiranga-text font-black tracking-wide">
-                  {plan.code}: {plan.name} - ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔ ₹{plan.instantPayout} Instant Payout per Referral ({plan.percentage}%)
+                <span className="text-white font-bold tracking-wide">
+                  <span className="text-amber-400 font-black">{plan.code}: {plan.name}</span>
+                  {' '}— ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔{' '}
+                  <span className="text-emerald-400 font-black">₹{plan.instantPayout} Instant Payout</span>
+                  {' '}per Referral ({plan.percentage}%)
                 </span>
                 {onOpenRegister ? (
                   <button
                     type="button"
                     onClick={() => onOpenRegister(plan.id)}
-                    className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
                   >
                     <span>JOIN NOW</span>
                     <ChevronRight className="w-2.5 h-2.5" />
@@ -156,13 +161,13 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
                     href={OFFICIAL_FORM_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-3 bg-green-600 hover:bg-green-500 text-white font-black text-[10px] px-3 py-1 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.6)] border border-white/40 tracking-wider inline-flex items-center gap-1 transition transform hover:scale-105 active:scale-95"
+                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 shadow-sm"
                   >
                     <span>JOIN NOW</span>
                     <ChevronRight className="w-2.5 h-2.5" />
                   </a>
                 )}
-                <span className="mx-6 text-amber-500/60 font-black">•</span>
+                <span className="mx-4 sm:mx-6 text-amber-500/70 font-black">•</span>
               </div>
             ))}
           </div>
@@ -170,7 +175,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
       </div>
 
       {/* Spacer div to account for fixed ticker height so page content never overlaps */}
-      <div className="h-[60px] sm:h-[66px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
+      <div className="h-[58px] sm:h-[62px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
     </>
   );
 };

@@ -147,8 +147,8 @@ export const Plan3DSelector: React.FC<Plan3DSelectorProps> = ({
         </span>
       </div>
 
-      {/* Grid of 3D Cards */}
-      <div className={`grid ${compact ? 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-7' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'} gap-2 sm:gap-2.5`}>
+      {/* Grid of 3D Cards - Responsive Screen Fitting for All Devices */}
+      <div className={`grid ${compact ? 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-7' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'} gap-1.5 sm:gap-2.5 w-full`}>
         {PLANS.map((plan) => {
           const isSelected = selectedPlanId === plan.id;
           const theme = PLAN_THEMES[plan.id] || PLAN_THEMES[1];
@@ -159,7 +159,9 @@ export const Plan3DSelector: React.FC<Plan3DSelectorProps> = ({
               key={plan.id}
               type="button"
               onClick={() => onSelectPlan(plan.id)}
-              className={`card-3d-plan text-left p-2.5 sm:p-3 rounded-2xl border transition-all duration-150 relative flex flex-col justify-between group ${
+              className={`card-3d-plan text-left p-2 sm:p-2.5 md:p-3 rounded-2xl border transition-all duration-150 relative flex flex-col justify-between group min-w-0 ${
+                plan.id === 7 ? 'col-span-2 sm:col-span-1' : ''
+              } ${
                 isSelected
                   ? `${theme.bgActive} ${theme.borderActive}`
                   : 'bg-slate-900/90 hover:bg-slate-850 border-slate-800 hover:border-slate-700'
@@ -171,9 +173,9 @@ export const Plan3DSelector: React.FC<Plan3DSelectorProps> = ({
               }}
             >
               {/* Top Row: 3D Logo Icon & Selected Checkmark */}
-              <div className="flex items-start justify-between gap-1 mb-2">
+              <div className="flex items-start justify-between gap-1 mb-1.5 min-w-0 w-full">
                 <div 
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-150 group-hover:scale-105 group-active:scale-95"
+                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-150 group-hover:scale-105 group-active:scale-95"
                   style={{
                     background: theme.iconBg,
                     border: '1.5px solid rgba(255,255,255,0.9)',
@@ -181,16 +183,16 @@ export const Plan3DSelector: React.FC<Plan3DSelectorProps> = ({
                     boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.9), 0 2px 5px rgba(0,0,0,0.35)',
                   }}
                 >
-                  <IconComponent className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${theme.iconColor} drop-shadow`} />
+                  <IconComponent className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${theme.iconColor} drop-shadow`} />
                 </div>
 
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   {isSelected ? (
-                    <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xs shadow-md shrink-0">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xs shadow-md shrink-0">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
                     </span>
                   ) : (
-                    <span className={`text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded-md border ${theme.badgeBg}`}>
+                    <span className={`text-[7.5px] sm:text-[8.5px] font-black uppercase px-1 sm:px-1.5 py-0.5 rounded-md border shrink-0 ${theme.badgeBg}`}>
                       {theme.tag}
                     </span>
                   )}
@@ -198,28 +200,33 @@ export const Plan3DSelector: React.FC<Plan3DSelectorProps> = ({
               </div>
 
               {/* Middle: 3D Plan Name with Embossed Styling */}
-              <div className="space-y-0.5 min-w-0">
+              <div className="space-y-0.5 min-w-0 my-0.5 w-full">
                 <div className="flex items-center gap-1">
-                  <span className={`text-[10px] font-mono font-black uppercase ${theme.textColor}`}>
+                  <span className={`text-[9px] sm:text-[10px] font-mono font-black uppercase tracking-wider ${theme.textColor}`}>
                     {plan.code}
                   </span>
+                  {plan.id === 7 && (
+                    <span className="hidden xs:inline text-[7.5px] bg-amber-500/20 text-amber-300 px-1 rounded font-bold sm:hidden">
+                      VIP
+                    </span>
+                  )}
                 </div>
-                <h4 className="text-xs font-black text-white truncate leading-tight group-hover:text-amber-200 transition">
+                <h4 className="text-[11px] sm:text-xs font-black text-white truncate leading-tight group-hover:text-amber-200 transition">
                   {plan.name}
                 </h4>
               </div>
 
               {/* Bottom: 3D Tactile Price & Payout Pill */}
-              <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1">
-                <div className="flex items-baseline gap-0.5 font-mono">
-                  <span className="text-[10px] text-slate-400 font-bold">₹</span>
-                  <span className={`text-base font-black leading-none ${theme.priceClass}`}>
+              <div className="mt-2 pt-1.5 sm:pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 min-w-0 w-full">
+                <div className="flex items-baseline gap-0.5 font-mono shrink-0">
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold">₹</span>
+                  <span className={`text-sm sm:text-base font-black leading-none ${theme.priceClass}`}>
                     {plan.price}
                   </span>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded block whitespace-nowrap">
+                <div className="text-right shrink-0">
+                  <span className="text-[8px] sm:text-[9px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1 sm:px-1.5 py-0.5 rounded block whitespace-nowrap">
                     {plan.percentage}% Payout
                   </span>
                 </div>

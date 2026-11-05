@@ -301,31 +301,51 @@ html.light .tiranga-text {
   box-shadow: 0 12px 30px rgba(212, 175, 55, 0.65);
 }
 
-/* Ticker Animations */
-@keyframes ticker-slow {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+/* ========================================================================= */
+/* BUTTERY-SMOOTH GPU-ACCELERATED TICKER MARQUEE (ZERO STUTTER / 60FPS)     */
+/* ========================================================================= */
+@keyframes ticker-marquee-smooth {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.ticker-track-slow,
+.ticker-track-normal,
+.ticker-track-fast {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 .ticker-track-slow {
-  display: flex;
-  width: max-content;
-  animation: ticker-slow 90s linear infinite;
+  animation: ticker-marquee-smooth 42s linear infinite;
 }
 
 .ticker-track-normal {
-  display: flex;
-  width: max-content;
-  animation: ticker-slow 60s linear infinite;
+  animation: ticker-marquee-smooth 28s linear infinite;
 }
 
 .ticker-track-fast {
-  display: flex;
-  width: max-content;
-  animation: ticker-slow 35s linear infinite;
+  animation: ticker-marquee-smooth 16s linear infinite;
 }
 
-.ticker-paused {
+.ticker-paused,
+.ticker-wrapper:hover .ticker-track-slow,
+.ticker-wrapper:hover .ticker-track-normal,
+.ticker-wrapper:hover .ticker-track-fast {
   animation-play-state: paused !important;
 }
 
@@ -611,6 +631,57 @@ html.light .tiranga-text {
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-bottom: 2px solid #6a0080;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ========================================================================= */
+/* 3D RAINBOW SPECIAL EFFECT BUTTON (VIBRANT GLOW, SHIMMER & PULSE FX)       */
+/* ========================================================================= */
+@keyframes rainbowGlowPulse {
+  0%, 100% {
+    box-shadow: 0 3px 0 #4a0050, 0 0 14px rgba(255, 153, 0, 0.55), 0 0 25px rgba(0, 230, 118, 0.35);
+  }
+  50% {
+    box-shadow: 0 3px 0 #4a0050, 0 0 22px rgba(255, 51, 102, 0.75), 0 0 38px rgba(0, 176, 255, 0.55);
+  }
+}
+
+@keyframes rainbowSheenMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.btn-3d-rainbow-special {
+  background: linear-gradient(135deg, #ff1744 0%, #ff9100 20%, #ffd600 40%, #00e676 60%, #00b0ff 80%, #d500f9 100%);
+  background-size: 200% 200%;
+  animation: rainbowSheenMove 4s ease infinite, rainbowGlowPulse 2.5s ease-in-out infinite;
+  color: #000000 !important;
+  font-weight: 900;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  border-top: 1.5px solid rgba(255, 255, 255, 1);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 3px solid #4a0050;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.15s ease-out;
+}
+.btn-3d-rainbow-special:hover {
+  background: linear-gradient(135deg, #ff4081 0%, #ffa726 20%, #ffff00 40%, #69f0ae 60%, #40c4ff 80%, #ea80fc 100%);
+  background-size: 200% 200%;
+  box-shadow: 0 4px 0 #4a0050, 0 0 25px rgba(255, 215, 0, 0.8), 0 0 42px rgba(0, 230, 118, 0.6);
+  transform: translateY(-1px) scale(1.02);
+}
+.btn-3d-rainbow-special:active {
+  transform: translateY(2px) scale(0.98);
+  border-bottom: 1.5px solid #4a0050;
+  box-shadow: 0 1px 0 #4a0050, 0 0 10px rgba(255, 153, 0, 0.4);
 }
 
 /* 3D VIP Telegram Helpline Button */
