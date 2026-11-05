@@ -140,6 +140,12 @@
     --accent-color: #334155;
   }
 
+  html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     background-color: var(--bg-main);
     color: var(--text-primary);
@@ -232,26 +238,31 @@ html.light .gold-text {
   font-weight: 800;
 }
 
-/* Gold Metallic Gradient Text */
+/* Razor-Sharp High-Contrast Brand Text (Zero Blur) */
 .gold-metallic-text {
-  background: linear-gradient(135deg, #BF953F 0%, #FCF6BA 25%, #B38728 50%, #FBF5B7 75%, #AA771C 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 900;
+  color: #fbbf24 !important;
+  font-weight: 800;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  letter-spacing: 0.03em;
 }
 
-/* Tiranga Text Gradient */
 .tiranga-text {
-  background: linear-gradient(90deg, #FF9933 0%, #E2E8F0 50%, #138808 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff !important;
   font-weight: 900;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  letter-spacing: 0.02em;
+}
+
+html.light .gold-metallic-text {
+  color: #b45309 !important;
 }
 
 html.light .tiranga-text {
-  background: linear-gradient(90deg, #ea580c 0%, #0f172a 50%, #15803d 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #0f172a !important;
 }
 
 /* Glass Card Premium */
@@ -834,6 +845,75 @@ html.light .tiranga-text {
   border-bottom: 2.5px solid #713f12;
   box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 3px 6px rgba(0, 0, 0, 0.4);
 }
+
+/* ========================================================================= */
+/* SUBTLE 3D 'PULSE' HOVER ANIMATION FOR FLOATING AI CHAT LAUNCHER BUTTON    */
+/* ========================================================================= */
+
+@keyframes subtle3DPulseHover {
+  0% {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 0 #b45309, 0 10px 25px rgba(245, 158, 11, 0.45);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.045);
+    box-shadow: 0 6px 0 #92400e, 0 14px 30px rgba(245, 158, 11, 0.65);
+  }
+  100% {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 0 #b45309, 0 10px 25px rgba(245, 158, 11, 0.45);
+  }
+}
+
+.btn-3d-pulse-hover {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-3d-pulse-hover:hover {
+  animation: subtle3DPulseHover 1.8s ease-in-out infinite;
+}
+
+.btn-3d-pulse-hover:active {
+  animation: none;
+  transform: translateY(2px) scale(0.98);
+  box-shadow: 0 1px 0 #92400e, 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* ========================================================================= */
+/* LUXURY ID CARD WATERMARK PATTERNS (AUTHENTIC BIOMETRIC CARD STYLE)        */
+/* ========================================================================= */
+
+.id-card-watermark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  user-select: none;
+}
+
+.id-card-watermark-repeater {
+  font-family: monospace;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  opacity: 0.055;
+  transform: rotate(-25deg) scale(1.15);
+  white-space: nowrap;
+  line-height: 2.2;
+  color: #ffffff;
+}
+
+.id-card-central-seal-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  pointer-events: none;
+  opacity: 0.075;
+  user-select: none;
+  text-align: center;
+}
+
 
 
 

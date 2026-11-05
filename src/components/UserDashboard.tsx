@@ -827,7 +827,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-          <span>4. पोस्टर</span>
+          <span>4. प्रमोशनल मटेरियल</span>
         </button>
 
         <button

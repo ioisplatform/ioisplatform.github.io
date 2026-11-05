@@ -44,6 +44,7 @@ import { DashboardModal } from './components/DashboardModal';
 import { IdCardModal } from './components/IdCardModal';
 import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
+import { ReferralPromotionModal } from './components/ReferralPromotionModal';
 import { LockedFooterDock } from './components/LockedFooterDock';
 import { Plan, UserProfile, PageType } from './types';
 import { 
@@ -101,11 +102,12 @@ export default function App() {
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>('login');
   const [authModalPrefill, setAuthModalPrefill] = useState<{ identifier?: string; mobile?: string; userId?: string }>({});
 
-  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card, Services)
+  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card, Services, Referral Promotion)
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState<boolean>(false);
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState<boolean>(false);
 
   // Sponsor Referral Visitor State & Modal
   const [sponsorReferralId, setSponsorReferralId] = useState<string>('');
@@ -737,6 +739,7 @@ export default function App() {
         onOpenDashboard={handleOpenDashboard}
         onOpenIdCard={handleOpenIdCard}
         onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
+        onOpenReferralModal={() => setIsReferralModalOpen(true)}
         onSetSponsorId={(newSponsorId) => {
           setSponsorReferralId(newSponsorId);
           const matched = findUserById(newSponsorId);
@@ -791,7 +794,7 @@ export default function App() {
             setChatInitialQuery('');
             setIsChatOpen(true);
           }}
-          className="relative bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_35px_rgba(212,175,55,0.45)] flex items-center gap-1.5 sm:gap-2 transition transform hover:scale-108 active:scale-95 cursor-pointer border-2 border-white/50 group"
+          className="btn-3d-pulse-hover relative bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-full font-black text-xs sm:text-sm shadow-[0_10px_35px_rgba(212,175,55,0.45)] flex items-center gap-1.5 sm:gap-2 cursor-pointer border-2 border-white/60 group"
           title="Open Live AI Assistant (चिंटू AI)"
         >
           <Sparkles className="w-4 h-4 text-black animate-spin" style={{ animationDuration: '4s' }} />
@@ -895,6 +898,16 @@ export default function App() {
           setChatInitialQuery('');
           setIsChatOpen(true);
         }}
+      />
+
+      {/* 12.5 Dedicated Referral Hub, Posters & Income Breakdown Modal */}
+      <ReferralPromotionModal
+        isOpen={isReferralModalOpen}
+        onClose={() => setIsReferralModalOpen(false)}
+        currentUser={currentUser}
+        onOpenRegister={handleOpenRegister}
+        onOpenLogin={handleOpenLogin}
+        onNavigate={navigateTo}
       />
 
       {/* 13. Dedicated Theme Customization & Light/Dark Mode Selector Modal */}

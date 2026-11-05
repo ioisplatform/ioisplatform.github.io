@@ -328,7 +328,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
           }`}
         >
           <ImageIcon className="w-4 h-4" />
-          <span>4. प्रमोशनल पोस्टर स्टूडियो (Posters)</span>
+          <span>4. Promotional Material (प्रमोशनल मटेरियल - 3 पोस्टर्स)</span>
         </button>
       </div>
 

@@ -33,6 +33,7 @@ interface LockedFooterDockProps {
   onOpenIdCard: () => void;
   onOpenSponsorCard?: () => void;
   onSetSponsorId?: (id: string) => void;
+  onOpenReferralModal?: () => void;
 }
 
 export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
@@ -46,6 +47,7 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
   onOpenIdCard,
   onOpenSponsorCard,
   onSetSponsorId,
+  onOpenReferralModal,
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [showEnterSponsorDialog, setShowEnterSponsorDialog] = useState<boolean>(false);
@@ -170,16 +172,23 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
                     <span className="text-indigo-950 font-black truncate">2. ID कार्ड (डाउनलोड)</span>
                   </button>
 
-                  {/* 3. Copy Referral Link - 3D RAINBOW (Replaced Green as requested) */}
+                  {/* 3. Referral Hub & Promotional Poster Studio Pop-up Window - 3D RAINBOW */}
                   <button
                     type="button"
-                    onClick={handleCopyReferral}
+                    onClick={() => {
+                      if (onOpenReferralModal) {
+                        onOpenReferralModal();
+                      } else {
+                        handleCopyReferral();
+                      }
+                    }}
                     className="btn-3d-rainbow px-2.5 py-1.5 rounded-xl text-[10.5px] sm:text-[11px] flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer"
+                    title="रेफरल डैशबोर्ड, पोस्टर स्टूडियो व इनकम प्लान्स पॉपअप"
                   >
                     <div className="w-4.5 h-4.5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                      {copiedLink ? <Check className="w-2.5 h-2.5 text-black" /> : <Share2 className="w-2.5 h-2.5 text-black" />}
+                      <Share2 className="w-2.5 h-2.5 text-black" />
                     </div>
-                    <span className="text-black font-black truncate">{copiedLink ? 'कॉपी हो गया!' : '3. रेफरल लिंक'}</span>
+                    <span className="text-black font-black truncate">3. रेफरल व प्रचार</span>
                   </button>
 
                   {/* 4. 7 Master Plans - 3D SILVER */}

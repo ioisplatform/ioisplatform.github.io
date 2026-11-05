@@ -48,6 +48,7 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react';
+import { IoisOfficialLogo } from './IoisOfficialLogo';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -593,6 +594,44 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   };
 
   const themeStyle = getThemeClasses();
+
+  // Ultra-Premium Sponsor ID / Member ID Luxury Watermark
+  const cardWatermarkId = isViewingSponsor 
+    ? memberId 
+    : (displayUser?.sponsorId || memberId || OFFICIAL_ROOT_SPONSOR_ID);
+
+  const renderCardWatermarkOverlay = (isPortrait = false) => (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0">
+      {/* Layer 1: Diagonal Repeating Sponsor ID Micro-Watermark */}
+      <div className="absolute -inset-10 flex flex-col justify-around opacity-[0.06] rotate-[-24deg] scale-125 font-mono text-[7px] font-black tracking-widest text-white whitespace-nowrap leading-relaxed pointer-events-none">
+        <div>{`★ SPONSOR: ${cardWatermarkId} ★ IOIS OFFICIAL DIGITAL IDENTITY ★ ${cardWatermarkId} ★ 256-BIT ENCRYPTED ★`}</div>
+        <div>{`★ SPONSOR CODE: ${cardWatermarkId} ★ AUTHENTIC RESIDENT PASS ★ SPONSOR: ${cardWatermarkId} ★`}</div>
+        <div>{`★ ${cardWatermarkId} ★ SECURE VERIFICATION SEAL ★ ${cardWatermarkId} ★ SWAVALAMBAN NETWORK ★`}</div>
+        <div>{`★ VERIFIED SPONSOR ID: ${cardWatermarkId} ★ PLAN 0${selectedPlan.id} ★ ${cardWatermarkId} ★`}</div>
+        <div>{`★ ${cardWatermarkId} ★ IOIS 2026 DIGITAL PLATFORM ★ ${cardWatermarkId} ★ 256-BIT ENCRYPTED ★`}</div>
+      </div>
+
+      {/* Layer 2: Official IOIS Vector Watermark Seal + Big Luxury Sponsor ID Badge */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none text-center flex flex-col items-center justify-center">
+        <IoisOfficialLogo 
+          variant="watermark" 
+          size={isPortrait ? 140 : 180} 
+          watermarkText={cardWatermarkId} 
+        />
+        <div className="mt-1">
+          <span className="font-mono font-black text-amber-300 opacity-[0.08] text-[8px] tracking-[0.3em] uppercase block">
+            VERIFIED OFFICIAL SPONSOR ID
+          </span>
+        </div>
+      </div>
+
+      {/* Layer 3: Concentric Security Guilloche Circles */}
+      <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full border border-white/[0.04] pointer-events-none" />
+      <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full border border-amber-400/[0.06] pointer-events-none" />
+      <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full border border-white/[0.04] pointer-events-none" />
+      <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full border border-amber-400/[0.06] pointer-events-none" />
+    </div>
+  );
 
   return (
     <div id="id-card-generator-root" className={`w-full space-y-8 ${isModalMode ? 'p-1' : ''}`}>
@@ -1219,6 +1258,9 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       ref={cardRef}
                       className={`w-full aspect-[1.586/1] ${themeStyle.cardBg} ${themeStyle.border} text-white rounded-[24px] p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between select-none shadow-2xl`}
                     >
+                      {/* Ultra-Premium Sponsor ID & IOIS Luxury Security Watermark */}
+                      {renderCardWatermarkOverlay(false)}
+
                       {/* Security Guilloche Laser Pattern */}
                       <div className="absolute inset-0 opacity-[0.08] bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:10px_10px] pointer-events-none" />
                       <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -1234,11 +1276,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       {/* Header Row */}
                       <div className={`flex items-center justify-between relative z-10 border-b ${themeStyle.headerBorder} pt-1 pb-1.5`}>
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-600 p-0.5 shadow-lg flex items-center justify-center shrink-0">
-                            <div className="w-full h-full bg-slate-950 rounded-xl flex items-center justify-center font-black text-amber-400 text-[10px]">
-                              IOIS
-                            </div>
-                          </div>
+                          <IoisOfficialLogo variant="badge" size={34} />
                           <div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs sm:text-sm font-black tracking-wider gold-text font-serif block leading-none">
@@ -1399,6 +1437,9 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       ref={backCardRef}
                       className={`w-full aspect-[1.586/1] ${themeStyle.cardBg} ${themeStyle.border} text-white rounded-[24px] p-4 sm:p-5 relative overflow-hidden flex flex-col justify-between select-none shadow-2xl`}
                     >
+                      {/* Ultra-Premium Sponsor ID & IOIS Luxury Security Watermark */}
+                      {renderCardWatermarkOverlay(false)}
+
                       {/* Top Accent Line */}
                       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-500 via-white to-emerald-600" />
 
@@ -1471,16 +1512,19 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       ref={cardRef}
                       className={`w-full aspect-[1/1.586] ${themeStyle.cardBg} ${themeStyle.border} text-white rounded-[24px] p-5 relative overflow-hidden flex flex-col justify-between select-none shadow-2xl text-center`}
                     >
+                      {/* Ultra-Premium Sponsor ID & IOIS Luxury Security Watermark */}
+                      {renderCardWatermarkOverlay(true)}
+
                       {/* Lanyard Clip Hole Simulation */}
-                      <div className="w-12 h-2.5 rounded-full bg-slate-950 border border-slate-700 mx-auto -mt-2 mb-1 shadow-inner"></div>
+                      <div className="w-12 h-2.5 rounded-full bg-slate-950 border border-slate-700 mx-auto -mt-2 mb-1 shadow-inner relative z-10"></div>
 
                       {/* Top Accent Line */}
                       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-500 via-white to-emerald-600" />
 
                       {/* Header */}
-                      <div className="space-y-0.5 border-b border-slate-800 pb-1.5">
+                      <div className="space-y-0.5 border-b border-slate-800 pb-1.5 relative z-10">
                         <div className="flex items-center justify-center gap-1.5">
-                          <ShieldCheck className="w-4 h-4 text-amber-400" />
+                          <IoisOfficialLogo variant="badge" size={30} />
                           <span className="text-xs font-black tracking-wider gold-text font-serif">
                             IOIS DIGITAL NETWORK
                           </span>
@@ -1593,7 +1637,10 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       ref={backCardRef}
                       className={`w-full aspect-[1/1.586] ${themeStyle.cardBg} ${themeStyle.border} text-white rounded-[24px] p-5 relative overflow-hidden flex flex-col justify-between select-none shadow-2xl text-center`}
                     >
-                      <div className="w-12 h-2.5 rounded-full bg-slate-950 border border-slate-700 mx-auto -mt-2 mb-1 shadow-inner"></div>
+                      {/* Biometric Anti-Counterfeit Security Watermark with Sponsor ID */}
+                      {renderCardWatermarkOverlay(true)}
+
+                      <div className="w-12 h-2.5 rounded-full bg-slate-950 border border-slate-700 mx-auto -mt-2 mb-1 shadow-inner relative z-10"></div>
 
                       <div className="text-center border-b border-slate-800 pb-1.5">
                         <span className="text-[11px] font-black uppercase text-amber-300 tracking-wider">
