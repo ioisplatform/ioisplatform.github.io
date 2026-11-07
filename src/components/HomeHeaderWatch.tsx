@@ -305,32 +305,41 @@ export const HomeHeaderWatch: React.FC = () => {
                   );
                 })}
 
-                {/* 10. PROMINENT "IOIS INDIA" BRANDING INSIGNIA (Under 12) */}
-                <g transform="translate(120, 68)">
+                {/* 10. PROMINENT "IOIS INDIA" BRANDING INSIGNIA (Under 12 - Perfectly Centered & Positioned) */}
+                <g transform="translate(120, 75)">
                   <path
-                    d="M-6 -6 L0 -10 L6 -6 L4 0 L-4 0 Z"
-                    fill="#F59E0B"
+                    d="M -7 -5 L -9 -13 L -4 -8 L 0 -14 L 4 -8 L 9 -13 L 7 -5 Z"
+                    fill="url(#goldFluted)"
+                    stroke="#D4AF37"
+                    strokeWidth="0.7"
+                    strokeLinejoin="round"
                   />
+                  {/* Coronet base ring for high-end luxury look */}
+                  <rect x="-6" y="-4.5" width="12" height="1.6" rx="0.8" fill="#F59E0B" />
                   <text
                     x="0"
-                    y="5"
+                    y="3"
                     textAnchor="middle"
+                    dominantBaseline="middle"
                     fill="#FFD700"
-                    fontSize="11"
+                    fontSize="9"
                     fontWeight="900"
-                    fontFamily="serif"
-                    letterSpacing="1.5"
+                    fontFamily="system-ui, -apple-system, sans-serif"
+                    letterSpacing="1.8"
+                    className="drop-shadow-[0_1px_3px_rgba(0,0,0,1)]"
                   >
                     IOIS INDIA
                   </text>
                   <text
                     x="0"
-                    y="12"
+                    y="10"
                     textAnchor="middle"
+                    dominantBaseline="middle"
                     fill="#94A3B8"
-                    fontSize="4.5"
+                    fontSize="3.8"
                     fontWeight="800"
-                    letterSpacing="1"
+                    fontFamily="system-ui, -apple-system, sans-serif"
+                    letterSpacing="1.2"
                   >
                     CHRONOMETER • 100M
                   </text>

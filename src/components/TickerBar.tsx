@@ -8,36 +8,74 @@ interface TickerBarProps {
 }
 
 export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
-  // Announcements run continuously by default at smooth 60fps linear velocity
+  // Announcements run continuously by default with silky-smooth 60-120FPS GPU translation
   const [speed, setSpeed] = useState<TickerSpeed>('slow');
 
-  const getTrackClass = () => {
-    if (speed === 'paused') {
-      return 'ticker-track-slow ticker-paused';
-    }
-    if (speed === 'slow') return 'ticker-track-slow';
-    if (speed === 'normal') return 'ticker-track-normal';
-    if (speed === 'fast') return 'ticker-track-fast';
-    return 'ticker-track-slow';
+  const getSlideTrackClass = () => {
+    let base = 'ticker-slide-track';
+    if (speed === 'normal') base += ' ticker-slide-track-normal';
+    if (speed === 'fast') base += ' ticker-slide-track-fast';
+    return base;
   };
+
+  const renderTickerItems = (loopKeyPrefix: string) => (
+    <>
+      {PLANS.map((plan) => (
+        <div
+          key={`${loopKeyPrefix}-${plan.id}`}
+          className="inline-flex items-center px-4 sm:px-6 shrink-0 font-bold text-xs sm:text-sm whitespace-nowrap"
+        >
+          <span className="text-white font-bold tracking-wide">
+            <span className="text-amber-400 font-black">{plan.code}: {plan.name}</span>
+            {' '}— ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔{' '}
+            {/* Blazing High-Contrast 50%-70% Instant Payout Badge */}
+            <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-xs shadow-md mx-1 tracking-wide">
+              ⚡ ₹{plan.instantPayout} ({plan.percentage}%) INSTANT PAYOUT
+            </span>
+          </span>
+          {onOpenRegister ? (
+            <button
+              type="button"
+              onClick={() => onOpenRegister(plan.id)}
+              className="ml-2.5 btn-3d-rainbow text-black font-black text-[10.5px] px-3 py-1 rounded-full border border-black/30 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-md select-none"
+            >
+              <span>JOIN NOW</span>
+              <ChevronRight className="w-3 h-3 text-black stroke-[3]" />
+            </button>
+          ) : (
+            <a
+              href={OFFICIAL_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2.5 btn-3d-rainbow text-black font-black text-[10.5px] px-3 py-1 rounded-full border border-black/30 inline-flex items-center gap-1 transition active:scale-95 shadow-md select-none"
+            >
+              <span>JOIN NOW</span>
+              <ChevronRight className="w-3 h-3 text-black stroke-[3]" />
+            </a>
+          )}
+          <span className="mx-4 sm:mx-6 text-amber-500/80 font-black text-sm">•</span>
+        </div>
+      ))}
+    </>
+  );
 
   return (
     <>
       {/* ================= FIXED LOCKED ANNOUNCEMENT TICKER (ZERO PAGE SCROLL) ================= */}
-      {/* Positioned right below the mobile 2-tier header (80px) and desktop header (56px) */}
+      {/* Solid high-performance background (NO backdrop-filter) for stutter-free 60fps rendering */}
       <div 
         id="live-news-ticker-container" 
-        className="bg-black/98 border-b-2 border-amber-500/80 fixed top-[80px] md:top-[56px] left-0 right-0 z-40 shadow-2xl select-none w-full backdrop-blur-xl"
+        className="bg-[#030712] border-b-2 border-amber-500/80 fixed top-[80px] md:top-[56px] left-0 right-0 z-40 shadow-2xl select-none w-full"
       >
         {/* Top Announcement Bar Header */}
-        <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-slate-950/95 border-b border-slate-800 text-[11px] text-slate-300">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-1 bg-slate-950 border-b border-slate-800 text-[11px] text-slate-300">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="flex h-2 w-2 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)] shrink-0" />
             <span className="font-black text-amber-400 tracking-wider uppercase text-[10px] sm:text-xs whitespace-nowrap">
               📢 आधिकारिक घोषणा (OFFICIAL ANNOUNCEMENTS)
+            </span>
+            <span className="inline-flex bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 text-slate-950 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+              ⚡ 50% से 70% सीधा पेआउट
             </span>
             <span className="hidden md:inline text-slate-500">| गति:</span>
           </div>
@@ -50,12 +88,12 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
               onClick={() => setSpeed(speed === 'paused' ? 'slow' : 'paused')}
               className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer active:scale-95 ${
                 speed === 'paused'
-                  ? 'bg-amber-500 text-black border-amber-400 font-black'
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 font-black'
                   : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white'
               }`}
               title="रोकें या शुरू करें"
             >
-              {speed === 'paused' ? <Play className="w-3 h-3 text-black" /> : <Pause className="w-3 h-3 text-amber-400" />}
+              {speed === 'paused' ? <Play className="w-3 h-3 text-slate-950" /> : <Pause className="w-3 h-3 text-amber-400" />}
               <span>{speed === 'paused' ? 'प्ले' : 'पॉज़'}</span>
             </button>
 
@@ -64,7 +102,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
                 type="button"
                 onClick={() => setSpeed('slow')}
                 className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
-                  speed === 'slow' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-white'
+                  speed === 'slow' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 धीमी
@@ -73,7 +111,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
                 type="button"
                 onClick={() => setSpeed('normal')}
                 className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
-                  speed === 'normal' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-white'
+                  speed === 'normal' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 सामान्य
@@ -82,7 +120,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
                 type="button"
                 onClick={() => setSpeed('fast')}
                 className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
-                  speed === 'fast' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-white'
+                  speed === 'fast' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 तेज
@@ -92,84 +130,21 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
         </div>
 
         {/* ========================================================================= */}
-        {/* Continuously Running Announcement Marquee Track (Smooth Continuous Loop) */}
+        {/* Silky Smooth 60FPS Dual-Track Hardware-Accelerated Marquee Container      */}
         {/* ========================================================================= */}
         <div
-          className="ticker-wrapper overflow-hidden py-2 bg-black select-none"
-          style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+          className={`ticker-wrapper overflow-hidden py-2 bg-[#020617] select-none flex ${
+            speed === 'paused' ? 'ticker-paused' : ''
+          }`}
         >
-          <div className={getTrackClass()}>
-            {/* Loop 1 */}
-            {PLANS.map((plan) => (
-              <div
-                key={`ticker-1-${plan.id}`}
-                className="inline-flex items-center px-4 sm:px-8 shrink-0 font-bold text-xs sm:text-sm whitespace-nowrap"
-              >
-                <span className="text-white font-bold tracking-wide">
-                  <span className="text-amber-400 font-black">{plan.code}: {plan.name}</span>
-                  {' '}— ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔{' '}
-                  <span className="text-emerald-400 font-black">₹{plan.instantPayout} Instant Payout</span>
-                  {' '}per Referral ({plan.percentage}%)
-                </span>
-                {onOpenRegister ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenRegister(plan.id)}
-                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    <span>JOIN NOW</span>
-                    <ChevronRight className="w-2.5 h-2.5" />
-                  </button>
-                ) : (
-                  <a
-                    href={OFFICIAL_FORM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 shadow-sm"
-                  >
-                    <span>JOIN NOW</span>
-                    <ChevronRight className="w-2.5 h-2.5" />
-                  </a>
-                )}
-                <span className="mx-4 sm:mx-6 text-amber-500/70 font-black">•</span>
-              </div>
-            ))}
+          {/* Track 1 */}
+          <div className={getSlideTrackClass()}>
+            {renderTickerItems('track1')}
+          </div>
 
-            {/* Loop 2 for Seamless Infinite Running */}
-            {PLANS.map((plan) => (
-              <div
-                key={`ticker-2-${plan.id}`}
-                className="inline-flex items-center px-4 sm:px-8 shrink-0 font-bold text-xs sm:text-sm whitespace-nowrap"
-              >
-                <span className="text-white font-bold tracking-wide">
-                  <span className="text-amber-400 font-black">{plan.code}: {plan.name}</span>
-                  {' '}— ₹{plan.price} {plan.id === 1 ? 'Verification Pass' : plan.tagline} ➔{' '}
-                  <span className="text-emerald-400 font-black">₹{plan.instantPayout} Instant Payout</span>
-                  {' '}per Referral ({plan.percentage}%)
-                </span>
-                {onOpenRegister ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenRegister(plan.id)}
-                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    <span>JOIN NOW</span>
-                    <ChevronRight className="w-2.5 h-2.5" />
-                  </button>
-                ) : (
-                  <a
-                    href={OFFICIAL_FORM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-400/80 inline-flex items-center gap-1 transition active:scale-95 shadow-sm"
-                  >
-                    <span>JOIN NOW</span>
-                    <ChevronRight className="w-2.5 h-2.5" />
-                  </a>
-                )}
-                <span className="mx-4 sm:mx-6 text-amber-500/70 font-black">•</span>
-              </div>
-            ))}
+          {/* Track 2 (Duplicate for Seamless Infinite Marquee) */}
+          <div className={getSlideTrackClass()} aria-hidden="true">
+            {renderTickerItems('track2')}
           </div>
         </div>
       </div>

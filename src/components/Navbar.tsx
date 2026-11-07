@@ -327,7 +327,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="text-slate-950 font-black tracking-wide leading-none">लॉगिन</span>
                   </button>
 
-                  {/* 3D Gold Join Button */}
+                  {/* 3D Rainbow Join Button (Desktop) */}
                   <button
                     id="nav-register-btn-desktop"
                     type="button"
@@ -335,34 +335,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                       if (onOpenRegister) onOpenRegister();
                       else handleNavClick('register');
                     }}
-                    className="btn-3d-gold h-9 px-3.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1 cursor-pointer shrink-0 touch-manipulation select-none"
-                    title="नया सदस्य रजिस्ट्रेशन करें"
+                    className="btn-3d-rainbow-special h-9 px-3.5 rounded-xl font-black text-xs shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 touch-manipulation select-none text-black"
+                    title="नया सदस्य रजिस्ट्रेशन करें (Join Now)"
                   >
                     <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
-                    <span className="text-black font-black tracking-wide leading-none">ज्वाइन</span>
+                    <span className="text-black font-black tracking-wide leading-none">ज्वाइन करें</span>
                   </button>
                 </div>
               )}
 
-              {/* 4. MASTER MENU ICON BUTTON (ALWAYS VISIBLE ON ALL SCREENS) */}
+              {/* 4. MASTER MENU ICON BUTTON - 3D RAINBOW SPECIAL (ALWAYS VISIBLE ON ALL SCREENS) */}
               <button
                 id="master-nav-menu-btn"
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className={`h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-auto md:px-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-md shrink-0 touch-manipulation select-none active:scale-95 ${
-                  menuOpen
-                    ? 'btn-3d-gold text-slate-950'
-                    : 'btn-3d-platinum text-slate-900'
-                }`}
+                className={`btn-3d-rainbow-special h-8 w-8 sm:h-8.5 sm:w-8.5 md:h-9 md:w-auto md:px-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-lg shrink-0 touch-manipulation select-none active:scale-95 text-black`}
                 title="सभी 17+ सेवाएं व मेन्यू विकल्प खोलें"
                 aria-label="Toggle Navigation Menu"
               >
                 {menuOpen ? (
-                  <X className="w-4 h-4 text-slate-950 drop-shadow shrink-0" />
+                  <X className="w-4 h-4 text-black drop-shadow shrink-0 stroke-[3]" />
                 ) : (
-                  <Menu className="w-4 h-4 text-slate-950 drop-shadow shrink-0" />
+                  <Menu className="w-4 h-4 text-black drop-shadow shrink-0 stroke-[3]" />
                 )}
-                <span className="hidden md:inline font-black tracking-wide leading-none">मेन्यू</span>
+                <span className="hidden md:inline font-black text-black tracking-wide leading-none">मेन्यू</span>
               </button>
 
             </div>
@@ -437,6 +433,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-slate-950 font-black tracking-wide leading-none">सदस्य लॉगिन</span>
                 </button>
 
+                {/* 3D Rainbow Join Button (Mobile) */}
                 <button
                   id="nav-register-btn-mobile"
                   type="button"
@@ -444,11 +441,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenRegister) onOpenRegister();
                     else handleNavClick('register');
                   }}
-                  className="btn-3d-gold flex-1 h-8 px-2 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none"
+                  className="btn-3d-rainbow-special flex-1 h-8 px-2 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none text-black"
                   title="नया सदस्य रजिस्ट्रेशन करें"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
-                  <span className="text-black font-black tracking-wide leading-none">नया रजिस्ट्रेशन (Join)</span>
+                  <span className="text-black font-black tracking-wide leading-none">रजिस्ट्रेशन (Join)</span>
                 </button>
               </>
             )}

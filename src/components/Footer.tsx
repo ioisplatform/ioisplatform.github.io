@@ -112,37 +112,37 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={onOpenDashboard}
-                  className="btn-3d-gold px-3.5 py-2 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow-special px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box flex items-center justify-center shrink-0">
-                    <LayoutDashboard className="w-3 h-3 text-slate-950" />
+                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                    <LayoutDashboard className="w-3 h-3 text-black" />
                   </div>
-                  <span className="text-slate-950 font-black">मेरा डैशबोर्ड</span>
+                  <span className="text-black font-black">मेरा डैशबोर्ड</span>
                 </button>
                 <button
                   type="button"
                   onClick={onOpenIdCard}
-                  className="btn-3d-platinum px-3.5 py-2 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-platinum flex items-center justify-center shrink-0">
-                    <CreditCard className="w-3 h-3 text-indigo-950" />
+                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                    <CreditCard className="w-3 h-3 text-black" />
                   </div>
-                  <span className="text-indigo-950 font-black">डिजिटल ID कार्ड</span>
+                  <span className="text-black font-black">डिजिटल ID कार्ड</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigate?.('plans')}
-                  className="btn-3d-silver px-3.5 py-2 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-silver flex items-center justify-center shrink-0">
-                    <Crown className="w-3 h-3 text-slate-950" />
+                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                    <Crown className="w-3 h-3 text-black" />
                   </div>
-                  <span className="text-slate-950 font-black">7 मास्टर प्लान्स</span>
+                  <span className="text-black font-black">7 मास्टर प्लान्स</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigate?.('contact')}
-                  className="btn-3d-dark px-3.5 py-2 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-dark px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95 border-amber-500/50"
                 >
                   <HelpCircle className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="text-amber-300 font-black">सपोर्ट टिकट</span>
@@ -161,7 +161,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenRegister?.(1, cleanSponsorId)}
-                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow-special px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
                   <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
                     <UserPlus className="w-3 h-3 text-black" />
@@ -171,9 +171,9 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={onOpenSponsorCard}
-                  className="btn-3d-gold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box flex items-center justify-center shrink-0">
+                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
                     <CreditCard className="w-3 h-3 text-black" />
                   </div>
                   <span className="text-black font-black">स्पॉन्सर ID कार्ड (मास्क्ड)</span>
@@ -181,7 +181,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenLogin?.('login')}
-                  className="btn-3d-silver px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
                   <LogIn className="w-4 h-4 text-black shrink-0" />
                   <span className="text-black font-black">सदस्य लॉगिन</span>
@@ -200,7 +200,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenRegister?.(1)}
-                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow-special px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
                   <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
                     <UserPlus className="w-3 h-3 text-black" />
@@ -210,7 +210,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenLogin?.('login')}
-                  className="btn-3d-silver px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
                   <LogIn className="w-4 h-4 text-black shrink-0" />
                   <span className="text-black font-black">सदस्य लॉगिन</span>
@@ -218,9 +218,9 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={onOpenIdCard}
-                  className="btn-3d-platinum px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02]"
+                  className="btn-3d-rainbow px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-platinum flex items-center justify-center shrink-0">
+                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
                     <CreditCard className="w-3 h-3 text-black" />
                   </div>
                   <span className="text-black font-black">आईडी कार्ड स्टूडियो</span>
@@ -287,26 +287,26 @@ export const Footer: React.FC<FooterProps> = ({
           </button>
         </div>
 
-        {/* Social / Helpline Links - Premium 3D VIP Design with Perfect Sizing */}
+        {/* Social / Helpline Links - Premium 3D Rainbow VIP Design with Perfect Sizing */}
         <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-5">
           <a
             href={OFFICIAL_TELEGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-3d-helpline w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl flex items-center justify-center gap-3 shadow-xl transition cursor-pointer select-none group touch-manipulation"
+            className="btn-3d-rainbow-special w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl flex items-center justify-center gap-3 shadow-xl transition cursor-pointer select-none group touch-manipulation active:scale-95"
             title="🎧【『NEW USER HELPLINE』】 24x7 Telegram Official Support"
           >
-            <div className="w-7 h-7 rounded-xl bg-white/20 border border-white/40 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition">
-              <Send className="w-4 h-4 text-white drop-shadow" />
+            <div className="w-7 h-7 rounded-xl logo-3d-box-rainbow flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition">
+              <Send className="w-4 h-4 text-black drop-shadow" />
             </div>
             <div className="flex flex-col text-left">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs sm:text-sm font-black text-white tracking-wide">
+                <span className="text-xs sm:text-sm font-black text-black tracking-wide">
                   🎧 NEW USER HELPLINE (Telegram)
                 </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-emerald-700 animate-ping shrink-0" />
               </div>
-              <span className="text-[10px] text-sky-100 font-bold tracking-tight">
+              <span className="text-[10px] text-slate-900 font-extrabold tracking-tight">
                 24x7 आधिकारिक सहायता केंद्र व तुरंत समाधान
               </span>
             </div>
@@ -314,13 +314,13 @@ export const Footer: React.FC<FooterProps> = ({
 
           <a
             href={`mailto:${OFFICIAL_EMAIL}`}
-            className="w-full sm:w-auto px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-slate-900 hover:bg-slate-850 border-2 border-amber-500/40 hover:border-amber-400 text-amber-300 hover:text-white flex items-center justify-center gap-2 transition shadow-lg text-xs font-black cursor-pointer group select-none"
+            className="btn-3d-rainbow w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl flex items-center justify-center gap-2.5 transition shadow-lg text-xs font-black cursor-pointer group select-none active:scale-95"
             title="Email: newuserhelpline@gmail.com"
           >
-            <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
-              <Mail className="w-3.5 h-3.5 group-hover:scale-110 transition" />
+            <div className="w-6 h-6 rounded-lg logo-3d-box-rainbow flex items-center justify-center shrink-0">
+              <Mail className="w-3.5 h-3.5 text-black group-hover:scale-110 transition" />
             </div>
-            <span className="font-mono">{OFFICIAL_EMAIL}</span>
+            <span className="font-mono text-black font-black">{OFFICIAL_EMAIL}</span>
           </a>
         </div>
 

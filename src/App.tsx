@@ -58,7 +58,7 @@ import {
   OFFICIAL_ROOT_SPONSOR_ID,
   OFFICIAL_ROOT_SPONSOR_USER
 } from './services/userService';
-import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus } from 'lucide-react';
+import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus, Share2 } from 'lucide-react';
 
 const PageFallbackLoader = () => (
   <div className="flex flex-col items-center justify-center min-h-[350px] p-6 text-center space-y-4 animate-fadeIn">
@@ -347,20 +347,34 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
                   <button
                     onClick={handleOpenDashboard}
-                    className="btn-3d-gold px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-slate-950 font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5"
+                    className="btn-3d-rainbow-special px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
                   >
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    <span>मेरा डैशबोर्ड</span>
+                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                      <LayoutDashboard className="w-3 h-3 text-black" />
+                    </div>
+                    <span className="text-black font-black whitespace-nowrap">मेरा डैशबोर्ड</span>
+                  </button>
+                  <button
+                    onClick={() => setIsReferralModalOpen(true)}
+                    className="btn-3d-rainbow-special px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
+                    title="Invite & Earn: 50%-70% इंसेंटिव रेफरल लिंक व पोस्टर स्टूडियो"
+                  >
+                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                      <Share2 className="w-3 h-3 text-black" />
+                    </div>
+                    <span className="text-black font-black whitespace-nowrap">Invite & Earn (70%)</span>
                   </button>
                   <button
                     onClick={handleOpenIdCard}
-                    className="btn-3d-silver px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-slate-950 text-xs font-black cursor-pointer flex items-center gap-1.5"
+                    className="btn-3d-rainbow px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
                   >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>ID कार्ड</span>
+                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                      <CreditCard className="w-3 h-3 text-black" />
+                    </div>
+                    <span className="text-black font-black whitespace-nowrap">ID कार्ड</span>
                   </button>
                 </div>
               </div>
