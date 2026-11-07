@@ -65,28 +65,28 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
       {/* Solid high-performance background (NO backdrop-filter) for stutter-free 60fps rendering */}
       <div 
         id="live-news-ticker-container" 
-        className="bg-[#030712] border-b-2 border-amber-500/80 fixed top-[80px] md:top-[56px] left-0 right-0 z-40 shadow-2xl select-none w-full"
+        className="bg-[#030712] border-b-2 border-amber-500/80 fixed top-[89px] md:top-[56px] left-0 right-0 z-40 shadow-2xl select-none w-full"
       >
         {/* Top Announcement Bar Header */}
-        <div className="flex items-center justify-between px-2 sm:px-4 py-1 bg-slate-950 border-b border-slate-800 text-[11px] text-slate-300">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)] shrink-0" />
-            <span className="font-black text-amber-400 tracking-wider uppercase text-[10px] sm:text-xs whitespace-nowrap">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-1 sm:py-1.5 bg-slate-950 border-b border-slate-800 text-[11px] text-slate-300 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)] shrink-0 animate-pulse" />
+            <span className="font-black text-amber-400 tracking-wider uppercase text-[10px] sm:text-xs whitespace-nowrap truncate">
               📢 आधिकारिक घोषणा (OFFICIAL ANNOUNCEMENTS)
             </span>
-            <span className="inline-flex bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 text-slate-950 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+            <span className="inline-flex bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 text-slate-950 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap shrink-0">
               ⚡ 50% से 70% सीधा पेआउट
             </span>
-            <span className="hidden md:inline text-slate-500">| गति:</span>
+            <span className="hidden md:inline text-slate-500 shrink-0">| गति:</span>
           </div>
 
           {/* Speed Controls (Pause/Play & Slow/Normal/Fast) */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               id="ticker-pause-btn"
               type="button"
               onClick={() => setSpeed(speed === 'paused' ? 'slow' : 'paused')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer active:scale-95 ${
+              className={`px-2 py-0.5 sm:py-1 rounded-lg text-[10px] font-black flex items-center gap-1 border transition cursor-pointer active:scale-95 shadow-sm ${
                 speed === 'paused'
                   ? 'bg-amber-400 text-slate-950 border-amber-300 font-black'
                   : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white'
@@ -97,11 +97,11 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
               <span>{speed === 'paused' ? 'प्ले' : 'पॉज़'}</span>
             </button>
 
-            <div className="hidden sm:flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-[10px]">
+            <div className="hidden sm:flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[10px]">
               <button
                 type="button"
                 onClick={() => setSpeed('slow')}
-                className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                   speed === 'slow' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -110,7 +110,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
               <button
                 type="button"
                 onClick={() => setSpeed('normal')}
-                className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                   speed === 'normal' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -119,7 +119,7 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
               <button
                 type="button"
                 onClick={() => setSpeed('fast')}
-                className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                   speed === 'fast' ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -149,8 +149,8 @@ export const TickerBar: React.FC<TickerBarProps> = ({ onOpenRegister }) => {
         </div>
       </div>
 
-      {/* Spacer div to account for fixed ticker height so page content never overlaps */}
-      <div className="h-[58px] sm:h-[62px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
+      {/* Spacer div to account for fixed header + ticker height so page content never overlaps */}
+      <div className="h-[152px] md:h-[118px] w-full shrink-0 select-none pointer-events-none" aria-hidden="true" />
     </>
   );
 };

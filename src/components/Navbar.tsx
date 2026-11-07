@@ -155,8 +155,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       {/* ================= MAIN LOCKED HEADER BAR (PERFECT RESPONSIVE 2-TIER MOBILE ARCHITECTURE) ================= */}
-      <header id="main-header" className="bg-slate-950/98 backdrop-blur-md border-b-2 border-amber-500/40 py-1.5 px-2 sm:px-4 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.85)] w-full max-w-full overflow-hidden select-none">
-        <div className="w-full max-w-7xl mx-auto flex flex-col gap-1.5">
+      <header id="main-header" className="bg-slate-950/98 backdrop-blur-md border-b-2 border-amber-500/50 py-1.5 sm:py-2 px-2 sm:px-4 fixed top-0 left-0 right-0 z-50 transition-all shadow-[0_4px_24px_rgba(0,0,0,0.9)] w-full max-w-full overflow-hidden select-none">
+        <div className="w-full max-w-7xl mx-auto flex flex-col gap-1.5 sm:gap-2">
           
           {/* ================= ROW 1: BRAND LOGO + 4 TACTILE 3D SQUIRCLE UTILITY BUTTONS ================= */}
           <div className="flex items-center justify-between gap-1.5 sm:gap-3 flex-nowrap min-w-0 w-full">
@@ -366,18 +366,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* ================= ROW 2: DEDICATED MOBILE ACTION BAR (< md SCREENS) ================= */}
           {/* Guarantees that Login, Join, Dashboard, and ID Card buttons are 100% visible and thumb-friendly */}
-          <div className="flex md:hidden items-center gap-1 sm:gap-1.5 w-full pt-1 border-t border-slate-800/80">
+          <div className="flex md:hidden items-center gap-1.5 sm:gap-2 w-full pt-1.5 border-t border-slate-800/80">
             {currentUser ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleNavClick('dashboard')}
-                  className={`btn-3d-gold flex-1 h-8 px-1.5 sm:px-2 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md touch-manipulation select-none active:scale-95 min-w-0 ${
+                  className={`btn-3d-gold flex-1 h-8.5 px-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md touch-manipulation select-none active:scale-95 min-w-0 ${
                     currentPage === 'dashboard' ? 'ring-2 ring-white' : ''
                   }`}
                   title="यूज़र डैशबोर्ड खोलें"
                 >
-                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
+                  <div className="w-4 h-4 rounded-full overflow-hidden border border-slate-950 shrink-0 shadow-inner">
                     <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
                   </div>
                   <span className="truncate text-slate-950 font-black leading-none">
@@ -393,21 +393,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenReferralModal) onOpenReferralModal();
                     else handleNavClick('dashboard');
                   }}
-                  className="btn-3d-rainbow-special h-8 px-2 sm:px-2.5 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 text-black shrink-0"
+                  className="btn-3d-rainbow-special h-8.5 px-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md active:scale-95 text-black shrink-0"
                   title="Invite & Earn: अपना रेफरल लिंक, QR कोड व पोस्टर शेयर करें"
                 >
-                  <Sparkles className="w-3 h-3 text-black animate-pulse shrink-0" />
+                  <Sparkles className="w-3.5 h-3.5 text-black animate-pulse shrink-0" />
                   <span className="font-black text-black leading-none whitespace-nowrap">Invite & Earn</span>
-                  <span className="hidden xs:inline text-[8px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none">70%</span>
+                  <span className="hidden xs:inline text-[8.5px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none">70%</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleNavClick('idcard')}
-                  className="btn-3d-platinum h-8 px-1.5 sm:px-2 rounded-xl font-black text-[10.5px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 shrink-0"
+                  className="btn-3d-platinum h-8.5 px-2 rounded-xl font-black text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 shrink-0"
                   title="डिजिटल ID कार्ड खोलें"
                 >
-                  <CreditCard className="w-3 h-3 text-indigo-950 shrink-0" />
+                  <CreditCard className="w-3.5 h-3.5 text-indigo-950 shrink-0" />
                   <span className="text-indigo-950 font-black leading-none">ID कार्ड</span>
                 </button>
 
@@ -415,7 +415,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={onLogout}
                   title="लॉगआउट करें"
-                  className="h-8 w-8 rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
+                  className="h-8.5 w-8.5 rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -426,11 +426,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="nav-login-btn-mobile"
                   type="button"
                   onClick={onOpenLogin}
-                  className="btn-3d-silver flex-1 h-8 px-2 rounded-xl font-black text-xs transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1.5"
+                  className="btn-3d-silver flex-1 h-8.5 px-2.5 rounded-xl font-black text-xs sm:text-[13px] transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1.5 min-w-0"
                   title="सदस्य लॉगिन करें"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
-                  <span className="text-slate-950 font-black tracking-wide leading-none">सदस्य लॉगिन</span>
+                  <div className="w-4 h-4 rounded-md logo-3d-box-silver flex items-center justify-center shrink-0">
+                    <LogIn className="w-2.5 h-2.5 text-slate-950 stroke-[2.5]" />
+                  </div>
+                  <span className="text-slate-950 font-black tracking-wide leading-none whitespace-nowrap text-xs sm:text-[13px]">
+                    सदस्य लॉगिन
+                  </span>
                 </button>
 
                 {/* 3D Rainbow Join Button (Mobile) */}
@@ -441,11 +445,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenRegister) onOpenRegister();
                     else handleNavClick('register');
                   }}
-                  className="btn-3d-rainbow-special flex-1 h-8 px-2 rounded-xl font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none text-black"
-                  title="नया सदस्य रजिस्ट्रेशन करें"
+                  className="btn-3d-rainbow-special flex-1 h-8.5 px-2.5 rounded-xl font-black text-xs sm:text-[13px] shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none text-black min-w-0"
+                  title="नया सदस्य रजिस्ट्रेशन करें (Join Now)"
                 >
-                  <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
-                  <span className="text-black font-black tracking-wide leading-none">रजिस्ट्रेशन (Join)</span>
+                  <div className="w-4 h-4 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
+                    <UserPlus className="w-2.5 h-2.5 text-black stroke-[2.5]" />
+                  </div>
+                  <span className="text-black font-black tracking-wide leading-none whitespace-nowrap text-xs sm:text-[13px]">
+                    रजिस्ट्रेशन (Join Now)
+                  </span>
                 </button>
               </>
             )}
