@@ -56,9 +56,9 @@ interface TelegramConfigData {
 
 function loadTelegramConfig(): TelegramConfigData {
   const defaults: TelegramConfigData = {
-    enabled: true,
-    botToken: process.env.TELEGRAM_BOT_TOKEN || "8838741922:AAFGoIvjohnF8FvEiW84h3SxaX2NeANLC50",
-    chatId: process.env.TELEGRAM_CHAT_ID || "964524685",
+    enabled: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+    botToken: process.env.TELEGRAM_BOT_TOKEN || "",
+    chatId: process.env.TELEGRAM_CHAT_ID || "",
     adminSecret: "IOISSYSTEM",
     botUsername: "@iois_admin_notification_bot",
   };
@@ -66,9 +66,18 @@ function loadTelegramConfig(): TelegramConfigData {
     if (fs.existsSync(TELEGRAM_CONFIG_FILE)) {
       const raw = fs.readFileSync(TELEGRAM_CONFIG_FILE, "utf-8");
       const data = JSON.parse(raw);
+      // Treat known revoked or invalid placeholder token as empty
+      const isKnownRevokedToken = typeof data.botToken === "string" && (
+        !data.botToken || 
+        data.botToken.startsWith("8838741922:AAFGoIvjohn") ||
+        data.botToken.includes("placeholder")
+      );
+      const cleanToken = isKnownRevokedToken ? (process.env.TELEGRAM_BOT_TOKEN || "") : (data.botToken || "");
+      const isConfigured = Boolean(cleanToken && (data.chatId || defaults.chatId));
+
       return {
-        enabled: typeof data.enabled === "boolean" ? data.enabled : defaults.enabled,
-        botToken: data.botToken || defaults.botToken,
+        enabled: isConfigured && typeof data.enabled === "boolean" ? data.enabled : false,
+        botToken: cleanToken,
         chatId: data.chatId || defaults.chatId,
         adminSecret: data.adminSecret || defaults.adminSecret,
         botUsername: data.botUsername || defaults.botUsername,
@@ -166,14 +175,20 @@ ${user.googleDrivePaymentLink ? `🔗 <b>पेमेंट स्लिप ल�
       }),
     });
 
-    const tgData = await tgRes.json();
+    const tgData: any = await tgRes.json().catch(() => ({}));
     if (!tgRes.ok || !tgData.ok) {
-      console.warn("Telegram API Error:", tgData);
-      return { success: false, error: tgData.description || "Telegram API failed" };
+      if (tgRes.status === 401 || tgData?.error_code === 401) {
+        cfg.enabled = false;
+        saveTelegramConfig(cfg);
+        console.warn("[Telegram Notice] Telegram Bot Token is unauthorized (401). Alerts automatically disabled until a valid token is provided in settings.");
+        return { success: false, error: "Telegram bot token is unauthorized (401). Alerts paused." };
+      }
+      console.warn("Telegram API Note:", tgData?.description || "Request failed");
+      return { success: false, error: tgData?.description || "Telegram API failed" };
     }
     return { success: true };
   } catch (err: any) {
-    console.error("Failed to send Telegram alert:", err);
+    console.warn("Telegram alert network note:", err.message || err);
     return { success: false, error: err.message };
   }
 }
@@ -397,7 +412,12 @@ ${contextNote ? `📌 <i>संदर्भ: ${escapeTelegramHtml(contextNote)}<
       text: msg,
       parse_mode: "HTML",
     }),
-  }).catch((e) => console.warn("Telegram AI question alert err:", e));
+  }).then(async (res) => {
+    if (res.status === 401) {
+      cfg.enabled = false;
+      saveTelegramConfig(cfg);
+    }
+  }).catch(() => {});
 }
 
 async function sendTelegramInterviewAlert(report: any): Promise<void> {
@@ -430,7 +450,12 @@ ${(report.answers || []).length > 4 ? `<i>...तथा कुल ${report.answer
       text: msg,
       parse_mode: "HTML",
     }),
-  }).catch((e) => console.warn("Telegram interview alert err:", e));
+  }).then(async (res) => {
+    if (res.status === 401) {
+      cfg.enabled = false;
+      saveTelegramConfig(cfg);
+    }
+  }).catch(() => {});
 }
 
 const PLAN_PRICES: Record<number, number> = {
@@ -552,6 +577,7 @@ You speak fluently, warmly, and naturally in Hindi (Devanagari script), Hinglish
 - If asked about "Bal Vikas" (बाल विकास): Explain the 700+ page digital book, Chintu AI live cartoon teacher, 3D body parts, pencil tracing slate, and Plan 01 (₹10 lifetime access with ₹7 instant payout).
 - If asked any Academic, GK, Math, Science, or General question (e.g., 2+2, भारत की राजधानी, बिहार के मुख्यमंत्री, प्रकाश संश्लेषण, गोदावरी नदी, आदि): State the exact answer immediately on line 1, followed by concise key facts and relevant navigation buttons.
 - Always be truthful, accurate, and genuinely helpful.
+- MANDATE FOR UNANSWERABLE OR UNKNOWN QUESTIONS: If a user asks a question the system cannot answer or that is completely unknown/unanswerable, you MUST gracefully state that you do not have the information, and offer to help with platform-related queries (such as the 7 master plans, 50%-70% instant payouts, registration steps, digital ID cards, and citizen/RTPS services) along with relevant [[NAV:...]] tags!
 
 =======================================================
 🌟 MASTER IDENTITY & MISSION
@@ -1811,6 +1837,14 @@ async function startServer() {
   // Telegram API: Send Test Alert
   app.post("/api/telegram/test", async (req: Request, res: Response) => {
     try {
+      const cfg = loadTelegramConfig();
+      if (!cfg.enabled || !cfg.botToken || !cfg.chatId) {
+        return res.status(400).json({
+          success: false,
+          error: "टेलीग्राम अलर्ट वर्तमान में अक्षम (Disabled) है। कृपया पहले वैध Bot Token व Chat ID कॉन्फ़िगर करें।"
+        });
+      }
+
       const testUser = {
         userId: "IOIS-DEMO-TEST",
         fullName: "परीक्षण सदस्य (Test Member)",
@@ -2669,19 +2703,22 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
           sendTelegramUnansweredQuestionAlert(trimmedMsg);
         }
 
-        fallbackReply = `आपके प्रश्न "${trimmedMsg}" पर अधिक सटीक जानकारी प्राप्त करने के लिए कृपया मुख्य कीवर्ड या विषय स्पष्ट लिखें।
+        fallbackReply = `क्षमा करें, मेरे पास आपके इस विशिष्ट प्रश्न की सटीक जानकारी उपलब्ध नहीं है।
 
-आप हमसे सामान्य ज्ञान, बिहार का इतिहास, देश-दुनिया के तथ्य, बाल विकास या IOIS सेवाओं पर कोई भी सवाल पूछ सकते हैं:
-• बाल विकास (Plan 01 ₹10): 700+ पृष्ठों की पुस्तक, चिंटू AI व 3D शरीर
-• 15-सवाल कौशल टेस्ट: टेस्ट व प्लान गाइड
-• 7 डिजिटल प्लांस: ₹10 से ₹999 में लाइफटाइम एक्सेस व 70% पेआउट
-• विद्यार्थी शिक्षा हब: NCERT नोट्स, मैथ फॉर्मूला व स्कॉलरशिप
-• नागरिक सेवाएं: RTPS जाति/आय/निवास, जमीन दाखिल खारिज, Instant e-PAN
+लेकिन मैं IOIS प्लेटफ़ॉर्म का आधिकारिक सहायक हूँ और मैं आपको हमारे 7 मास्टर प्लान्स (₹10 से ₹999), 50%-70% तुरंत पेआउट, डिजिटल ID कार्ड, नया रजिस्ट्रेशन, और सरकारी नागरिक सेवाओं से जुड़े किसी भी सवाल में पूरी सहायता प्रदान कर सकता हूँ:
+• 7 मास्टर प्लान्स: ₹10 से ₹999 में हर प्लान के फीचर्स, लाभ, टारगेट ऑडियंस व व्यावहारिक उदाहरण
+• 50%-70% तुरंत पेआउट: बिना किसी कटौती के सीधे आपके UPI या बैंक खाते में ट्रांसफर
+• 3 आसान चरणों में रजिस्ट्रेशन: 5 मिनट में सदस्य बनें और 256-बिट सुरक्षित डिजिटल ID कार्ड पाएं
+• बाल विकास डिजिटल पुस्तक (Plan 01 ₹10): 700+ पृष्ठ, चिंटू AI शिक्षक व 3D मानव शरीर रचना
+• RTPS नागरिक सेवाएं: जाति, आय, निवास प्रमाण पत्र, जमीन दाखिल-खारिज व Instant e-PAN
 
-[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स खोलें]]
-[[NAV:page:assessment|15-सवाल असेसमेंट दें]]
-[[NAV:page:plans|7 मास्टर प्लांस देखें]]
-[[NAV:whatsapp:918877490845|व्हाट्सएप हेल्पलाइन (+91 8877490845)]]`;
+कृपया प्लेटफ़ॉर्म से संबंधित अपना सवाल पूछें या नीचे दिए गए विकल्पों में से चुनें:
+
+[[NAV:page:plans|7 मास्टर प्लान्स का पूरा विवरण देखें]]
+[[NAV:page:register|नया रजिस्ट्रेशन करें]]
+[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]
+[[NAV:page:idcard|डिजिटल ID कार्ड खोलें]]
+[[NAV:external:https://t.me/newuserhelpline|🎧 𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘 (Telegram)]]`;
       }
 
       return res.json({ reply: cleanBotReply(fallbackReply), grounded: false });

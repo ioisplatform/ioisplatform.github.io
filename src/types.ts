@@ -72,6 +72,7 @@ export interface UserProfile {
   editHistory?: UserEditLog[];
   registrationFormData?: Record<string, any>;
   privacySettings?: UserPrivacySettings;
+  profileFrameId?: string;
 }
 
 export interface AdminPrivateMessage {

@@ -285,7 +285,7 @@ html.light .tiranga-text {
   background: linear-gradient(135deg, #FF9933 0%, #D4AF37 50%, #138808 100%);
   color: #000;
   font-weight: 900;
-  border-radius: 9999px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -294,48 +294,67 @@ html.light .tiranga-text {
   text-decoration: none;
   box-shadow: 0 10px 25px rgba(212, 175, 55, 0.4);
   transition: all 0.3s ease;
+  line-height: 1.3;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .btn-gold-gradient:hover {
-  transform: scale(1.03);
+  transform: scale(1.02);
   box-shadow: 0 12px 30px rgba(212, 175, 55, 0.65);
 }
 
 /* ========================================================================= */
-/* BUTTERY-SMOOTH GPU-ACCELERATED DUAL-TRACK TICKER (ZERO STUTTER / 60-120FPS) */
+/* BUTTERY-SMOOTH GPU-ACCELERATED ULTRA 60-120FPS TICKER (ZERO STUTTER)      */
 /* ========================================================================= */
-@keyframes ticker-slide-infinite {
-  0% {
+@keyframes ticker-marquee-continuous {
+  from {
     transform: translate3d(0, 0, 0);
   }
-  100% {
-    transform: translate3d(-100%, 0, 0);
+  to {
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
-.ticker-slide-track {
+.ticker-viewport {
+  overflow: hidden;
+  width: 100%;
   display: flex;
+  contain: layout paint style;
+  isolation: isolate;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  mask-image: linear-gradient(to right, transparent 0%, black 1.5%, black 98.5%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 1.5%, black 98.5%, transparent 100%);
+}
+
+.ticker-continuous-track {
+  display: flex;
+  width: max-content;
   flex-shrink: 0;
-  align-items: center;
   white-space: nowrap;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   -webkit-transform: translate3d(0, 0, 0);
+  animation: ticker-marquee-continuous 40s linear infinite;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  animation: ticker-slide-infinite 36s linear infinite;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
-.ticker-slide-track-normal {
-  animation-duration: 24s;
+.ticker-continuous-track-normal {
+  animation-duration: 26s;
 }
 
-.ticker-slide-track-fast {
-  animation-duration: 14s;
+.ticker-continuous-track-fast {
+  animation-duration: 16s;
 }
 
-.ticker-paused .ticker-slide-track,
-.ticker-wrapper:hover .ticker-slide-track {
+/* Explicit pause ONLY when the user clicks the pause button, NOT on hover */
+.ticker-continuous-track.ticker-is-paused {
   animation-play-state: paused !important;
 }
 
@@ -1011,6 +1030,454 @@ html.light .tiranga-text {
   text-align: center;
 }
 
+/* ========================================================================= */
+/* 3D LIVE HIGH-QUALITY PROFILE FRAMES (ROTATING ORBITS & METALLIC CRESTS)   */
+/* ========================================================================= */
+@keyframes ioisSpinOrbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
+@keyframes ioisSpinOrbitRev {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
 
+@keyframes ioisPulseAura {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(236, 72, 153, 0.8));
+  }
+}
 
+/* 1. IOIS Rainbow Spinning Orbit */
+.frame-iois-spinning-orbit-rainbow {
+  position: relative;
+}
+.frame-iois-spinning-orbit-rainbow::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ff0055, #ff9900, #ffee00, #00ff66, #00ccff, #9900ff, #ff0055);
+  animation: ioisSpinOrbit 3s linear infinite;
+  z-index: 1;
+  filter: drop-shadow(0 0 8px rgba(0, 230, 118, 0.6));
+}
+.frame-iois-spinning-orbit-rainbow::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 2. 24K Gold Orbit */
+.frame-iois-spinning-orbit-gold {
+  position: relative;
+}
+.frame-iois-spinning-orbit-gold::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #fff1b8, #dfba58, #8c6510, #fff5c2, #d4af37, #7a5600, #fff1b8);
+  animation: ioisSpinOrbit 4s linear infinite;
+  z-index: 1;
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.7));
+}
+.frame-iois-spinning-orbit-gold::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 3. Tiranga National Orbit */
+.frame-iois-spinning-orbit-tricolor {
+  position: relative;
+}
+.frame-iois-spinning-orbit-tricolor::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ff9933 0deg 120deg, #ffffff 120deg 240deg, #138808 240deg 360deg);
+  animation: ioisSpinOrbit 3.5s linear infinite;
+  z-index: 1;
+  filter: drop-shadow(0 0 9px rgba(255, 153, 51, 0.65));
+}
+.frame-iois-spinning-orbit-tricolor::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 4. Cyber Quantum Cyan */
+.frame-iois-spinning-orbit-cyan {
+  position: relative;
+}
+.frame-iois-spinning-orbit-cyan::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #00f0ff, #0072ff, #7000ff, #00f0ff);
+  animation: ioisSpinOrbit 2.5s linear infinite;
+  z-index: 1;
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.8));
+}
+.frame-iois-spinning-orbit-cyan::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 5. Master Lifetime 999 Diamond Crown */
+.frame-plan-07-masterlifetime {
+  position: relative;
+}
+.frame-plan-07-masterlifetime::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ff007f, #7928ca, #0070f3, #00dfd8, #ff007f);
+  animation: ioisSpinOrbit 3s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+}
+.frame-plan-07-masterlifetime::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 6. Agency Reseller Ruby Crown */
+.frame-plan-06-agencyreseller {
+  position: relative;
+}
+.frame-plan-06-agencyreseller::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f43f5e, #be123c, #fb7185, #f43f5e);
+  animation: ioisSpinOrbitRev 4s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.7);
+}
+.frame-plan-06-agencyreseller::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 7. Student Elite Emerald Halo */
+.frame-plan-05-studentelite {
+  position: relative;
+}
+.frame-plan-05-studentelite::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #10b981, #047857, #6ee7b7, #10b981);
+  animation: ioisSpinOrbit 4s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.7);
+}
+.frame-plan-05-studentelite::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 8. Family VIP Sapphire Guard */
+.frame-plan-04-familyvip {
+  position: relative;
+}
+.frame-plan-04-familyvip::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #6366f1, #3730a3, #a5b4fc, #6366f1);
+  animation: ioisSpinOrbit 4.5s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.7);
+}
+.frame-plan-04-familyvip::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 9. Career Gold Crest */
+.frame-plan-03-career {
+  position: relative;
+}
+.frame-plan-03-career::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f59e0b, #b45309, #fde68a, #f59e0b);
+  animation: ioisSpinOrbit 5s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.65);
+}
+.frame-plan-03-career::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 10. Youth Skill Silver */
+.frame-plan-02-youthskill {
+  position: relative;
+}
+.frame-plan-02-youthskill::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #38bdf8, #0284c7, #e0f2fe, #38bdf8);
+  animation: ioisSpinOrbit 5s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.65);
+}
+.frame-plan-02-youthskill::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 11. Bal Vikas Bronze */
+.frame-plan-01-balvikas {
+  position: relative;
+}
+.frame-plan-01-balvikas::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f97316, #c2410c, #fdba74, #f97316);
+  animation: ioisSpinOrbit 6s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.6);
+}
+.frame-plan-01-balvikas::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 12. Festive Dhanteras Gold */
+.frame-festive-dhanteras-gold {
+  position: relative;
+}
+.frame-festive-dhanteras-gold::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #fbbf24, #d97706, #fef08a, #d97706, #fbbf24);
+  animation: ioisSpinOrbit 3.5s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.85);
+}
+.frame-festive-dhanteras-gold::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 13. Festive Diwali Diya */
+.frame-festive-diwali-diya {
+  position: relative;
+}
+.frame-festive-diwali-diya::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f59e0b, #ef4444, #fbbf24, #b91c1c, #f59e0b);
+  animation: ioisSpinOrbit 3s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.9);
+}
+.frame-festive-diwali-diya::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* 14. Festive Chhath Surya */
+.frame-festive-chhath-surya {
+  position: relative;
+}
+.frame-festive-chhath-surya::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ea580c, #f59e0b, #dc2626, #ea580c);
+  animation: ioisSpinOrbit 3.2s linear infinite;
+  z-index: 1;
+  box-shadow: 0 0 18px rgba(234, 88, 12, 0.85);
+}
+.frame-festive-chhath-surya::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: #020617;
+  z-index: 2;
+}
+
+/* Generic Fallback Frame for other IDs */
+[class^="frame-"] {
+  position: relative;
+}
+
+/* ========================================================================= */
+/* 3D RUBY VIP BUTTON (FOR ADMIN CONTROL PANEL IN HEADER)                   */
+/* ========================================================================= */
+.btn-3d-ruby {
+  background: linear-gradient(180deg, #f43f5e 0%, #e11d48 50%, #be123c 100%);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-left: 1px solid rgba(255, 255, 255, 0.6);
+  border-right: 1px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2.5px solid #881337;
+  box-shadow: 0 2.5px 0 #881337, 0 4px 10px rgba(225, 29, 72, 0.45);
+  color: #ffffff !important;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  transition: all 0.12s ease-out;
+}
+.btn-3d-ruby:hover {
+  background: linear-gradient(180deg, #fb7185 0%, #f43f5e 50%, #e11d48 100%);
+  box-shadow: 0 3px 0 #881337, 0 6px 16px rgba(225, 29, 72, 0.65);
+  transform: translateY(-1px);
+}
+.btn-3d-ruby:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #881337, 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.logo-3d-box-ruby {
+  background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================================================= */
+/* DIRECTIONAL POINTING ARROW & LIVE CLICK GUIDE ANIMATIONS                  */
+/* ========================================================================= */
+@keyframes pointingArrowHorizontal {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes pointingArrowVertical {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes clickGuidePulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+}
+
+.animate-pointing-right {
+  display: inline-block;
+  animation: pointingArrowHorizontal 1.2s ease-in-out infinite;
+}
+
+.animate-pointing-up {
+  display: inline-block;
+  animation: pointingArrowVertical 1.2s ease-in-out infinite;
+}
+
+.animate-click-pulse {
+  animation: clickGuidePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Unified Mobile & Desktop Button Text Center Alignment */
+.btn-3d-ruby,
+.btn-3d-silver,
+.btn-3d-rainbow,
+.btn-3d-rainbow-special,
+.btn-3d-gold,
+.btn-3d-platinum,
+.btn-gold-gradient {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1.25 !important;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}

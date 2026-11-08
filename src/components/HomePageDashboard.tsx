@@ -30,9 +30,12 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { HomeHeaderWatch } from './HomeHeaderWatch';
+import { FestiveHomeSlider } from './FestiveHomeSlider';
 import { InterviewPreparationSection } from './InterviewPreparationSection';
 import { SuccessStoriesCarousel } from './SuccessStoriesCarousel';
 import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
+import { AskQuestionsHub } from './AskQuestionsHub';
+import { NewVisitorGuideBanner } from './NewVisitorGuideBanner';
 
 interface HomePageDashboardProps {
   onNavigate: (page: PageType) => void;
@@ -165,11 +168,25 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
   ];
 
   return (
-    <div className="space-y-8 sm:space-y-14 w-full max-w-6xl mx-auto">
+    <div className="space-y-6 sm:space-y-12 w-full max-w-6xl mx-auto">
       
+      {/* 0. DEDICATED NEW VISITOR HEADER & ILLUSTRATED PHOTO GUIDE BANNER */}
+      <NewVisitorGuideBanner
+        onNavigate={onNavigate}
+        onOpenRegister={onOpenRegister}
+        onOpenLogin={onOpenLogin}
+        onOpenIdCard={onOpenIdCard}
+        onSelectPlanForRegister={onSelectPlanForRegister}
+      />
+
       {/* 1. TOP HEADER WATCH (DIGITAL CLOCK + LUXURY ANALOG WATCH 1..12) */}
-      <section className="w-full space-y-2">
+      <section className="w-full space-y-4">
         <HomeHeaderWatch />
+        {/* 7-SLIDE HIGH-CONVERTING FESTIVE & SMART SAVINGS AUTO-CAROUSEL (100% RESPONSIVE) */}
+        <FestiveHomeSlider
+          onNavigate={onNavigate}
+          onOpenRegister={onOpenRegister}
+        />
       </section>
 
       {/* 2. GOOGLE CHROME STYLE CLEAN SEARCH & WELCOME SURFACE */}
@@ -189,10 +206,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           >
             <span className="text-rainbow-glow-3d">IOIS DIGITAL</span>{' '}
             <span className="text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.4)]">PORTAL</span>
-            <span className="block text-[11px] sm:text-xs font-black text-amber-300 mt-2 px-3 py-1 rounded-full bg-slate-950/90 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.25)] group-hover:border-amber-400 group-hover:text-amber-200 transition-all flex items-center justify-center gap-1.5 max-w-fit mx-auto">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>💡 IOIS क्या है? कैसे काम करता है? कौनसा प्लान अच्छा है? (क्लिक करें)</span>
-              <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-1 transition-transform" />
+            <span className="block text-[10.5px] sm:text-xs font-black text-amber-300 mt-2 px-3 py-1.5 rounded-2xl sm:rounded-full bg-slate-950/90 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.25)] group-hover:border-amber-400 group-hover:text-amber-200 transition-all flex items-center justify-center gap-1.5 max-w-fit mx-auto cursor-pointer">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+              <span>💡 IOIS क्या है और कैसे काम करता है? (विस्तार से जानें)</span>
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-1 transition-transform shrink-0" />
             </span>
           </h1>
 
@@ -469,6 +486,14 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           </div>
         </div>
       </section>
+ 
+      {/* 3.4 INTERACTIVE ASK ANY QUESTION HUB (सवाल पूछें और तुरंत जवाब पाएं) */}
+      <AskQuestionsHub
+        onNavigate={onNavigate}
+        onOpenAiChat={onOpenAiChat}
+        onSelectPlanForRegister={onSelectPlanForRegister}
+        onOpenRegister={onOpenRegister}
+      />
 
       {/* 3.5 SUCCESS STORIES & EARNINGS TESTIMONIALS CAROUSEL (सफलता की कहानियां) */}
       <SuccessStoriesCarousel

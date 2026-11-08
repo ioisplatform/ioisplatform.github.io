@@ -1,0 +1,16 @@
+[
+  {
+    "userId": "IOIS10RK01",
+    "fullName": "Rohit Kumar",
+    "mobileNumber": "9818234567",
+    "email": "9818234567@iois.in",
+    "sponsorId": "IOIS999VK01",
+    "selectedPlanId": 1,
+    "role": "Verified Elite Member",
+    "password": "password123",
+    "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+    "paymentStatus": "pending",
+    "createdAt": "2026-11-07T08:12:13.858Z",
+    "payoutUpi": "rohit@upi"
+  }
+]

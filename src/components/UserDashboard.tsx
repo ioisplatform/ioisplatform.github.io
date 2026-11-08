@@ -18,6 +18,9 @@ import { MarketingToolsSection } from './MarketingToolsSection';
 import { IDCardGenerator } from './IDCardGenerator';
 import { PromotionalPosterStudio } from './PromotionalPosterStudio';
 import { PrivateChatMessenger } from './PrivateChatMessenger';
+import { NotificationModal } from './NotificationModal';
+import { PROFILE_FRAMES, getProfileFrameById, ProfileFrame } from '../data/profileFramesData';
+import { getUserUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
 import { 
   User, 
   CreditCard, 
@@ -47,7 +50,11 @@ import {
   MessageCircle,
   X,
   Loader2,
-  Globe
+  Globe,
+  Bell,
+  Award,
+  Edit3,
+  Palette
 } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -67,6 +74,45 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [copiedShortLink, setCopiedShortLink] = useState<boolean>(false);
+
+  // 35+ 3D Live Profile Frame State
+  const [activeFrameId, setActiveFrameId] = useState<string>(() => {
+    return localStorage.getItem(`iois_user_frame_${user.userId}`) || user.profileFrameId || 'iois-spinning-orbit-rainbow';
+  });
+  const [isFrameModalOpen, setIsFrameModalOpen] = useState<boolean>(false);
+  const [frameCategoryFilter, setFrameCategoryFilter] = useState<'all' | 'orbit' | 'plan' | 'festive' | 'gemstone'>('all');
+
+  // 3D Notification System State
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [userUnreadCount, setUserUnreadCount] = useState<number>(() => getUserUnreadCount(user.userId));
+
+  useEffect(() => {
+    const updateUnread = () => {
+      setUserUnreadCount(getUserUnreadCount(user.userId));
+    };
+    updateUnread();
+    window.addEventListener('iois_notifications_updated', updateUnread);
+    window.addEventListener('storage', updateUnread);
+    const interval = setInterval(updateUnread, 4000);
+    return () => {
+      window.removeEventListener('iois_notifications_updated', updateUnread);
+      window.removeEventListener('storage', updateUnread);
+      clearInterval(interval);
+    };
+  }, [user.userId]);
+
+  const handleSelectFrame = (frameId: string) => {
+    setActiveFrameId(frameId);
+    try {
+      localStorage.setItem(`iois_user_frame_${user.userId}`, frameId);
+      const updated = { ...user, profileFrameId: frameId };
+      updateUserProfile(updated);
+      onUserUpdated(updated);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('iois_user_frame_updated'));
+      }
+    } catch {}
+  };
 
   // Live Stats & Balance Calculation
   const [stats, setStats] = useState(() => getDownlineStats(user.userId));
@@ -272,18 +318,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           {/* User Info Column (Telegram App Look) */}
           <div className="flex items-start sm:items-center gap-4 sm:gap-6">
             
-            {/* Telegram Profile Avatar with Instant Camera Trigger */}
+            {/* Telegram Profile Avatar with 3D Live Animated Frame & Trigger Overlays */}
             <div className="relative shrink-0 group">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-3 border-amber-400 bg-slate-950 shadow-2xl ring-4 ring-amber-500/20">
-                <img 
-                  src={user.photoUrl} 
-                  alt={user.fullName} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300" 
-                />
+              {/* Active 3D Live Frame Container */}
+              <div 
+                className={`relative p-2.5 rounded-full flex items-center justify-center cursor-pointer transition transform hover:scale-105 ${
+                  getProfileFrameById(activeFrameId)?.cssClass || 'frame-iois-spinning-orbit-rainbow'
+                }`}
+                onClick={() => setIsFrameModalOpen(true)}
+                title="3D फ्रेम बदलने के लिए क्लिक करें"
+              >
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-950 shadow-2xl relative z-10">
+                  <img 
+                    src={user.photoUrl} 
+                    alt={user.fullName} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300" 
+                  />
+                </div>
               </div>
 
               {/* Online Pulse Status */}
-              <div className="absolute top-0 right-0 w-6 h-6 rounded-full bg-slate-950 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 shadow-md" title="🟢 ऑनलाइन सदस्य (Telegram Status)">
+              <div className="absolute top-0 right-0 w-6 h-6 rounded-full bg-slate-950 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 shadow-md z-20" title="🟢 ऑनलाइन सदस्य">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
               </div>
 
@@ -291,10 +346,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPhotoModalOpen(true)}
-                className="absolute -bottom-1 -right-1 p-2 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border-2 border-slate-950 shadow-lg cursor-pointer transition transform active:scale-90"
+                className="absolute -bottom-1 -left-1 p-2 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border-2 border-slate-950 shadow-lg cursor-pointer transition transform active:scale-90 z-20"
                 title="फोटो बदलें (Change Profile Photo)"
               >
                 <Camera className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Change 3D Frame Button Overlay */}
+              <button
+                type="button"
+                onClick={() => setIsFrameModalOpen(true)}
+                className="absolute -bottom-1 -right-1 p-2 rounded-full bg-sky-400 hover:bg-sky-300 text-slate-950 border-2 border-slate-950 shadow-lg cursor-pointer transition transform active:scale-90 z-20 animate-pulse"
+                title="35+ 3D लाइव फ्रेम चुनें (Change 3D Frame)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-black" />
               </button>
             </div>
 
@@ -322,6 +387,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     <span>पेमेंट रिजेक्ट</span>
                   </span>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsFrameModalOpen(true)}
+                  className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span>3D Frame: {getProfileFrameById(activeFrameId)?.name || 'Rainbow Orbit'}</span>
+                </button>
               </div>
 
               {/* Telegram Username & User ID Bar */}
@@ -382,30 +456,79 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
           </div>
 
-          {/* Quick Header Right Actions */}
-          <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-2.5 w-full lg:w-auto">
+          {/* Quick Header Right Actions (3D Notification Bell + Frame + Edit Profile + Chat + ID Card) */}
+          <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-2 w-full lg:w-auto flex-wrap">
+            {/* 3D Notification Bell */}
             <button
               type="button"
-              onClick={() => setActiveTab('chat')}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-sky-500/20 active:scale-95"
+              onClick={() => setIsNotificationModalOpen(true)}
+              className="btn-3d-ruby px-3.5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer shadow-lg active:scale-95 relative text-white"
+              title="एडमिन द्वारा भेजे गए नए मैसेज व सूचनाएं"
             >
-              <MessageCircle className="w-4 h-4 text-white" />
-              <span>💬 प्राइवेट चैट (Admin)</span>
+              <Bell className="w-4 h-4 text-white animate-pulse" />
+              <span>सूचनाएं</span>
+              {userUnreadCount > 0 && (
+                <span className="bg-yellow-400 text-black text-[10px] font-black rounded-full px-1.5 py-0.2 shadow animate-bounce">
+                  {userUnreadCount}
+                </span>
+              )}
             </button>
 
+            {/* 3D Frame Picker Button */}
+            <button
+              type="button"
+              onClick={() => setIsFrameModalOpen(true)}
+              className="btn-3d-rainbow-special px-3.5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer shadow-lg active:scale-95 text-black"
+              title="35+ 3D लाइव एनिमेटेड प्रोफाइल फ्रेम चुनें"
+            >
+              <Sparkles className="w-4 h-4 text-black animate-spin" style={{ animationDuration: '4s' }} />
+              <span>3D Frames ({PROFILE_FRAMES.length})</span>
+            </button>
+
+            {/* Edit Profile Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className="btn-3d-silver px-3.5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md active:scale-95 text-slate-950"
+              title="प्रोफाइल विवरण व पेमेंट UTR एडिट करें"
+            >
+              <Edit3 className="w-4 h-4 text-slate-950" />
+              <span>Edit Profile</span>
+            </button>
+
+            {/* Private Chat Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('chat');
+                markChatMessagesAsRead(user.userId, 'user');
+                setUserUnreadCount(0);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-sky-500/20 active:scale-95 relative"
+            >
+              <MessageCircle className="w-4 h-4 text-white" />
+              <span>Private Chat</span>
+              {userUnreadCount > 0 && (
+                <span className="bg-red-500 text-white text-[9.5px] font-black rounded-full px-1.5 py-0.2 shadow">
+                  {userUnreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Digital ID Card Button */}
             <button
               type="button"
               onClick={() => setActiveTab('idcard')}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95"
+              className="btn-3d-platinum px-4 py-2.5 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-lg active:scale-95"
             >
-              <CreditCard className="w-4 h-4 text-slate-950" />
-              <span>डिजिटल ID कार्ड</span>
+              <CreditCard className="w-4 h-4 text-indigo-950" />
+              <span className="text-indigo-950 font-black">Digital ID</span>
             </button>
 
             <button
               type="button"
               onClick={onLogout}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+              className="px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
               title="डैशबोर्ड से सुरक्षित बाहर आएं"
             >
               <LogOut className="w-4 h-4 text-rose-400" />
@@ -774,7 +897,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. DASHBOARD MODERN NAVIGATION TABS (CLEAR, BOLD & EASY)                  */}
+      {/* 4. DASHBOARD MODERN NAVIGATION TABS (ENGLISH LABELS & 1-CLICK ACCESS)     */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-1.5 bg-slate-950/95 rounded-2xl border-2 border-slate-800 shadow-2xl">
         <button
@@ -787,7 +910,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <Share2 className="w-3.5 h-3.5 shrink-0" />
-          <span>1. रेफरल व कमाई</span>
+          <span>Dashboard & Earnings</span>
         </button>
 
         <button
@@ -800,12 +923,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <CreditCard className="w-3.5 h-3.5 shrink-0" />
-          <span>2. डिजिटल ID</span>
+          <span>Digital ID Card</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setActiveTab('chat')}
+          onClick={() => {
+            setActiveTab('chat');
+            markChatMessagesAsRead(user.userId, 'user');
+            setUserUnreadCount(0);
+          }}
           className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer relative ${
             activeTab === 'chat'
               ? 'bg-gradient-to-r from-sky-400 via-blue-500 to-sky-500 text-white font-black shadow-lg shadow-sky-500/25 scale-[1.02]'
@@ -813,8 +940,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>3. प्राइवेट चैट</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute top-1.5 right-1.5"></span>
+          <span>Private Chat</span>
+          {userUnreadCount > 0 ? (
+            <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.2 shadow animate-pulse">
+              {userUnreadCount}
+            </span>
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute top-1.5 right-1.5"></span>
+          )}
         </button>
 
         <button
@@ -827,7 +960,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-          <span>4. प्रमोशनल मटेरियल</span>
+          <span>Poster Studio</span>
         </button>
 
         <button
@@ -840,7 +973,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <Sparkles className="w-3.5 h-3.5 shrink-0" />
-          <span>5. टूल्स</span>
+          <span>Marketing Kit</span>
         </button>
 
         <button
@@ -853,7 +986,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <User className="w-3.5 h-3.5 shrink-0" />
-          <span>6. प्रोफाइल</span>
+          <span>Edit Profile</span>
         </button>
 
         <button
@@ -866,7 +999,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>7. हेल्पलाइन</span>
+          <span>Support Tickets</span>
         </button>
       </div>
 
@@ -926,14 +1059,212 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 5: PROFILE EDIT SECTION & UTR SCREENSHOT PROOF                       */}
+      {/* TAB 5: 3D LIVE PROFILE FRAME STUDIO & MEMBER PROFILE SECTION              */}
       {/* ========================================================================= */}
       {activeTab === 'profile' && (
-        <div className="glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30 animate-fadeIn">
-          <ProfileEditSection
-            user={user}
-            onUserUpdated={onUserUpdated}
-          />
+        <div className="space-y-6 animate-fadeIn">
+          {/* 1. 3D Live Profile Frame Interactive Studio Banner */}
+          <div className="glass-card-gold p-5 sm:p-7 rounded-3xl border-2 border-amber-500/50 shadow-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 relative overflow-hidden space-y-6">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Studio Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-amber-500/30 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-400 to-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg">
+                  <Sparkles className="w-6 h-6 animate-spin text-slate-950" />
+                </div>
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                    <span>40+ 3D LIVE HD PROFILE FRAMES</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                    <span>👑 3D लाइव प्रोफाइल फ्रेम व अवतार स्टूडियो</span>
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    यहाँ से अपनी प्रोफाइल फोटो और डिजिटल ID कार्ड के लिए लाइव 3D घूमते हुए आकर्षक फ्रेम चुनें।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition active:scale-95"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>फ़ोटो बदलें</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('idcard')}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow transition active:scale-95"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>ID कार्ड पर देखें</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Active Frame Showcase Center */}
+            {(() => {
+              const currentActiveFrame = getProfileFrameById(activeFrameId);
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-amber-500/30 relative z-10">
+                  {/* Left: Giant Live Preview */}
+                  <div className="flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="relative p-3 flex items-center justify-center">
+                      <div className={`relative p-3 rounded-full flex items-center justify-center transition-all duration-300 ${currentActiveFrame?.cssClass || 'frame-iois-spinning-orbit-rainbow'}`}>
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-2xl relative z-10">
+                          <img
+                            src={user.photoUrl}
+                            alt={user.fullName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-2 right-4 bg-emerald-500 text-slate-950 p-1 rounded-full border-2 border-slate-950 shadow-md z-20">
+                        <CheckCircle2 className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                      सक्रिय 3D लाइव फ्रेम (Active)
+                    </span>
+                  </div>
+
+                  {/* Middle: Active Frame Info */}
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                        {currentActiveFrame?.badgeIcon} {currentActiveFrame?.badgeLabel}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-mono">
+                        टियर: <b className="text-amber-300 uppercase">{currentActiveFrame?.tier}</b>
+                      </span>
+                    </div>
+
+                    <h4 className="text-base sm:text-lg font-black text-white">
+                      {currentActiveFrame?.nameHi} <span className="text-xs text-slate-400 font-normal">({currentActiveFrame?.name})</span>
+                    </h4>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {currentActiveFrame?.description}
+                    </p>
+
+                    <div className="pt-2 flex items-center gap-2 text-[11px] text-amber-300 font-medium">
+                      <span>⚡ यह 3D फ्रेम आपके डैशबोर्ड अवतार और <b>डिजिटल ID कार्ड</b> दोनों पर लाइव लागू रहेगा।</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Frame Category Filter Pills */}
+            <div className="space-y-3 relative z-10 pt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-amber-400" />
+                  <span>3D लाइव फ्रेम चुनें (Choose from 40+ HD Frames):</span>
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  कुल उपलब्ध: 40 फ्रेम
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                {[
+                  { id: 'all', label: 'सभी फ्रेम्स (40+)' },
+                  { id: 'orbit', label: '🌀 3D चक्र व ऑर्बिट' },
+                  { id: 'plan', label: '👑 VIP व 7-प्लान फ्रेम' },
+                  { id: 'festive', label: '✨ फेस्टिव (दीवाली, छठ, धनतेरस)' },
+                  { id: 'gemstone', label: '💎 जेमस्टोन (नीलम, पन्ना, रूबी)' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setFrameCategoryFilter(cat.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                      frameCategoryFilter === cat.id
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Frames Grid (40+ Live HD Frames) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                {PROFILE_FRAMES.filter((f) => {
+                  if (frameCategoryFilter === 'all') return true;
+                  if (frameCategoryFilter === 'orbit') return f.id.includes('orbit');
+                  if (frameCategoryFilter === 'plan') return f.id.includes('plan');
+                  if (frameCategoryFilter === 'festive') return ['dhanteras', 'diwali', 'govardhan', 'bhaidooj', 'chhath', 'navratri', 'eid', 'holi', 'republic'].some(k => f.id.includes(k));
+                  if (frameCategoryFilter === 'gemstone') return ['sapphire', 'emerald', 'ruby', 'amethyst', 'obsidian', 'cyberpunk', 'prism', 'supernova'].some(k => f.id.includes(k));
+                  return true;
+                }).map((frame) => {
+                  const isSelected = activeFrameId === frame.id;
+                  return (
+                    <div
+                      key={frame.id}
+                      onClick={() => handleSelectFrame(frame.id)}
+                      className={`p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col items-center text-center space-y-2 relative group hover:scale-[1.03] ${
+                        isSelected
+                          ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.35)]'
+                          : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {/* Live Frame Preview with user photo */}
+                      <div className="relative p-2 flex items-center justify-center">
+                        <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass}`}>
+                          <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-md">
+                            <img
+                              src={user.photoUrl}
+                              alt={frame.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Frame Details */}
+                      <div className="space-y-0.5 w-full">
+                        <h5 className="text-[11px] font-black text-white truncate">{frame.nameHi}</h5>
+                        <p className="text-[9.5px] text-slate-400 truncate">{frame.name}</p>
+                      </div>
+
+                      {/* Tier Badge & Select Button */}
+                      <div className="w-full pt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectFrame(frame.id);
+                          }}
+                          className={`w-full py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-400 text-slate-950 shadow'
+                              : 'bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800'
+                          }`}
+                        >
+                          {isSelected ? '✓ सक्रिय (Active)' : 'लागू करें (Apply)'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Comprehensive Profile Details & Edit Section */}
+          <div className="glass-card-gold p-6 sm:p-7 rounded-3xl border border-amber-500/30">
+            <ProfileEditSection
+              user={user}
+              onUserUpdated={onUserUpdated}
+            />
+          </div>
         </div>
       )}
 
@@ -1100,6 +1431,174 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3D NOTIFICATION SYSTEM MODAL (INSTANT USER NOTIFICATIONS & DIRECT REPLY)   */}
+      {/* ========================================================================= */}
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        role="user"
+        userId={user.userId}
+        userName={user.fullName}
+        onOpenChat={() => {
+          setActiveTab('chat');
+          markChatMessagesAsRead(user.userId, 'user');
+          setUserUnreadCount(0);
+        }}
+      />
+
+      {/* ========================================================================= */}
+      {/* 35+ 3D LIVE HIGH-QUALITY PROFILE FRAME PICKER MODAL (40 FRAMES)            */}
+      {/* ========================================================================= */}
+      {isFrameModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-4xl max-h-[90vh] bg-slate-950 border-2 border-amber-500/60 rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-4 sm:p-6 border-b border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-slate-900 to-amber-500/10 flex items-center justify-between shrink-0">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
+                  <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+                  <span>35+ 3D LIVE HD PROFILE FRAMES</span>
+                </div>
+                <h3 className="text-base sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>अपनी प्रोफाइल के लिए 3D लाइव फ्रेम चुनें</span>
+                  <span className="text-xs bg-slate-900 text-amber-400 px-2 py-0.5 rounded-full border border-slate-700 font-mono">
+                    {PROFILE_FRAMES.length} फ्रेम्स
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  घूमता हुआ चक्र, 7 मास्टर प्लान, धनतेरस, दिवाली, छठ पूजा व लग्जरी जेमस्टोन इफेक्ट्स।
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsFrameModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition"
+                title="बंद करें"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="px-4 py-2.5 bg-slate-900/80 border-b border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+              {[
+                { id: 'all', label: `सभी फ्रेम्स (${PROFILE_FRAMES.length})` },
+                { id: 'orbit', label: '🌀 3D लाइव स्पिनिंग ऑर्बिट' },
+                { id: 'plan', label: '👑 7 मास्टर प्लान फ्रेम्स' },
+                { id: 'festive', label: '🪔 धनतेरस, दिवाली, छठ' },
+                { id: 'gemstone', label: '💎 लग्जरी जेमस्टोन VIP' },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setFrameCategoryFilter(cat.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
+                    frameCategoryFilter === cat.id
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                      : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Frames Grid */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {PROFILE_FRAMES.filter((f) => {
+                if (frameCategoryFilter === 'all') return true;
+                if (frameCategoryFilter === 'orbit') return f.id.includes('orbit');
+                if (frameCategoryFilter === 'plan') return f.id.includes('plan');
+                if (frameCategoryFilter === 'festive') return ['dhanteras', 'diwali', 'govardhan', 'bhaidooj', 'chhath', 'navratri', 'eid', 'holi', 'republic'].some(k => f.id.includes(k));
+                if (frameCategoryFilter === 'gemstone') return ['sapphire', 'emerald', 'ruby', 'amethyst', 'obsidian', 'cyberpunk', 'prism', 'supernova'].some(k => f.id.includes(k));
+                return true;
+              }).map((frame) => {
+                const isSelected = activeFrameId === frame.id;
+                return (
+                  <div
+                    key={frame.id}
+                    onClick={() => handleSelectFrame(frame.id)}
+                    className={`relative p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col items-center text-center justify-between gap-2.5 ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-2 ring-amber-400/40'
+                        : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {/* Active Selected Badge */}
+                    {isSelected && (
+                      <span className="absolute top-2 right-2 bg-amber-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shadow">
+                        <Check className="w-2.5 h-2.5" />
+                        <span>सक्रिय</span>
+                      </span>
+                    )}
+
+                    {/* Frame Live Preview Circle */}
+                    <div className="pt-2">
+                      <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass}`}>
+                        <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-950 shadow-inner">
+                          <img 
+                            src={user.photoUrl} 
+                            alt={frame.name}
+                            className="w-full h-full object-cover" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Frame Details */}
+                    <div className="w-full space-y-0.5">
+                      <h4 className="text-xs font-black text-white truncate">{frame.name}</h4>
+                      <p className="text-[10px] text-amber-300 font-bold truncate">{frame.nameHi}</p>
+                      <span className="inline-block text-[9px] bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800 text-slate-400 mt-1">
+                        {frame.tier}
+                      </span>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectFrame(frame.id);
+                      }}
+                      className={`w-full py-1.5 rounded-xl text-[11px] font-black transition ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                          : 'bg-slate-950 hover:bg-amber-500/20 text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      {isSelected ? 'सक्रिय है' : 'फ्रेम लगाएं'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
+              <span className="text-[11px]">
+                चुना गया फ्रेम आपके यूजर डैशबोर्ड व डिजिटल प्रोफाइल पर तुरंत सक्रिय हो जाएगा।
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsFrameModalOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black cursor-pointer shadow"
+              >
+                पूर्ण हुआ (Done)
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

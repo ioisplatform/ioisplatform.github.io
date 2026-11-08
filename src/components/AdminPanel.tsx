@@ -60,9 +60,19 @@ import {
   Copy,
   Check,
   MessageCircle,
+  Key,
   Edit3,
-  Key
+  Bell,
+  Sliders,
+  Image as ImageIcon,
+  Calendar,
+  Printer,
+  CalendarDays
 } from 'lucide-react';
+import { RegistrationModal } from './RegistrationModal';
+import { NotificationModal } from './NotificationModal';
+import { getAdminUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
+import { getStoredSliders, saveStoredSliders, HomeSliderItem, DEFAULT_HOME_SLIDERS } from '../data/homeSliderData';
 
 interface AdminPanelProps {
   onUserStatusChange?: () => void;
@@ -73,10 +83,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [adminPin, setAdminPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews'>('approvals');
+  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // 3D Notification System State
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [adminUnreadCount, setAdminUnreadCount] = useState<number>(() => getAdminUnreadCount());
+
+  // Slider & Festive Banner Manager State
+  const [sliderList, setSliderList] = useState<HomeSliderItem[]>(() => getStoredSliders());
+  const [editingSlider, setEditingSlider] = useState<HomeSliderItem | null>(null);
+  const [sliderSuccessMsg, setSliderSuccessMsg] = useState<string>('');
+
+  useEffect(() => {
+    const updateAdminUnread = () => {
+      setAdminUnreadCount(getAdminUnreadCount());
+    };
+    updateAdminUnread();
+    window.addEventListener('iois_notifications_updated', updateAdminUnread);
+    window.addEventListener('storage', updateAdminUnread);
+    const interval = setInterval(updateAdminUnread, 4000);
+    return () => {
+      window.removeEventListener('iois_notifications_updated', updateAdminUnread);
+      window.removeEventListener('storage', updateAdminUnread);
+      clearInterval(interval);
+    };
+  }, []);
   
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -287,18 +321,185 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     setReplyTicketId(null);
   };
 
-  const filteredUsers = usersList.filter((u) => {
-    const matchesSearch = 
-      u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.userId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.mobileNumber.includes(searchQuery);
+  // Join Page Modal State & Date Sorting / Date Filter
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState<boolean>(false);
+  const [sortDateOrder, setSortDateOrder] = useState<'newest' | 'oldest'>('newest');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
 
-    if (statusFilter === 'all') return matchesSearch;
-    return matchesSearch && u.paymentStatus === statusFilter;
-  });
+  // Result Pop-up Window State (for Pending Approvals, All Users, etc.)
+  const [popupTabResult, setPopupTabResult] = useState<'pending' | 'all_users' | null>(null);
+  const [popupSearchQuery, setPopupSearchQuery] = useState<string>('');
+  const [popupStatusFilter, setPopupStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [popupDateFilter, setPopupDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
+  const [popupSortOrder, setPopupSortOrder] = useState<'newest' | 'oldest'>('newest');
+
+  // Format Join Date & Time with exact timestamp and relative tag
+  const formatJoinDateTime = (dateStr?: string) => {
+    if (!dateStr) {
+      return {
+        formattedDate: 'पुराना रिकॉर्ड',
+        formattedTime: '--:--',
+        relativeBadge: 'सदस्य',
+        rawDateKey: 'old_record',
+        fullDateTime: 'उपलब्ध नहीं'
+      };
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      return {
+        formattedDate: String(dateStr),
+        formattedTime: '',
+        relativeBadge: 'रजिस्टर्ड',
+        rawDateKey: String(dateStr),
+        fullDateTime: String(dateStr)
+      };
+    }
+
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    let relativeBadge = '';
+    if (isToday) {
+      relativeBadge = '🔥 आज (Today)';
+    } else if (isYesterday) {
+      relativeBadge = '⚡ कल (Yesterday)';
+    } else if (diffDays >= 0 && diffDays <= 7) {
+      relativeBadge = `📅 ${diffDays} दिन पहले`;
+    } else {
+      relativeBadge = d.toLocaleDateString('hi-IN', { day: '2-digit', month: 'short' });
+    }
+
+    const formattedDate = d.toLocaleDateString('hi-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const formattedTime = d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    const rawDateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    return {
+      formattedDate,
+      formattedTime,
+      relativeBadge,
+      rawDateKey,
+      fullDateTime: `${formattedDate}, ${formattedTime}`
+    };
+  };
+
+  const filteredUsers = usersList
+    .filter((u) => {
+      const matchesSearch = 
+        u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.userId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.mobileNumber.includes(searchQuery) ||
+        (u.createdAt && u.createdAt.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      if (!matchesSearch) return false;
+      if (statusFilter !== 'all' && u.paymentStatus !== statusFilter) return false;
+
+      if (dateFilter !== 'all') {
+        const d = new Date(u.createdAt || 0);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        if (dateFilter === 'today') {
+          if (d.toDateString() !== now.toDateString()) return false;
+        } else if (dateFilter === 'yesterday') {
+          const yesterday = new Date();
+          yesterday.setDate(now.getDate() - 1);
+          if (d.toDateString() !== yesterday.toDateString()) return false;
+        } else if (dateFilter === 'week') {
+          const diffMs = now.getTime() - d.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 7) return false;
+        } else if (dateFilter === 'month') {
+          const diffMs = now.getTime() - d.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 30) return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (sortDateOrder === 'newest') {
+        return timeB - timeA; // Newest users appear at the top!
+      } else {
+        return timeA - timeB; // Oldest users first
+      }
+    });
 
   const pendingCount = usersList.filter((u) => u.paymentStatus === 'pending').length;
+  const approvedCount = usersList.filter((u) => u.paymentStatus === 'approved').length;
+  const rejectedCount = usersList.filter((u) => u.paymentStatus === 'rejected').length;
   const openTicketCount = ticketsList.filter((t) => t.status === 'open').length;
+
+  // Filtered users specifically for the Pop-up Window
+  const popupFilteredUsers = usersList
+    .filter((u) => {
+      // If opened for pending, default to pending status unless explicitly toggled in popup
+      const effectiveStatus = popupTabResult === 'pending' && popupStatusFilter === 'all'
+        ? 'pending'
+        : popupStatusFilter;
+
+      if (effectiveStatus !== 'all' && u.paymentStatus !== effectiveStatus) return false;
+
+      const q = popupSearchQuery.toLowerCase().trim();
+      if (q) {
+        const matches = 
+          u.fullName.toLowerCase().includes(q) ||
+          u.userId.toLowerCase().includes(q) ||
+          u.mobileNumber.includes(q) ||
+          (u.paymentUtr && u.paymentUtr.toLowerCase().includes(q)) ||
+          (u.createdAt && u.createdAt.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+
+      if (popupDateFilter !== 'all') {
+        const d = new Date(u.createdAt || 0);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        if (popupDateFilter === 'today') {
+          if (d.toDateString() !== now.toDateString()) return false;
+        } else if (popupDateFilter === 'yesterday') {
+          const yesterday = new Date();
+          yesterday.setDate(now.getDate() - 1);
+          if (d.toDateString() !== yesterday.toDateString()) return false;
+        } else if (popupDateFilter === 'week') {
+          const diffMs = now.getTime() - d.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 7) return false;
+        } else if (popupDateFilter === 'month') {
+          const diffMs = now.getTime() - d.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 30) return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (popupSortOrder === 'newest') {
+        return timeB - timeA;
+      } else {
+        return timeA - timeB;
+      }
+    });
 
   if (!isAdminAuth) {
     return (
@@ -366,6 +567,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* 3D Notification Bell Button */}
+          <button
+            type="button"
+            onClick={() => setIsNotificationModalOpen(true)}
+            className="btn-3d-ruby px-3 py-1.5 rounded-lg text-white text-xs font-black flex items-center gap-1.5 relative shadow-md active:scale-95 cursor-pointer"
+            title="यूजर मैसेज व टिकट सूचनाएं (Notifications)"
+          >
+            <Bell className="w-3.5 h-3.5 text-white animate-pulse" />
+            <span>सूचनाएं</span>
+            {adminUnreadCount > 0 && (
+              <span className="bg-yellow-400 text-black text-[10px] font-black rounded-full px-1.5 py-0.2 shadow animate-bounce">
+                {adminUnreadCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={reloadData}
             disabled={isRefreshing}
@@ -384,41 +601,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
       </div>
 
-      {/* Admin Stats & Tab Bar (8 Management Tabs) - Compact Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-2">
+      {/* Admin Stats & Tab Bar (9 Management Tabs) - Compact Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1.5 sm:gap-2">
         <button
-          onClick={() => setActiveTab('approvals')}
-          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
-            activeTab === 'approvals'
-              ? 'bg-amber-500/20 border-amber-400 text-white shadow-md'
+          onClick={() => {
+            setActiveTab('approvals');
+            setPopupTabResult('pending');
+            setPopupStatusFilter('pending');
+            setPopupSearchQuery('');
+          }}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between group hover:border-amber-400 hover:scale-[1.02] ${
+            activeTab === 'approvals' || popupTabResult === 'pending'
+              ? 'bg-amber-500/25 border-amber-400 text-white shadow-lg ring-1 ring-amber-400/50'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
+          title="लंबित अप्रूवल सदस्यों की फ़िल्टर सूची पॉप-अप विंडो में खोलें (Click to open filtered pop-up window)"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[9.5px] font-bold text-slate-400">लंबित अप्रूवल</span>
-            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-[9.5px] font-bold text-amber-300 flex items-center gap-1">
+              <span>लंबित अप्रूवल</span>
+            </span>
+            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
           </div>
-          <div className="text-sm sm:text-base font-black text-amber-400 mt-0.5">{pendingCount} यूज़र्स</div>
+          <div className="flex items-center justify-between mt-0.5">
+            <div className="text-sm sm:text-base font-black text-amber-400">{pendingCount} यूज़र्स</div>
+            <span className="text-[8.5px] font-bold px-1.5 py-0.2 bg-amber-400/20 text-amber-300 rounded border border-amber-400/40 flex items-center gap-0.5 group-hover:bg-amber-400 group-hover:text-slate-950 transition">
+              <ExternalLink className="w-2.5 h-2.5" />
+              <span>पॉपअप</span>
+            </span>
+          </div>
         </button>
 
         <button
-          onClick={() => setActiveTab('all_users')}
-          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
-            activeTab === 'all_users'
-              ? 'bg-amber-500/20 border-amber-400 text-white shadow-md'
+          onClick={() => {
+            setActiveTab('all_users');
+            setPopupTabResult('all_users');
+            setPopupStatusFilter('all');
+            setPopupSearchQuery('');
+          }}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between group hover:border-sky-400 hover:scale-[1.02] ${
+            activeTab === 'all_users' || popupTabResult === 'all_users'
+              ? 'bg-sky-500/25 border-sky-400 text-white shadow-lg ring-1 ring-sky-400/50'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
           }`}
+          title="सभी सदस्यों की संपूर्ण सूची पॉप-अप विंडो में खोलें (Click to open full database pop-up window)"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[9.5px] font-bold text-slate-400">कुल सदस्य</span>
+            <span className="text-[9.5px] font-bold text-sky-300 flex items-center gap-1">
+              <span>कुल सदस्य</span>
+            </span>
             <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
           </div>
-          <div className="text-sm sm:text-base font-black text-white mt-0.5">{usersList.length} यूज़र्स</div>
+          <div className="flex items-center justify-between mt-0.5">
+            <div className="text-sm sm:text-base font-black text-white">{usersList.length} यूज़र्स</div>
+            <span className="text-[8.5px] font-bold px-1.5 py-0.2 bg-sky-400/20 text-sky-300 rounded border border-sky-400/40 flex items-center gap-0.5 group-hover:bg-sky-400 group-hover:text-slate-950 transition">
+              <ExternalLink className="w-2.5 h-2.5" />
+              <span>पॉपअप</span>
+            </span>
+          </div>
         </button>
 
         <button
-          onClick={() => setActiveTab('private_chat')}
-          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+          onClick={() => {
+            setActiveTab('private_chat');
+            if (selectedChatUserId) markChatMessagesAsRead(selectedChatUserId, 'admin');
+          }}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between relative ${
             activeTab === 'private_chat'
               ? 'bg-sky-500/25 border-sky-400 text-sky-200 shadow-md ring-1 ring-sky-400'
               : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
@@ -428,7 +676,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             <span className="text-[9.5px] font-bold text-sky-300">डायरेक्ट चैट</span>
             <MessageCircle className="w-3.5 h-3.5 text-sky-400 shrink-0" />
           </div>
-          <div className="text-[11px] font-black text-white mt-0.5">फोटो/वीडियो</div>
+          <div className="text-[11px] font-black text-white mt-0.5 flex items-center justify-between">
+            <span>फोटो/वीडियो</span>
+            {adminUnreadCount > 0 && (
+              <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.2 shadow animate-pulse">
+                {adminUnreadCount}
+              </span>
+            )}
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('sliders')}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+            activeTab === 'sliders'
+              ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-md ring-1 ring-amber-400'
+              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9.5px] font-bold text-amber-300">स्लाइडर व पोस्टर्स</span>
+            <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          </div>
+          <div className="text-[11px] font-black text-white mt-0.5">7 बैनर एडिट</div>
         </button>
 
         <button
@@ -511,219 +781,332 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {(activeTab === 'approvals' || activeTab === 'all_users') && (
         <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-5">
           
-          {/* Search & Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="relative w-full sm:w-80">
+          {/* Search, Date Filter, Sort & Join Action Bar */}
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+            {/* Search Box */}
+            <div className="relative flex-1 min-w-[240px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="नाम, User ID या फोन नंबर से खोजें..."
+                placeholder="नाम, User ID, फोन नंबर या जॉइनिंग तिथि से खोजें..."
                 className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl pl-10 pr-3.5 py-2 text-xs outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs text-slate-400 font-bold">फ़िल्टर:</span>
-              <select
-                value={statusFilter}
-                onChange={(e: any) => setStatusFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-1.5 text-xs outline-none cursor-pointer"
+            {/* Filters, Sorters & Action Button */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Date Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-700">
+                <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <select
+                  value={dateFilter}
+                  onChange={(e: any) => setDateFilter(e.target.value)}
+                  className="bg-transparent text-white text-xs outline-none cursor-pointer"
+                  title="जॉइनिंग तारीख अनुसार फ़िल्टर करें"
+                >
+                  <option value="all" className="bg-slate-900">📅 सभी तारीखें (All Dates)</option>
+                  <option value="today" className="bg-slate-900">🔥 केवल आज (Today Joined)</option>
+                  <option value="yesterday" className="bg-slate-900">⚡ कल के जॉइन (Yesterday)</option>
+                  <option value="week" className="bg-slate-900">📅 पिछले 7 दिन (Last 7 Days)</option>
+                  <option value="month" className="bg-slate-900">🗓️ इस महीने (This Month)</option>
+                </select>
+              </div>
+
+              {/* Date Sort Order (New users on top by default) */}
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-amber-500/40">
+                <select
+                  value={sortDateOrder}
+                  onChange={(e: any) => setSortDateOrder(e.target.value)}
+                  className="bg-transparent text-amber-300 font-bold text-xs outline-none cursor-pointer"
+                  title="क्रमबद्ध करें: नए यूजर ऊपर या पुराने"
+                >
+                  <option value="newest" className="bg-slate-900 text-amber-300">⬇️ नए सदस्य ऊपर (Newest First)</option>
+                  <option value="oldest" className="bg-slate-900 text-slate-300">⬆️ पुराने सदस्य पहले (Oldest First)</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-700">
+                <Filter className="w-3 h-3 text-slate-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e: any) => setStatusFilter(e.target.value)}
+                  className="bg-transparent text-white text-xs outline-none cursor-pointer"
+                  title="सत्यापन स्थिति अनुसार फ़िल्टर"
+                >
+                  <option value="all" className="bg-slate-900">सभी स्टेटस (All)</option>
+                  <option value="pending" className="bg-slate-900">केवल पेंडिंग (Pending)</option>
+                  <option value="approved" className="bg-slate-900">स्वीकृत (Approved)</option>
+                  <option value="rejected" className="bg-slate-900">अस्वीकृत (Rejected)</option>
+                </select>
+              </div>
+
+              {/* 3D Button: Open Join Page Popup */}
+              <button
+                type="button"
+                onClick={() => setIsJoinModalOpen(true)}
+                className="btn-3d-ruby px-3.5 py-2 rounded-xl text-white font-black text-xs flex items-center gap-1.5 shadow-lg active:scale-95 cursor-pointer"
+                title="नया सदस्य जोड़ने हेतु जॉइन पेज पॉपअप खोलें"
               >
-                <option value="all">सभी स्टेटस (All)</option>
-                <option value="pending">केवल पेंडिंग (Pending)</option>
-                <option value="approved">स्वीकृत (Approved)</option>
-                <option value="rejected">अस्वीकृत (Rejected)</option>
-              </select>
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" />
+                <span>➕ नया सदस्य जोड़ें (Join Page)</span>
+              </button>
             </div>
           </div>
 
-          {/* User Table */}
+          {/* User Table with Date Column & Date Grouping */}
           <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 shadow-inner">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-300 uppercase text-[10px] font-black tracking-wider">
                   <th className="py-3.5 px-3">फोटो व नाम</th>
                   <th className="py-3.5 px-3">यूनिक User ID</th>
+                  <th className="py-3.5 px-3">🗓️ जॉइनिंग तिथि व समय</th>
                   <th className="py-3.5 px-3">प्लान / शुल्क</th>
                   <th className="py-3.5 px-3">मोबाइल व संपर्क</th>
                   <th className="py-3.5 px-3">पेमेंट रसीद / UTR</th>
                   <th className="py-3.5 px-3">सत्यापन स्थिति</th>
-                  <th className="py-3.5 px-3 text-right">त्वरित एक्शन</th>
+                  <th className="py-3.5 px-3 text-right">त्वरित एक्शन व जॉइन फॉर्म</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       कोई यूजर रिकॉर्ड नहीं मिला।
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => {
-                    const plan = PLANS.find((p) => p.id === u.selectedPlanId) || PLANS[0];
-                    return (
-                      <tr key={u.userId} className="hover:bg-slate-900/60 transition group">
-                        {/* Name & Photo */}
-                        <td className="py-3.5 px-3">
-                          <div 
-                            onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
-                            className="flex items-center gap-3 cursor-pointer group-hover:opacity-95"
-                            title="पूरी प्रोफाइल देखने हेतु क्लिक करें"
-                          >
-                            <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900 shadow-sm">
-                              <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-white text-sm group-hover:text-amber-300 transition flex items-center gap-1.5">
-                                <span>{u.fullName}</span>
-                              </div>
-                              <div className="text-[10px] text-slate-400">{u.gender || 'सदस्य'} • {u.state || 'भारत'}</div>
-                            </div>
-                          </div>
-                        </td>
+                  (() => {
+                    let lastGroupDateKey = '';
+                    return filteredUsers.map((u) => {
+                      const plan = PLANS.find((p) => p.id === u.selectedPlanId) || PLANS[0];
+                      const dateInfo = formatJoinDateTime(u.createdAt);
+                      const isNewDateGroup = dateInfo.rawDateKey !== lastGroupDateKey;
+                      if (isNewDateGroup) {
+                        lastGroupDateKey = dateInfo.rawDateKey;
+                      }
 
-                        {/* User ID */}
-                        <td className="py-3.5 px-3 font-mono font-bold text-amber-300">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(u.userId);
-                            }}
-                            className="hover:underline flex items-center gap-1 cursor-pointer bg-slate-900 px-2 py-1 rounded-lg border border-slate-800"
-                            title="क्लिक करके ID कॉपी करें"
-                          >
-                            <span>{u.userId}</span>
-                          </button>
-                        </td>
-
-                        {/* Plan */}
-                        <td className="py-3.5 px-3">
-                          <span className="font-bold text-white block">{plan.name}</span>
-                          <span className="text-[11px] text-amber-400 font-mono font-black">₹{plan.price}</span>
-                        </td>
-
-                        {/* Mobile / Contact */}
-                        <td className="py-3.5 px-3">
-                          <div className="text-slate-200 font-mono font-medium">{u.mobileNumber}</div>
-                          {u.telegramUsername ? (
-                            <div className="text-[10px] text-sky-400 flex items-center gap-1 mt-0.5">
-                              <Send className="w-2.5 h-2.5" />
-                              <span>{u.telegramUsername}</span>
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-slate-400 truncate max-w-[140px]">{u.email}</div>
+                      return (
+                        <React.Fragment key={u.userId}>
+                          {/* Date-by-Date Group Divider Header */}
+                          {isNewDateGroup && (
+                            <tr className="bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-slate-900/60 border-y border-amber-500/40">
+                              <td colSpan={8} className="py-2 px-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                                    <span className="font-black text-amber-300 text-xs">
+                                      📅 तारीख: {dateInfo.formattedDate}
+                                    </span>
+                                    <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[9.5px] font-bold px-2 py-0.2 rounded-full">
+                                      {dateInfo.relativeBadge}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-300 font-mono hidden sm:inline-block">
+                                    दिन-वार क्रमबद्ध सूची (Date by Date Group)
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
 
-                        {/* Payment Proof / UTR */}
-                        <td className="py-3.5 px-3">
-                          <div className="font-mono text-emerald-400 font-bold text-xs">{u.paymentUtr || 'N/A'}</div>
-                          <button
-                            type="button"
-                            onClick={() => { setInspectedUser(u); setInspectorTab('payment'); }}
-                            className="text-[11px] text-amber-400 hover:text-amber-300 underline font-bold mt-0.5 inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" />
-                            <span>रसीद देखें</span>
-                          </button>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3.5 px-3">
-                          {u.paymentStatus === 'approved' && (
-                            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                              <span>स्वीकृत</span>
-                            </span>
-                          )}
-                          {u.paymentStatus === 'pending' && (
-                            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-amber-400" />
-                              <span>समीक्षाधीन</span>
-                            </span>
-                          )}
-                          {u.paymentStatus === 'rejected' && (
-                            <span className="bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                              <XCircle className="w-3 h-3 text-red-400" />
-                              <span>अस्वीकृत</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Clear, High-Contrast Action Buttons */}
-                        <td className="py-3.5 px-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                            {/* Primary Button: Check Full Profile */}
-                            <button
-                              type="button"
-                              onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
-                              title="यूजर की पूरी प्रोफाइल, फॉर्म, दस्तावेज व UTR जांचें"
-                              className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black rounded-xl text-xs inline-flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-950" />
-                              <span>प्रोफाइल जांचें</span>
-                            </button>
-
-                            {/* Quick Approve Button */}
-                            {u.paymentStatus !== 'approved' && (
-                              <button
-                                type="button"
-                                onClick={() => handleApprove(u.userId)}
-                                title="1-क्लिक में पेमेंट अप्रूव करें"
-                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                          <tr className="hover:bg-slate-900/60 transition group">
+                            {/* Name & Photo */}
+                            <td className="py-3.5 px-3">
+                              <div 
+                                onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
+                                className="flex items-center gap-3 cursor-pointer group-hover:opacity-95"
+                                title="पूरी प्रोफाइल देखने हेतु क्लिक करें"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>अप्रूव</span>
-                              </button>
-                            )}
+                                <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900 shadow-sm">
+                                  <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-white text-sm group-hover:text-amber-300 transition flex items-center gap-1.5">
+                                    <span>{u.fullName}</span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">{u.gender || 'सदस्य'} • {u.state || 'भारत'}</div>
+                                </div>
+                              </div>
+                            </td>
 
-                            {/* Quick Reject Button */}
-                            {u.paymentStatus !== 'rejected' && (
+                            {/* User ID */}
+                            <td className="py-3.5 px-3 font-mono font-bold text-amber-300">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                                  if (reason !== null && reason.trim()) {
-                                    handleReject(u.userId, reason.trim());
-                                  }
+                                  navigator.clipboard.writeText(u.userId);
                                 }}
-                                title="पेमेंट रिजेक्ट करें"
-                                className="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer active:scale-95"
+                                className="hover:underline flex items-center gap-1 cursor-pointer bg-slate-900 px-2 py-1 rounded-lg border border-slate-800"
+                                title="क्लिक करके ID कॉपी करें"
                               >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span>रिजेक्ट</span>
+                                <span>{u.userId}</span>
                               </button>
-                            )}
+                            </td>
 
-                            {/* Downline Tree */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedGenealogyUserId(u.userId);
-                                setActiveTab('genealogy');
-                              }}
-                              title="डाउनलाइन नेटवर्क ट्री देखें"
-                              className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-400 rounded-xl transition cursor-pointer"
-                            >
-                              <Network className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Joining Date & Time */}
+                            <td className="py-3.5 px-3">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5 text-white font-bold text-xs">
+                                  <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span>{dateInfo.formattedDate}</span>
+                                </div>
+                                {dateInfo.formattedTime && (
+                                  <div className="text-[11px] font-mono text-slate-300 flex items-center gap-1 pl-5">
+                                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span>{dateInfo.formattedTime}</span>
+                                  </div>
+                                )}
+                                <div className="pl-5 pt-0.5">
+                                  <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-block">
+                                    {dateInfo.relativeBadge}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
 
-                            {/* Delete User */}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUser(u.userId, u.fullName)}
-                              title="यूजर हटाएं (Delete User)"
-                              className="p-1.5 bg-slate-900 hover:bg-red-950 border border-slate-700 hover:border-red-500/50 text-slate-400 hover:text-red-400 rounded-xl transition cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                            {/* Plan */}
+                            <td className="py-3.5 px-3">
+                              <span className="font-bold text-white block">{plan.name}</span>
+                              <span className="text-[11px] text-amber-400 font-mono font-black">₹{plan.price}</span>
+                            </td>
+
+                            {/* Mobile / Contact */}
+                            <td className="py-3.5 px-3">
+                              <div className="text-slate-200 font-mono font-medium">{u.mobileNumber}</div>
+                              {u.telegramUsername ? (
+                                <div className="text-[10px] text-sky-400 flex items-center gap-1 mt-0.5">
+                                  <Send className="w-2.5 h-2.5" />
+                                  <span>{u.telegramUsername}</span>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-slate-400 truncate max-w-[140px]">{u.email}</div>
+                              )}
+                            </td>
+
+                            {/* Payment Proof / UTR */}
+                            <td className="py-3.5 px-3">
+                              <div className="font-mono text-emerald-400 font-bold text-xs">{u.paymentUtr || 'N/A'}</div>
+                              <button
+                                type="button"
+                                onClick={() => { setInspectedUser(u); setInspectorTab('payment'); }}
+                                className="text-[11px] text-amber-400 hover:text-amber-300 underline font-bold mt-0.5 inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>रसीद देखें</span>
+                              </button>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-3">
+                              {u.paymentStatus === 'approved' && (
+                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>स्वीकृत</span>
+                                </span>
+                              )}
+                              {u.paymentStatus === 'pending' && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>समीक्षाधीन</span>
+                                </span>
+                              )}
+                              {u.paymentStatus === 'rejected' && (
+                                <span className="bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                  <XCircle className="w-3 h-3 text-red-400" />
+                                  <span>अस्वीकृत</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Clear, High-Contrast Action Buttons with Join Form Popup Button */}
+                            <td className="py-3.5 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {/* Join Application Form / Slip Popup Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFormUser(u)}
+                                  title="सदस्य का पूरा जॉइन फॉर्म व आवेदन स्लिप पॉपअप में देखें"
+                                  className="px-2.5 py-1.5 bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>📋 जॉइन फॉर्म</span>
+                                </button>
+
+                                {/* Primary Button: Check Full Profile */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
+                                  title="यूजर की पूरी प्रोफाइल, फॉर्म, दस्तावेज व UTR जांचें"
+                                  className="px-2.5 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-slate-950" />
+                                  <span>प्रोफाइल</span>
+                                </button>
+
+                                {/* Quick Approve Button */}
+                                {u.paymentStatus !== 'approved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApprove(u.userId)}
+                                    title="1-क्लिक में पेमेंट अप्रूव करें"
+                                    className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>अप्रूव</span>
+                                  </button>
+                                )}
+
+                                {/* Quick Reject Button */}
+                                {u.paymentStatus !== 'rejected' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+                                      if (reason !== null && reason.trim()) {
+                                        handleReject(u.userId, reason.trim());
+                                      }
+                                    }}
+                                    title="पेमेंट रिजेक्ट करें"
+                                    className="px-2 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer active:scale-95"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>रिजेक्ट</span>
+                                  </button>
+                                )}
+
+                                {/* Downline Tree */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedGenealogyUserId(u.userId);
+                                    setActiveTab('genealogy');
+                                  }}
+                                  title="डाउनलाइन नेटवर्क ट्री देखें"
+                                  className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-400 rounded-xl transition cursor-pointer"
+                                >
+                                  <Network className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Delete User */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteUser(u.userId, u.fullName)}
+                                  title="यूजर हटाएं (Delete User)"
+                                  className="p-1.5 bg-slate-900 hover:bg-red-950 border border-slate-700 hover:border-red-500/50 text-slate-400 hover:text-red-400 rounded-xl transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    });
+                  })()
                 )}
               </tbody>
             </table>
@@ -2309,6 +2692,966 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* TAB 9: HOMEPAGE SLIDER & FESTIVE POSTER MANAGER                            */}
+      {/* ========================================================================= */}
+      {activeTab === 'sliders' && (
+        <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
+                <Sliders className="w-3 h-3 text-amber-400" />
+                <span>7 FESTIVE & SMART SAVINGS BANNERS</span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-black text-white">
+                होमपेज ऑटो-स्लाइडर व फेस्टिव पोस्टर मैनेजर
+              </h3>
+              <p className="text-xs text-slate-400">
+                यहाँ से आप धनतेरस, दिवाली, गोवर्धन पूजा, भाई दूज, छठ पूजा और स्मार्ट सेविंग्स के सभी 7 बैनर व उनकी तस्वीरें लाइव अपडेट कर सकते हैं।
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  saveStoredSliders(DEFAULT_HOME_SLIDERS);
+                  setSliderList([...DEFAULT_HOME_SLIDERS]);
+                  setSliderSuccessMsg('सभी 7 बैनर डिफ़ॉल्ट पर रीसेट हो गए!');
+                  setTimeout(() => setSliderSuccessMsg(''), 3000);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                <span>डिफ़ॉल्ट रीसेट करें</span>
+              </button>
+            </div>
+          </div>
+
+          {sliderSuccessMsg && (
+            <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>{sliderSuccessMsg}</span>
+            </div>
+          )}
+
+          {/* Sliders Grid List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sliderList.map((slide, idx) => (
+              <div 
+                key={slide.id}
+                className="p-4 rounded-2xl bg-slate-950/90 border-2 border-slate-800 hover:border-amber-500/50 transition flex flex-col justify-between gap-3 shadow-lg"
+              >
+                <div className="space-y-2.5">
+                  {/* Slide Image Preview */}
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
+                    <img 
+                      src={slide.imageUrl} 
+                      alt={slide.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    />
+                    <div className="absolute top-2 left-2 bg-slate-950/90 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40">
+                      Slide #{idx + 1}
+                    </div>
+                    <div className="absolute top-2 right-2">
+                      <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-full ${
+                        slide.isActive 
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                          : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                      }`}>
+                        {slide.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Texts */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                      {slide.badge}
+                    </span>
+                    <h4 className="text-sm font-black text-white line-clamp-1">{slide.title}</h4>
+                    <p className="text-[11px] text-slate-300 line-clamp-2">{slide.subtitle}</p>
+                  </div>
+                </div>
+
+                {/* Edit Action Button */}
+                <button
+                  type="button"
+                  onClick={() => setEditingSlider({ ...slide })}
+                  className="w-full py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>यह बैनर एडिट करें (Edit Slide)</span>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Modal to Edit Single Slider */}
+          {editingSlider && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+              <div className="relative w-full max-w-lg bg-slate-950 border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-sm sm:text-base font-black text-white">बैनर विवरण व तस्वीर अपडेट करें</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSlider(null)}
+                    className="text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">बैनर टैग / बैज:</label>
+                    <input
+                      type="text"
+                      value={editingSlider.badge}
+                      onChange={(e) => setEditingSlider({ ...editingSlider, badge: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">मुख्य शीर्षक (Headline):</label>
+                    <input
+                      type="text"
+                      value={editingSlider.title}
+                      onChange={(e) => setEditingSlider({ ...editingSlider, title: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">उप-शीर्षक / विवरण (Subtitle):</label>
+                    <textarea
+                      rows={2}
+                      value={editingSlider.subtitle}
+                      onChange={(e) => setEditingSlider({ ...editingSlider, subtitle: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">तस्वीर URL (Image URL):</label>
+                    <input
+                      type="text"
+                      value={editingSlider.imageUrl}
+                      onChange={(e) => setEditingSlider({ ...editingSlider, imageUrl: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-mono text-[11px]"
+                    />
+                    <div className="mt-2 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
+                      <img src={editingSlider.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">बटन टेक्स्ट (CTA):</label>
+                      <input
+                        type="text"
+                        value={editingSlider.ctaText}
+                        onChange={(e) => setEditingSlider({ ...editingSlider, ctaText: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">सक्रिय स्थिति:</label>
+                      <select
+                        value={editingSlider.isActive ? 'active' : 'inactive'}
+                        onChange={(e) => setEditingSlider({ ...editingSlider, isActive: e.target.value === 'active' })}
+                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none cursor-pointer"
+                      >
+                        <option value="active">Active (सक्रिय)</option>
+                        <option value="inactive">Inactive (छुपाएं)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSlider(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    रद्द करें
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = sliderList.map((s) => s.id === editingSlider.id ? editingSlider : s);
+                      saveStoredSliders(updated);
+                      setSliderList(updated);
+                      setEditingSlider(null);
+                      setSliderSuccessMsg(`बैनर "${editingSlider.title}" सफलतापूर्वक अपडेट हो गया!`);
+                      setTimeout(() => setSliderSuccessMsg(''), 3000);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs hover:from-amber-300 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>अपडेट सुरक्षित करें</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3D NOTIFICATION SYSTEM MODAL (INSTANT ADMIN NOTIFICATIONS & DIRECT REPLY)  */}
+      {/* ========================================================================= */}
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        role="admin"
+        onOpenChat={(targetUserId) => {
+          setSelectedChatUserId(targetUserId);
+          setActiveTab('private_chat');
+          markChatMessagesAsRead(targetUserId, 'admin');
+          setAdminUnreadCount(getAdminUnreadCount());
+        }}
+      />
+
+      {/* ========================================================================= */}
+      {/* MEMBER REGISTRATION / JOIN APPLICATION FORM POPUP MODAL (PRINT & VERIFY)  */}
+      {/* ========================================================================= */}
+      {selectedFormUser && (() => {
+        const joinPlan = PLANS.find((p) => p.id === selectedFormUser.selectedPlanId) || PLANS[0];
+        const joinDateInfo = formatJoinDateTime(selectedFormUser.createdAt);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+            <div className="glass-card-gold p-4 sm:p-6 rounded-3xl border-2 border-amber-500/60 max-w-3xl w-full space-y-5 shadow-2xl relative my-8">
+              {/* Modal Top Bar */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 flex items-center justify-center font-black shadow-md">
+                    <FileText className="w-5 h-5 text-slate-950" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                      <span>IOIS आधिकारिक सदस्य जॉइनिंग फॉर्म व आवेदन स्लिप</span>
+                    </h3>
+                    <p className="text-[11px] text-amber-300 font-medium">
+                      Member Registration Application Slip • पूर्ण विवरण व सत्यापन रसीद
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedFormUser(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Printable Application Slip Box */}
+              <div id="member-join-slip" className="bg-slate-950 rounded-2xl border-2 border-amber-500/40 p-4 sm:p-5 space-y-4 shadow-inner">
+                {/* Slip Header Banner */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent p-3.5 rounded-xl border border-amber-500/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-amber-400/80 bg-slate-900 shrink-0 shadow-md">
+                      <img src={selectedFormUser.photoUrl} alt={selectedFormUser.fullName} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-amber-300 font-bold uppercase tracking-wider">IOIS INDIA OFFICIALLY REGISTERED</div>
+                      <h4 className="text-base font-black text-white">{selectedFormUser.fullName}</h4>
+                      <div className="text-[11px] font-mono text-amber-400">ID: {selectedFormUser.userId}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-start sm:items-end gap-1">
+                    {/* Status Stamp */}
+                    {selectedFormUser.paymentStatus === 'approved' && (
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 text-[11px] font-black inline-flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>सत्यापित सदस्य (APPROVED)</span>
+                      </span>
+                    )}
+                    {selectedFormUser.paymentStatus === 'pending' && (
+                      <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[11px] font-black inline-flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>समीक्षाधीन (PENDING)</span>
+                      </span>
+                    )}
+                    {selectedFormUser.paymentStatus === 'rejected' && (
+                      <span className="px-3 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/50 text-[11px] font-black inline-flex items-center gap-1.5">
+                        <XCircle className="w-3.5 h-3.5 text-red-400" />
+                        <span>अस्वीकृत (REJECTED)</span>
+                      </span>
+                    )}
+                    <span className="text-[10px] text-slate-400 font-bold">{joinPlan.name} • ₹{joinPlan.price}</span>
+                  </div>
+                </div>
+
+                {/* Joining Date & Time Highlight Bar */}
+                <div className="p-3 bg-gradient-to-r from-amber-500/20 via-yellow-400/10 to-amber-500/15 border border-amber-500/40 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-white font-bold">
+                    <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>जॉइनिंग तिथि व समय:</span>
+                    <span className="font-black text-amber-300 font-mono text-sm">{joinDateInfo.fullDateTime}</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                    {joinDateInfo.relativeBadge}
+                  </span>
+                </div>
+
+                {/* 2-Column Form Fields Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                  {/* Left Column: Personal & Identity Info */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+                    <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>1. व्यक्तिगत व पहचान विवरण</span>
+                    </h5>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">पूरा नाम:</span>
+                        <span className="font-bold text-white">{selectedFormUser.fullName}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">टेलीग्राम / हैंडल:</span>
+                        <span className="font-mono text-sky-400">{selectedFormUser.telegramUsername || selectedFormUser.username || 'उपलब्ध नहीं'}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">पिता/पति का नाम:</span>
+                        <span className="font-semibold text-slate-200">{selectedFormUser.fatherOrHusbandName || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">माता का नाम:</span>
+                        <span className="font-semibold text-slate-200">{selectedFormUser.motherName || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">लिंग व जन्मतिथि:</span>
+                        <span className="text-slate-200">{selectedFormUser.gender || 'N/A'} • {selectedFormUser.dob || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">शैक्षणिक योग्यता:</span>
+                        <span className="text-slate-200">{selectedFormUser.qualification || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-400">आधार संख्या:</span>
+                        <span className="font-mono text-amber-300 font-bold">{selectedFormUser.aadhaarNumber || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Contact, Address & Plan */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+                    <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>2. संपर्क, पता व पेमेंट सत्यापन</span>
+                    </h5>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">मोबाइल नंबर:</span>
+                        <a href={`tel:${selectedFormUser.mobileNumber}`} className="font-mono text-emerald-400 font-bold hover:underline">
+                          {selectedFormUser.mobileNumber}
+                        </a>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">ईमेल आईडी:</span>
+                        <span className="text-slate-200 truncate max-w-[160px]">{selectedFormUser.email}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">स्थान / राज्य:</span>
+                        <span className="text-slate-200">{selectedFormUser.district || ''}{selectedFormUser.district ? ', ' : ''}{selectedFormUser.state || 'भारत'} {selectedFormUser.pincode ? `(${selectedFormUser.pincode})` : ''}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">स्पॉन्सर आईडी:</span>
+                        <span className="font-mono text-purple-300 font-bold">{selectedFormUser.sponsorId || 'IOIS Official Root'}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">पेमेंट UTR नंबर:</span>
+                        <span className="font-mono text-yellow-300 font-black">{selectedFormUser.paymentUtr || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-400">पेआउट UPI आईडी:</span>
+                        <span className="font-mono text-sky-300 font-bold">{selectedFormUser.payoutUpi || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Screenshot Preview if Available */}
+                {selectedFormUser.paymentScreenshotUrl && (
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-black shrink-0">
+                        <img src={selectedFormUser.paymentScreenshotUrl} alt="Receipt" className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">पेमेंट स्क्रीनशॉट संलग्न है</div>
+                        <div className="text-[10px] text-slate-400">क्लिक करके रसीद का पूरा आकार देखें</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInspectedUser(selectedFormUser);
+                        setInspectorTab('payment');
+                        setSelectedFormUser(null);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1 shadow"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>स्क्रीनशॉट देखें</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Rejection Note if rejected */}
+                {selectedFormUser.paymentStatus === 'rejected' && selectedFormUser.rejectionReason && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span><b>रिजेक्शन कारण:</b> {selectedFormUser.rejectionReason}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons in Modal */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center gap-2">
+                  {/* Print Button */}
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95 shadow"
+                    title="इस आवेदन स्लिप को प्रिंट या PDF के रूप में सेव करें"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-amber-400" />
+                    <span>प्रिंट / PDF सेव करें</span>
+                  </button>
+
+                  {/* Copy Details */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = `IOIS सदस्य जॉइनिंग स्लिप:\nनाम: ${selectedFormUser.fullName}\nID: ${selectedFormUser.userId}\nजॉइनिंग तिथि: ${joinDateInfo.fullDateTime}\nप्लान: ${joinPlan.name} (₹${joinPlan.price})\nमोबाइल: ${selectedFormUser.mobileNumber}\nUTR: ${selectedFormUser.paymentUtr || 'N/A'}\nस्थिति: ${selectedFormUser.paymentStatus}`;
+                      navigator.clipboard.writeText(text);
+                      alert('सदस्य की संपूर्ण जॉइनिंग स्लिप कॉपी हो गई!');
+                    }}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>स्लिप कॉपी करें</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Quick Approve if not approved */}
+                  {selectedFormUser.paymentStatus !== 'approved' && (
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(selectedFormUser.userId)}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>स्वीकृत करें (Approve)</span>
+                    </button>
+                  )}
+
+                  {/* Quick Reject if not rejected */}
+                  {selectedFormUser.paymentStatus !== 'rejected' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const reason = window.prompt('रिजेक्शन का कारण दर्ज करें:', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+                        if (reason !== null && reason.trim()) {
+                          handleReject(selectedFormUser.userId, reason.trim());
+                        }
+                      }}
+                      className="px-3 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>रिजेक्ट करें</span>
+                    </button>
+                  )}
+
+                  {/* Edit Profile */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openAdminEditUser(selectedFormUser);
+                      setSelectedFormUser(null);
+                    }}
+                    className="px-3 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow active:scale-95"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>एडिट करें</span>
+                  </button>
+
+                  {/* Close */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFormUser(null)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+                  >
+                    बंद करें
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* FILTERED RESULT POP-UP WINDOW MODAL (PENDING APPROVALS & ALL USERS POP-UP) */}
+      {/* ========================================================================= */}
+      {popupTabResult && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="glass-card-gold p-4 sm:p-6 rounded-3xl border-2 border-amber-500/60 max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl relative my-auto animate-scaleUp">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black shadow-lg ${
+                  popupTabResult === 'pending'
+                    ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950'
+                    : 'bg-gradient-to-br from-sky-400 to-blue-600 text-white'
+                }`}>
+                  {popupTabResult === 'pending' ? (
+                    <Clock className="w-6 h-6 animate-pulse" />
+                  ) : (
+                    <Users className="w-6 h-6" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      {popupTabResult === 'pending' 
+                        ? '⏳ लंबित अप्रूवल सदस्य सूची (Pending Approvals Result)' 
+                        : '👥 संपूर्ण सदस्य सूची (All Members Pop-up Window)'}
+                    </h3>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                      popupTabResult === 'pending'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    }`}>
+                      {popupTabResult === 'pending' ? `${pendingCount} पेंडिंग` : `${usersList.length} सदस्य`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    {popupTabResult === 'pending'
+                      ? 'समीक्षाधीन सदस्य जिन्हें अप्रूवल मिलना शेष है — यहाँ से 1-क्लिक में अप्रूव या रिजेक्ट करें।'
+                      : 'सिस्टम में पंजीकृत सभी सदस्यों का संपूर्ण डेटाबेस।'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setPopupTabResult(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="पॉप-अप विंडो बंद करें"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-bar: Category Tabs & Controls */}
+            <div className="py-3 border-b border-slate-800/80 space-y-2.5 shrink-0">
+              {/* Quick Filter Pills */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopupTabResult('pending');
+                      setPopupStatusFilter('pending');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      (popupTabResult === 'pending' && popupStatusFilter === 'pending') || popupStatusFilter === 'pending'
+                        ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>लंबित सदस्य ({pendingCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopupTabResult('all_users');
+                      setPopupStatusFilter('all');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      popupStatusFilter === 'all'
+                        ? 'bg-sky-500 text-white shadow-md font-black'
+                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>सभी सदस्य ({usersList.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopupTabResult('all_users');
+                      setPopupStatusFilter('approved');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      popupStatusFilter === 'approved'
+                        ? 'bg-emerald-600 text-white shadow-md font-black'
+                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>स्वीकृत ({approvedCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopupTabResult('all_users');
+                      setPopupStatusFilter('rejected');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      popupStatusFilter === 'rejected'
+                        ? 'bg-red-600 text-white shadow-md font-black'
+                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                    }`}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>अस्वीकृत ({rejectedCount})</span>
+                  </button>
+                </div>
+
+                {/* Open Join Modal Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsJoinModalOpen(true)}
+                  className="btn-3d-ruby px-3 py-1.5 rounded-xl text-white font-black text-xs flex items-center gap-1 shadow cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                  <span>➕ नया सदस्य जोड़ें</span>
+                </button>
+              </div>
+
+              {/* Search, Date Sort & Date Filter */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={popupSearchQuery}
+                    onChange={(e) => setPopupSearchQuery(e.target.value)}
+                    placeholder="पॉपअप सूची में खोजें (नाम, User ID, फोन या UTR)..."
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 text-white rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Date Filter */}
+                  <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-700">
+                    <Calendar className="w-3 h-3 text-amber-400" />
+                    <select
+                      value={popupDateFilter}
+                      onChange={(e: any) => setPopupDateFilter(e.target.value)}
+                      className="bg-transparent text-white text-[11px] outline-none cursor-pointer"
+                    >
+                      <option value="all" className="bg-slate-900">सभी तारीखें</option>
+                      <option value="today" className="bg-slate-900">🔥 आज के</option>
+                      <option value="yesterday" className="bg-slate-900">⚡ कल के</option>
+                      <option value="week" className="bg-slate-900">📅 पिछले 7 दिन</option>
+                      <option value="month" className="bg-slate-900">🗓️ इस महीने</option>
+                    </select>
+                  </div>
+
+                  {/* Sort Order */}
+                  <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-amber-500/40">
+                    <select
+                      value={popupSortOrder}
+                      onChange={(e: any) => setPopupSortOrder(e.target.value)}
+                      className="bg-transparent text-amber-300 font-bold text-[11px] outline-none cursor-pointer"
+                    >
+                      <option value="newest" className="bg-slate-900 text-amber-300">⬇️ नए ऊपर</option>
+                      <option value="oldest" className="bg-slate-900 text-slate-300">⬆️ पुराने पहले</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable Result List */}
+            <div className="flex-1 overflow-y-auto mt-2 space-y-2 pr-1 custom-scrollbar min-h-[220px]">
+              {popupFilteredUsers.length === 0 ? (
+                <div className="py-14 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 text-slate-500 mx-auto flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs text-slate-400 font-bold">
+                    इस फ़िल्टर में कोई सदस्य रिकॉर्ड नहीं मिला।
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    फ़िल्टर बदलकर या दूसरा कीवर्ड खोजकर देखें।
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-900 text-slate-300 uppercase text-[9.5px] font-black tracking-wider">
+                        <th className="py-3 px-3">फोटो व नाम</th>
+                        <th className="py-3 px-3">User ID</th>
+                        <th className="py-3 px-3">🗓️ जॉइनिंग तिथि व समय</th>
+                        <th className="py-3 px-3">प्लान / शुल्क</th>
+                        <th className="py-3 px-3">मोबाइल व संपर्क</th>
+                        <th className="py-3 px-3">पेमेंट UTR / रसीद</th>
+                        <th className="py-3 px-3">स्थिति</th>
+                        <th className="py-3 px-3 text-right">त्वरित एक्शन</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {popupFilteredUsers.map((u) => {
+                        const plan = PLANS.find((p) => p.id === u.selectedPlanId) || PLANS[0];
+                        const dateInfo = formatJoinDateTime(u.createdAt);
+
+                        return (
+                          <tr key={u.userId} className="hover:bg-slate-900/60 transition group">
+                            {/* Photo & Name */}
+                            <td className="py-3 px-3">
+                              <div 
+                                onClick={() => {
+                                  setInspectedUser(u);
+                                  setInspectorTab('profile');
+                                }}
+                                className="flex items-center gap-2.5 cursor-pointer group-hover:opacity-95"
+                                title="प्रोफाइल जांचें"
+                              >
+                                <div className="w-9 h-9 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900 shadow-sm">
+                                  <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-white text-xs group-hover:text-amber-300 transition">
+                                    {u.fullName}
+                                  </div>
+                                  <div className="text-[9.5px] text-slate-400">{u.district || ''}{u.district ? ', ' : ''}{u.state || 'भारत'}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* User ID */}
+                            <td className="py-3 px-3 font-mono font-bold text-amber-300">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(u.userId);
+                                }}
+                                className="hover:underline flex items-center gap-1 cursor-pointer bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-[11px]"
+                                title="ID कॉपी करें"
+                              >
+                                <span>{u.userId}</span>
+                              </button>
+                            </td>
+
+                            {/* Joining Date & Time */}
+                            <td className="py-3 px-3">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1 text-white font-bold text-[11px]">
+                                  <Calendar className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <span>{dateInfo.formattedDate}</span>
+                                </div>
+                                {dateInfo.formattedTime && (
+                                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 pl-4">
+                                    <Clock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                                    <span>{dateInfo.formattedTime}</span>
+                                  </div>
+                                )}
+                                <div className="pl-4 pt-0.5">
+                                  <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-block">
+                                    {dateInfo.relativeBadge}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Plan */}
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-white block text-xs">{plan.name}</span>
+                              <span className="text-[11px] text-amber-400 font-mono font-black">₹{plan.price}</span>
+                            </td>
+
+                            {/* Mobile / Contact */}
+                            <td className="py-3 px-3">
+                              <a href={`tel:${u.mobileNumber}`} className="text-slate-200 font-mono font-medium hover:text-emerald-400 text-xs">
+                                {u.mobileNumber}
+                              </a>
+                              {u.telegramUsername && (
+                                <div className="text-[9.5px] text-sky-400 flex items-center gap-1 mt-0.5 font-mono">
+                                  <Send className="w-2.5 h-2.5" />
+                                  <span>{u.telegramUsername}</span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Payment Proof / UTR */}
+                            <td className="py-3 px-3">
+                              <div className="font-mono text-emerald-400 font-bold text-xs">{u.paymentUtr || 'N/A'}</div>
+                              {u.paymentScreenshotUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInspectedUser(u);
+                                    setInspectorTab('payment');
+                                  }}
+                                  className="text-[10px] text-amber-400 hover:underline font-bold mt-0.5 inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-2.5 h-2.5" />
+                                  <span>रसीद देखें</span>
+                                </button>
+                              ) : (
+                                <span className="text-[9.5px] text-slate-500">रसीद नहीं</span>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-3">
+                              {u.paymentStatus === 'approved' && (
+                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9.5px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>स्वीकृत</span>
+                                </span>
+                              )}
+                              {u.paymentStatus === 'pending' && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9.5px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>समीक्षाधीन</span>
+                                </span>
+                              )}
+                              {u.paymentStatus === 'rejected' && (
+                                <span className="bg-red-500/20 text-red-300 border border-red-500/40 text-[9.5px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                  <XCircle className="w-3 h-3 text-red-400" />
+                                  <span>अस्वीकृत</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {/* 1-Click Approve */}
+                                {u.paymentStatus !== 'approved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApprove(u.userId)}
+                                    title="तुरंत पेमेंट अप्रूव करें"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 cursor-pointer shadow active:scale-95"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>अप्रूव</span>
+                                  </button>
+                                )}
+
+                                {/* Quick Reject */}
+                                {u.paymentStatus !== 'rejected' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const reason = window.prompt('रिजेक्शन का कारण दर्ज करें:', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+                                      if (reason !== null && reason.trim()) {
+                                        handleReject(u.userId, reason.trim());
+                                      }
+                                    }}
+                                    title="रिजेक्ट करें"
+                                    className="px-2 py-1 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-lg text-xs cursor-pointer active:scale-95"
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    <span>रिजेक्ट</span>
+                                  </button>
+                                )}
+
+                                {/* Join Application Slip */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFormUser(u)}
+                                  title="जॉइन फॉर्म व आवेदन स्लिप देखें"
+                                  className="px-2 py-1 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 cursor-pointer shadow active:scale-95"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>स्लिप</span>
+                                </button>
+
+                                {/* Profile */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInspectedUser(u);
+                                    setInspectorTab('profile');
+                                  }}
+                                  title="पूरी प्रोफाइल जांचें"
+                                  className="p-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Bar */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800 shrink-0 mt-3 text-xs">
+              <span className="text-slate-400 font-mono">
+                कुल परिणाम: <b className="text-white">{popupFilteredUsers.length}</b> सदस्य
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow active:scale-95"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                  <span>प्रिंट / रिपोर्ट</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPopupTabResult(null)}
+                  className="px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs cursor-pointer shadow transition active:scale-95"
+                >
+                  पॉपअप विंडो बंद करें
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* DIRECT JOIN PAGE / REGISTRATION POPUP MODAL (MANUAL REGISTRATION BY ADMIN) */}
+      {/* ========================================================================= */}
+      <RegistrationModal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        onRegisterSuccess={(newUser) => {
+          setUsersList(getAllUsers());
+          setIsJoinModalOpen(false);
+          if (onUserStatusChange) onUserStatusChange();
+        }}
+        onOpenLogin={() => {
+          setIsJoinModalOpen(false);
+        }}
+      />
 
     </section>
   );

@@ -45,7 +45,9 @@ import { IdCardModal } from './components/IdCardModal';
 import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
 import { ReferralPromotionModal } from './components/ReferralPromotionModal';
+import { NotificationModal } from './components/NotificationModal';
 import { LockedFooterDock } from './components/LockedFooterDock';
+import { getAdminUnreadCount, getUserUnreadCount, markChatMessagesAsRead } from './services/notificationService';
 import { Plan, UserProfile, PageType } from './types';
 import { 
   getCurrentUser, 
@@ -108,6 +110,29 @@ export default function App() {
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
   const [isReferralModalOpen, setIsReferralModalOpen] = useState<boolean>(false);
+
+  // 3D Universal Notification System State
+  const [isAppNotificationModalOpen, setIsAppNotificationModalOpen] = useState<boolean>(false);
+  const [appUnreadCount, setAppUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    const updateCount = () => {
+      if (currentUser) {
+        setAppUnreadCount(getUserUnreadCount(currentUser.userId));
+      } else {
+        setAppUnreadCount(getAdminUnreadCount());
+      }
+    };
+    updateCount();
+    window.addEventListener('iois_notifications_updated', updateCount);
+    window.addEventListener('storage', updateCount);
+    const interval = setInterval(updateCount, 4000);
+    return () => {
+      window.removeEventListener('iois_notifications_updated', updateCount);
+      window.removeEventListener('storage', updateCount);
+      clearInterval(interval);
+    };
+  }, [currentUser?.userId]);
 
   // Sponsor Referral Visitor State & Modal
   const [sponsorReferralId, setSponsorReferralId] = useState<string>('');
@@ -265,33 +290,37 @@ export default function App() {
         color: 'var(--text-primary)',
       }}
     >
-      {/* 1. Header & Navigation (Always connects to home and all pages) */}
-      <Navbar
-        currentUser={currentUser}
-        currentPage={currentPage}
-        onNavigate={navigateTo}
-        onOpenChat={() => {
-          setChatInitialQuery('');
-          setIsChatOpen(true);
-        }}
-        onOpenServices={() => setIsServicesModalOpen(true)}
-        onOpenLogin={() => handleOpenLogin('login')}
-        onOpenRegister={() => handleOpenRegister()}
-        onOpenDashboard={handleOpenDashboard}
-        onOpenIdCard={handleOpenIdCard}
-        onLogout={handleLogout}
-        currentMode={themeMode}
-        onToggleMode={handleToggleMode}
-        onOpenThemeModal={() => setIsThemeModalOpen(true)}
-        onOpenReferralModal={() => setIsReferralModalOpen(true)}
-      />
+      {/* 1. Header & Navigation + Live News Ticker (Unified Sticky Top Bar - Zero Mobile Overlap) */}
+      <div className="sticky top-0 z-50 w-full shadow-2xl bg-slate-950">
+        <Navbar
+          currentUser={currentUser}
+          currentPage={currentPage}
+          onNavigate={navigateTo}
+          onOpenChat={() => {
+            setChatInitialQuery('');
+            setIsChatOpen(true);
+          }}
+          onOpenServices={() => setIsServicesModalOpen(true)}
+          onOpenLogin={() => handleOpenLogin('login')}
+          onOpenRegister={() => handleOpenRegister()}
+          onOpenDashboard={handleOpenDashboard}
+          onOpenIdCard={handleOpenIdCard}
+          onOpenAdminLogin={() => navigateTo('admin')}
+          onOpenNotifications={() => setIsAppNotificationModalOpen(true)}
+          unreadCount={appUnreadCount}
+          onLogout={handleLogout}
+          currentMode={themeMode}
+          onToggleMode={handleToggleMode}
+          onOpenThemeModal={() => setIsThemeModalOpen(true)}
+          onOpenReferralModal={() => setIsReferralModalOpen(true)}
+        />
 
-      {/* 2. Controlled Live News & Instant Payout Ticker */}
-      <TickerBar onOpenRegister={(planId) => handleSelectPlanForRegister(planId || 1)} />
+        <TickerBar onOpenRegister={(planId) => handleSelectPlanForRegister(planId || 1)} />
+      </div>
 
       {/* 2.5 Active Verified Sponsor Invitation Bar (ACC India / SWACCDK01 Style) */}
       {sponsorUser && sponsorReferralId && !currentUser && (
-        <div className="bg-gradient-to-r from-amber-950 via-slate-950 to-amber-950 border-y border-amber-500/40 py-2.5 px-3 text-xs text-white shadow-lg sticky top-16 z-30 backdrop-blur-md">
+        <div className="bg-gradient-to-r from-amber-950 via-slate-950 to-amber-950 border-y border-amber-500/40 py-2.5 px-3 text-xs text-white shadow-lg relative z-30 backdrop-blur-md">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
             <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
               <span className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
@@ -974,6 +1003,23 @@ export default function App() {
           onRegisterSuccess={handleRegisterSuccess}
         />
       )}
+
+      {/* 15. Universal 3D Notification Modal (Direct Chat Reply) */}
+      <NotificationModal
+        isOpen={isAppNotificationModalOpen}
+        onClose={() => setIsAppNotificationModalOpen(false)}
+        role={currentUser ? 'user' : 'admin'}
+        userId={currentUser?.userId}
+        userName={currentUser?.fullName}
+        onOpenChat={(targetUserId) => {
+          setIsAppNotificationModalOpen(false);
+          if (currentUser) {
+            handleOpenDashboard();
+          } else {
+            navigateTo('admin');
+          }
+        }}
+      />
     </div>
   );
 }
