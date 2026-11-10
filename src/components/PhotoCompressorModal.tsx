@@ -227,57 +227,93 @@ export const PhotoCompressorTool: React.FC<{ onDownloadSuccess?: () => void }> =
             </div>
 
             {/* Preset Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={() => handleTargetSizeChange(20, 'passport')}
-                className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                className={`p-2 sm:p-2.5 rounded-xl text-left border transition cursor-pointer min-h-[44px] ${
                   targetSizeKB === 20 && presetType === 'passport'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
-                    : 'bg-slate-950 border-slate-700 text-slate-200 hover:border-amber-400'
+                    ? 'btn-3d-gold text-slate-950 font-black shadow-md'
+                    : 'hover:border-amber-400'
                 }`}
+                style={
+                  targetSizeKB === 20 && presetType === 'passport'
+                    ? undefined
+                    : {
+                        backgroundColor: 'var(--btn-surface)',
+                        borderColor: 'var(--btn-border)',
+                        color: 'var(--text-primary)',
+                      }
+                }
               >
-                <div className="text-[11px] font-black">20 KB पासपोर्ट</div>
-                <div className="text-[9.5px] opacity-85">SSC / UPSC फोटो</div>
+                <div className="text-[10.5px] sm:text-[11px] font-black">20 KB पासपोर्ट</div>
+                <div className="text-[9px] sm:text-[9.5px] opacity-85">SSC / UPSC फोटो</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTargetSizeChange(50, 'exact_kb')}
-                className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                className={`p-2 sm:p-2.5 rounded-xl text-left border transition cursor-pointer min-h-[44px] ${
                   targetSizeKB === 50 && presetType === 'exact_kb'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
-                    : 'bg-slate-950 border-slate-700 text-slate-200 hover:border-amber-400'
+                    ? 'btn-3d-gold text-slate-950 font-black shadow-md'
+                    : 'hover:border-amber-400'
                 }`}
+                style={
+                  targetSizeKB === 50 && presetType === 'exact_kb'
+                    ? undefined
+                    : {
+                        backgroundColor: 'var(--btn-surface)',
+                        borderColor: 'var(--btn-border)',
+                        color: 'var(--text-primary)',
+                      }
+                }
               >
-                <div className="text-[11px] font-black">50 KB मानक (Standard)</div>
-                <div className="text-[9.5px] opacity-85">RTPS / जाति-आय-निवास</div>
+                <div className="text-[10.5px] sm:text-[11px] font-black">50 KB मानक (Standard)</div>
+                <div className="text-[9px] sm:text-[9.5px] opacity-85">RTPS / जाति-आय-निवास</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTargetSizeChange(15, 'signature')}
-                className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                className={`p-2 sm:p-2.5 rounded-xl text-left border transition cursor-pointer min-h-[44px] ${
                   targetSizeKB === 15 && presetType === 'signature'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
-                    : 'bg-slate-950 border-slate-700 text-slate-200 hover:border-amber-400'
+                    ? 'btn-3d-gold text-slate-950 font-black shadow-md'
+                    : 'hover:border-amber-400'
                 }`}
+                style={
+                  targetSizeKB === 15 && presetType === 'signature'
+                    ? undefined
+                    : {
+                        backgroundColor: 'var(--btn-surface)',
+                        borderColor: 'var(--btn-border)',
+                        color: 'var(--text-primary)',
+                      }
+                }
               >
-                <div className="text-[11px] font-black">15 KB सिग्नेचर</div>
-                <div className="text-[9.5px] opacity-85">हस्ताक्षर रिसाइज़र</div>
+                <div className="text-[10.5px] sm:text-[11px] font-black">15 KB सिग्नेचर</div>
+                <div className="text-[9px] sm:text-[9.5px] opacity-85">हस्ताक्षर रिसाइज़र</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTargetSizeChange(100, 'exact_kb')}
-                className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                className={`p-2 sm:p-2.5 rounded-xl text-left border transition cursor-pointer min-h-[44px] ${
                   targetSizeKB === 100 && presetType === 'exact_kb'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
-                    : 'bg-slate-950 border-slate-700 text-slate-200 hover:border-amber-400'
+                    ? 'btn-3d-gold text-slate-950 font-black shadow-md'
+                    : 'hover:border-amber-400'
                 }`}
+                style={
+                  targetSizeKB === 100 && presetType === 'exact_kb'
+                    ? undefined
+                    : {
+                        backgroundColor: 'var(--btn-surface)',
+                        borderColor: 'var(--btn-border)',
+                        color: 'var(--text-primary)',
+                      }
+                }
               >
-                <div className="text-[11px] font-black">100 KB डॉक्यूमेंट</div>
-                <div className="text-[9.5px] opacity-85">पहचान पत्र / प्रूफ</div>
+                <div className="text-[10.5px] sm:text-[11px] font-black">100 KB डॉक्यूमेंट</div>
+                <div className="text-[9px] sm:text-[9.5px] opacity-85">पहचान पत्र / प्रूफ</div>
               </button>
             </div>
 
@@ -406,24 +442,37 @@ export const PhotoCompressorModal: React.FC<PhotoCompressorModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-slate-950 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden">
+      <div 
+        className="border-2 rounded-2xl sm:rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.8)] overflow-hidden transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--btn-border)',
+          color: 'var(--text-primary)',
+        }}
+      >
         
         {/* Sticky Header */}
-        <div className="px-3.5 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border-b border-amber-500/40 flex items-center justify-between gap-3 shrink-0">
+        <div 
+          className="px-3.5 sm:px-6 py-3 sm:py-3.5 border-b flex items-center justify-between gap-3 shrink-0 transition-colors duration-200"
+          style={{
+            backgroundColor: 'var(--card-bg)',
+            borderColor: 'var(--btn-border)',
+          }}
+        >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl logo-3d-box flex items-center justify-center shrink-0 border border-amber-400/80 shadow-md">
               <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-white truncate">
+                <h3 className="text-sm sm:text-base font-black truncate" style={{ color: 'var(--text-primary)' }}>
                   फोटो कंप्रेसर व रिसाइज़र (Smart Photo Resizer)
                 </h3>
                 <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">
                   100% फ्री
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-300 truncate">
+              <p className="text-[10px] sm:text-xs truncate opacity-80" style={{ color: 'var(--text-secondary)' }}>
                 RTPS, SSC, UPSC व सरकारी फॉर्म हेतु 20KB, 50KB, 100KB में सटीक फोटो व सिग्नेचर बनाएं
               </p>
             </div>

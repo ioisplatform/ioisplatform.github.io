@@ -332,6 +332,88 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
           </div>
         </div>
 
+        {/* 🌟 5-to-10 Second Instant Clarity Card: What is IOIS & What to do Next */}
+        <div 
+          className="w-full max-w-4xl mx-auto p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all shadow-xl text-left"
+          style={{
+            backgroundColor: 'var(--card-bg)',
+            borderColor: 'var(--btn-border)',
+            color: 'var(--text-primary)'
+          }}
+        >
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-2 max-w-xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
+                  ⚡ 5 सेकंड परिचय (Quick Overview)
+                </span>
+                <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>100% पारदर्शी व सुरक्षित</span>
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg md:text-xl font-black leading-snug">
+                IOIS क्या है और आपको आगे क्या करना है?
+              </h2>
+              <p className="text-xs sm:text-sm leading-relaxed opacity-90" style={{ color: 'var(--text-secondary)' }}>
+                <strong>भारतीय ऑनलाइन आय सहयोग प्रणाली</strong> — ₹10 से ₹999 में से अपना पसंदीदा प्लान चुनें, तुरंत 256-Bit डिजिटल ID कार्ड प्राप्त करें और प्रत्येक डायरेक्ट रेफरल पर <strong>50% से 70% तक त्वरित इंसेंटिव</strong> पाएं।
+              </p>
+              
+              {/* 3 Step Action Blueprint */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                <div className="p-2 rounded-xl border flex items-center gap-2" style={{ backgroundColor: 'var(--btn-surface)', borderColor: 'var(--btn-border)' }}>
+                  <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">1</span>
+                  <span><strong>प्लान चुनें:</strong> ₹10 से ₹999</span>
+                </div>
+                <div className="p-2 rounded-xl border flex items-center gap-2" style={{ backgroundColor: 'var(--btn-surface)', borderColor: 'var(--btn-border)' }}>
+                  <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">2</span>
+                  <span><strong>ID कार्ड पाएं:</strong> तुरंत जनरेट</span>
+                </div>
+                <div className="p-2 rounded-xl border flex items-center gap-2" style={{ backgroundColor: 'var(--btn-surface)', borderColor: 'var(--btn-border)' }}>
+                  <span className="w-5 h-5 rounded-full bg-emerald-400 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">3</span>
+                  <span><strong>कमाई शुरू:</strong> 50%-70% आय</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick 3-Button Call to Action */}
+            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 w-full md:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenRegister) onOpenRegister(1);
+                  else onNavigate('register');
+                }}
+                className="btn-3d-rainbow-special px-5 py-2.5 rounded-xl font-black text-xs text-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-black" />
+                <span>नया रजिस्ट्रेशन करें (Join)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="btn-3d-silver px-5 py-2.5 rounded-xl font-black text-xs text-slate-950 shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+              >
+                <span>सदस्य लॉगिन (Login)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsExplainerModalOpen(true)}
+                className="px-4 py-1.5 rounded-xl text-[10.5px] font-bold border transition text-center hover:opacity-90 cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--btn-surface)',
+                  borderColor: 'var(--btn-border)',
+                  color: 'var(--primary-accent)'
+                }}
+              >
+                📖 2 मिनट में विस्तार से समझें ➔
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* 🌟 Registration / Join Now Hero Callout & Mandatory Warning */}
         <div className="w-full max-w-4xl mx-auto p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border-2 border-amber-400/50 shadow-2xl relative overflow-hidden">
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">

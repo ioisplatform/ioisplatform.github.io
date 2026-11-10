@@ -125,8 +125,8 @@ export const PanchangRashifalPage: React.FC = () => {
             title="विस्तृत विवरण के लिए क्लिक करें"
           >
             <img 
-              src={panchang.festivalsToday.imageUrl} 
-              alt={panchang.festivalsToday.nameHindi} 
+              src={panchang?.festivalsToday?.imageUrl || ''} 
+              alt={panchang?.festivalsToday?.nameHindi || 'पावन दिवस'} 
               className="w-full h-full object-contain group-hover:scale-102 transition-transform select-none"
             />
             <div className="absolute top-2 right-2 bg-slate-950/90 text-amber-300 border border-amber-400/50 px-2 py-0.5 rounded-full text-[9.5px] font-black flex items-center gap-1 shadow-md">

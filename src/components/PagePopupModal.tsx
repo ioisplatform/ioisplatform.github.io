@@ -148,24 +148,37 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-slate-950 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.9)] overflow-hidden">
+      <div 
+        className="border-2 rounded-2xl sm:rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.8)] overflow-hidden transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--btn-border)',
+          color: 'var(--text-primary)',
+        }}
+      >
         
         {/* Sticky Popup Header with Icon, Title, and 3D Close Button */}
-        <div className="px-3.5 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border-b border-amber-500/40 flex items-center justify-between gap-3 shrink-0">
+        <div 
+          className="px-3.5 sm:px-6 py-3 sm:py-3.5 border-b flex items-center justify-between gap-3 shrink-0 transition-colors duration-200"
+          style={{
+            backgroundColor: 'var(--card-bg)',
+            borderColor: 'var(--btn-border)',
+          }}
+        >
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl logo-3d-box flex items-center justify-center shrink-0 border border-amber-400/80 shadow-md">
               <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${info.color}`} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base md:text-lg font-black text-white truncate">
+                <h3 className="text-sm sm:text-base md:text-lg font-black truncate" style={{ color: 'var(--text-primary)' }}>
                   {info.title}
                 </h3>
                 <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase">
                   ● INSTANT ACTIVE
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-300 truncate hidden xs:block">
+              <p className="text-[10px] sm:text-xs truncate hidden xs:block opacity-80" style={{ color: 'var(--text-secondary)' }}>
                 {info.subtitle}
               </p>
             </div>

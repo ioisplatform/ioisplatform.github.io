@@ -171,7 +171,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       {/* ================= MAIN LOCKED HEADER BAR (PERFECT RESPONSIVE 2-TIER MOBILE ARCHITECTURE) ================= */}
-      <header id="main-header" className="bg-slate-950/98 backdrop-blur-md border-b-2 border-amber-500/50 py-1.5 sm:py-2 px-2 sm:px-4 w-full relative transition-all shadow-[0_4px_24px_rgba(0,0,0,0.9)] max-w-full overflow-hidden select-none">
+      <header 
+        id="main-header" 
+        className="backdrop-blur-md border-b-2 py-1.5 sm:py-2 px-2 sm:px-4 w-full relative transition-colors duration-200 shadow-[0_4px_24px_rgba(0,0,0,0.5)] max-w-full overflow-hidden select-none"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--btn-border)',
+          color: 'var(--text-primary)',
+        }}
+      >
         <div className="w-full max-w-7xl mx-auto flex flex-col gap-1.5 sm:gap-2">
           
           {/* ================= ROW 1: BRAND LOGO + 4 TACTILE 3D SQUIRCLE UTILITY BUTTONS ================= */}
@@ -193,7 +201,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="flex items-center gap-1">
                   <h1 className="text-xs sm:text-sm md:text-base font-black tracking-tight leading-tight whitespace-nowrap">
                     <span className="text-amber-400">IOIS</span>{' '}
-                    <span className="text-white">PORTAL</span>
+                    <span style={{ color: 'var(--text-primary)' }}>PORTAL</span>
                   </h1>
                   <span className="inline-flex bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[7px] sm:text-[7.5px] font-bold px-1 sm:px-1.5 py-0.2 rounded-full items-center gap-0.5">
                     <ShieldCheck className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
@@ -425,13 +433,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* ================= ROW 2: DEDICATED MOBILE ACTION BAR (< md SCREENS) ================= */}
           {/* Guarantees that Login, Join, Dashboard, and ID Card buttons are 100% visible, perfectly aligned, and touch-friendly */}
-          <div className="flex md:hidden items-center gap-1.5 w-full pt-1.5 border-t border-slate-800/80">
+          <div 
+            className="flex md:hidden items-center gap-2.5 sm:gap-3 w-full pt-1.5 border-t transition-colors duration-200"
+            style={{ borderColor: 'var(--btn-border)' }}
+          >
             {currentUser ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleNavClick('dashboard')}
-                  className={`btn-3d-gold flex-1 h-10 min-h-[40px] px-2 rounded-xl font-black text-[11px] sm:text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md touch-manipulation select-none active:scale-95 min-w-0 ${
+                  className={`btn-3d-gold flex-1 h-8.5 min-h-[34px] px-2 rounded-xl font-black text-[10.5px] sm:text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md touch-manipulation select-none active:scale-95 min-w-0 ${
                     currentPage === 'dashboard' ? 'ring-2 ring-white' : ''
                   }`}
                   title="यूज़र डैशबोर्ड खोलें"
@@ -452,18 +463,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenReferralModal) onOpenReferralModal();
                     else handleNavClick('dashboard');
                   }}
-                  className="btn-3d-rainbow-special h-10 min-h-[40px] px-2.5 rounded-xl font-black text-[11px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 text-black shrink-0"
+                  className="btn-3d-rainbow-special h-8.5 min-h-[34px] px-2 rounded-xl font-black text-[10px] sm:text-[10.5px] flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 text-black shrink-0"
                   title="Invite & Earn: अपना रेफरल लिंक, QR कोड व पोस्टर शेयर करें"
                 >
                   <Sparkles className="w-3 h-3 text-black shrink-0" />
                   <span className="font-black text-black leading-none whitespace-nowrap">Invite</span>
-                  <span className="text-[8.5px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none">70%</span>
+                  <span className="text-[8px] bg-black text-amber-300 px-1 py-0.2 rounded font-black leading-none">70%</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleNavClick('idcard')}
-                  className="btn-3d-platinum h-10 min-h-[40px] px-2.5 rounded-xl font-black text-[11px] sm:text-xs flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 shrink-0"
+                  className="btn-3d-platinum h-8.5 min-h-[34px] px-2 rounded-xl font-black text-[10px] sm:text-[10.5px] flex items-center justify-center gap-1 transition cursor-pointer shadow-md active:scale-95 shrink-0"
                   title="डिजिटल ID कार्ड खोलें"
                 >
                   <CreditCard className="w-3 h-3 text-indigo-950 shrink-0" />
@@ -474,7 +485,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={onLogout}
                   title="लॉगआउट करें"
-                  className="h-10 min-h-[40px] w-10 min-w-[40px] rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
+                  className="h-8.5 min-h-[34px] w-8.5 min-w-[34px] rounded-xl bg-slate-900 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-800 transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -486,7 +497,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="nav-control-panel-btn-mobile"
                   type="button"
                   onClick={onOpenAdminLogin || (() => handleNavClick('admin'))}
-                  className="btn-3d-ruby h-10 min-h-[40px] px-2.5 sm:px-3 rounded-xl font-black text-[11px] sm:text-xs transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1 text-white shrink-0"
+                  className="btn-3d-ruby h-8.5 min-h-[34px] px-2 sm:px-2.5 rounded-xl font-black text-[10px] sm:text-[10.5px] transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1 text-white shrink-0"
                   title="एडमिन कंट्रोल पैनल लॉगिन"
                 >
                   <ShieldAlert className="w-3.5 h-3.5 text-white shrink-0 drop-shadow" />
@@ -498,7 +509,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="nav-login-btn-mobile"
                   type="button"
                   onClick={onOpenLogin}
-                  className="btn-3d-silver flex-1 h-10 min-h-[40px] px-2.5 rounded-xl font-black text-[11.5px] sm:text-xs transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1.5 min-w-0"
+                  className="btn-3d-silver flex-1 h-8.5 min-h-[34px] px-2 rounded-xl font-black text-[10.5px] sm:text-[11px] transition cursor-pointer shadow-md active:scale-95 touch-manipulation select-none flex items-center justify-center gap-1.5 min-w-0"
                   title="सदस्य लॉगिन करें"
                 >
                   <LogIn className="w-3.5 h-3.5 text-slate-950 shrink-0 drop-shadow" />
@@ -515,7 +526,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (onOpenRegister) onOpenRegister();
                     else handleNavClick('register');
                   }}
-                  className="btn-3d-rainbow-special flex-1 h-10 min-h-[40px] px-3 rounded-xl font-black text-[11.5px] sm:text-xs shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none text-black min-w-0"
+                  className="btn-3d-rainbow-special flex-1 h-8.5 min-h-[34px] px-2.5 rounded-xl font-black text-[10.5px] sm:text-[11px] shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none text-black min-w-0"
                   title="नया सदस्य रजिस्ट्रेशन करें (Join Now)"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-black shrink-0 drop-shadow" />
@@ -532,8 +543,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* ================= UNIFIED UNIVERSAL NAVIGATION MENU (PC & MOBILE) ================= */}
         {menuOpen && (
           <div 
-            style={{ backgroundColor: '#000000' }}
-            className="mt-2 pt-3 border-t border-slate-800 space-y-3 bg-black backdrop-blur-2xl p-3 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-amber-500/40 max-h-[82vh] overflow-y-auto shadow-[0_25px_80px_rgba(0,0,0,0.95)] animate-fadeIn"
+            style={{ 
+              backgroundColor: 'var(--card-bg)', 
+              borderColor: 'var(--btn-border)',
+              color: 'var(--text-primary)'
+            }}
+            className="mt-2 pt-3 border-t space-y-3 backdrop-blur-2xl p-3 sm:p-5 rounded-2xl sm:rounded-3xl border-2 max-h-[82vh] overflow-y-auto shadow-[0_25px_80px_rgba(0,0,0,0.6)] animate-fadeIn transition-colors duration-200"
           >
             
             {/* Top Bar inside Menu: 17+ Full Drawer, Dark/Light Mode, 3D Theme Color, Share, Close */}

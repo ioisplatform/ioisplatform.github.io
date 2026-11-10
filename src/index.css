@@ -26,10 +26,13 @@
   html.light,
   :root[data-mode="light"] {
     --bg-main: #f8fafc;
-    --card-bg: rgba(255, 255, 255, 0.95);
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #f1f5f9;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #f1f5f9;
+    --btn-border: #cbd5e1;
     --text-primary: #0f172a;
-    --text-secondary: #334155;
+    --text-secondary: #475569;
     --text-muted: #64748b;
     --border-color: rgba(217, 119, 6, 0.25);
     --accent-color: #d97706;
@@ -40,7 +43,13 @@
   html.dark.theme-royal-gold,
   :root[data-mode="dark"][data-theme="royal-gold"] {
     --bg-main: #060913;
-    --surface-bg: #0b1120;
+    --card-bg: #0b1120;
+    --surface-bg: #070c18;
+    --btn-surface: rgba(15, 23, 42, 0.85);
+    --btn-surface-hover: rgba(30, 41, 59, 0.95);
+    --btn-border: rgba(245, 158, 11, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(245, 158, 11, 0.35);
     --accent-color: #f59e0b;
     --accent-glow: rgba(245, 158, 11, 0.4);
@@ -49,7 +58,13 @@
   html.dark.theme-ocean-blue,
   :root[data-mode="dark"][data-theme="ocean-blue"] {
     --bg-main: #040d1a;
-    --surface-bg: #07172e;
+    --card-bg: #07172e;
+    --surface-bg: #051020;
+    --btn-surface: rgba(7, 23, 46, 0.85);
+    --btn-surface-hover: rgba(14, 40, 75, 0.95);
+    --btn-border: rgba(56, 189, 248, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(56, 189, 248, 0.35);
     --accent-color: #38bdf8;
     --accent-glow: rgba(56, 189, 248, 0.4);
@@ -58,7 +73,13 @@
   html.dark.theme-emerald-green,
   :root[data-mode="dark"][data-theme="emerald-green"] {
     --bg-main: #03140c;
-    --surface-bg: #062115;
+    --card-bg: #062115;
+    --surface-bg: #04180f;
+    --btn-surface: rgba(6, 33, 21, 0.85);
+    --btn-surface-hover: rgba(10, 50, 32, 0.95);
+    --btn-border: rgba(16, 185, 129, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(16, 185, 129, 0.35);
     --accent-color: #10b981;
     --accent-glow: rgba(16, 185, 129, 0.4);
@@ -67,7 +88,13 @@
   html.dark.theme-crimson-ruby,
   :root[data-mode="dark"][data-theme="crimson-ruby"] {
     --bg-main: #14050d;
-    --surface-bg: #220917;
+    --card-bg: #220917;
+    --surface-bg: #180610;
+    --btn-surface: rgba(34, 9, 23, 0.85);
+    --btn-surface-hover: rgba(55, 15, 38, 0.95);
+    --btn-border: rgba(244, 63, 94, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(244, 63, 94, 0.35);
     --accent-color: #f43f5e;
     --accent-glow: rgba(244, 63, 94, 0.4);
@@ -76,7 +103,13 @@
   html.dark.theme-amethyst-purple,
   :root[data-mode="dark"][data-theme="amethyst-purple"] {
     --bg-main: #0f051c;
-    --surface-bg: #1c0a33;
+    --card-bg: #1c0a33;
+    --surface-bg: #130624;
+    --btn-surface: rgba(28, 10, 51, 0.85);
+    --btn-surface-hover: rgba(45, 16, 80, 0.95);
+    --btn-border: rgba(168, 85, 247, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(168, 85, 247, 0.35);
     --accent-color: #a855f7;
     --accent-glow: rgba(168, 85, 247, 0.4);
@@ -85,7 +118,13 @@
   html.dark.theme-midnight-dark,
   :root[data-mode="dark"][data-theme="midnight-dark"] {
     --bg-main: #020205;
-    --surface-bg: #09090b;
+    --card-bg: #09090b;
+    --surface-bg: #050508;
+    --btn-surface: rgba(18, 18, 23, 0.85);
+    --btn-surface-hover: rgba(30, 30, 38, 0.95);
+    --btn-border: rgba(226, 232, 240, 0.2);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     --border-color: rgba(226, 232, 240, 0.25);
     --accent-color: #e2e8f0;
     --accent-glow: rgba(226, 232, 240, 0.2);
@@ -95,7 +134,13 @@
   html.light.theme-royal-gold,
   :root[data-mode="light"][data-theme="royal-gold"] {
     --bg-main: #fdfbf7;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #f8f4eb;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #fdf3df;
+    --btn-border: rgba(217, 119, 6, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(217, 119, 6, 0.35);
     --accent-color: #d97706;
   }
@@ -103,7 +148,13 @@
   html.light.theme-ocean-blue,
   :root[data-mode="light"][data-theme="ocean-blue"] {
     --bg-main: #f0f7ff;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #e0f2fe;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #bae6fd;
+    --btn-border: rgba(14, 165, 233, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(14, 165, 233, 0.35);
     --accent-color: #0284c7;
   }
@@ -111,7 +162,13 @@
   html.light.theme-emerald-green,
   :root[data-mode="light"][data-theme="emerald-green"] {
     --bg-main: #f0fdf4;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #dcfce7;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #bbf7d0;
+    --btn-border: rgba(16, 185, 129, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(16, 185, 129, 0.35);
     --accent-color: #059669;
   }
@@ -119,7 +176,13 @@
   html.light.theme-crimson-ruby,
   :root[data-mode="light"][data-theme="crimson-ruby"] {
     --bg-main: #fff1f3;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #ffe4e6;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #fecdd3;
+    --btn-border: rgba(244, 63, 94, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(244, 63, 94, 0.35);
     --accent-color: #e11d48;
   }
@@ -127,7 +190,13 @@
   html.light.theme-amethyst-purple,
   :root[data-mode="light"][data-theme="amethyst-purple"] {
     --bg-main: #faf5ff;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #f3e8ff;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #e9d5ff;
+    --btn-border: rgba(168, 85, 247, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(168, 85, 247, 0.35);
     --accent-color: #9333ea;
   }
@@ -135,7 +204,13 @@
   html.light.theme-midnight-dark,
   :root[data-mode="light"][data-theme="midnight-dark"] {
     --bg-main: #f8fafc;
-    --surface-bg: #ffffff;
+    --card-bg: #ffffff;
+    --surface-bg: #f1f5f9;
+    --btn-surface: #ffffff;
+    --btn-surface-hover: #e2e8f0;
+    --btn-border: rgba(100, 116, 139, 0.3);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --border-color: rgba(100, 116, 139, 0.3);
     --accent-color: #334155;
   }
@@ -173,28 +248,63 @@ html.light header#main-header {
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06) !important;
 }
 
-html.light .text-slate-100,
-html.light .text-slate-200,
-html.light .text-white {
+/* Selectively adjust text colors on general surfaces, but protect buttons and badges */
+html.light p.text-slate-100,
+html.light p.text-slate-200,
+html.light p.text-white,
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light div.text-white:not([class*="btn-"]):not([class*="badge-"]):not([class*="from-"]):not([class*="bg-red"]):not([class*="bg-blue"]):not([class*="bg-purple"]) {
   color: #0f172a !important;
 }
 
-html.light .text-slate-300,
-html.light .text-slate-400 {
+html.light .text-slate-300:not([class*="btn-"]),
+html.light .text-slate-400:not([class*="btn-"]) {
   color: #334155 !important;
 }
 
-html.light .bg-slate-950,
-html.light [class*="020617"],
-html.light .bg-slate-900\/80,
-html.light .bg-slate-900\/90,
-html.light .bg-slate-900 {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
+/* Ensure buttons with colored/dark background preserve crisp high-contrast white text */
+html.light .btn-3d-ruby,
+html.light .btn-3d-ruby span,
+html.light .btn-3d-sapphire,
+html.light .btn-3d-sapphire span,
+html.light .btn-3d-dark,
+html.light .btn-3d-dark span,
+html.light .btn-3d-amethyst,
+html.light .btn-3d-amethyst span,
+html.light button.btn-3d-ruby,
+html.light button.btn-3d-sapphire,
+html.light [class*="from-purple"] span,
+html.light [class*="from-indigo"] span,
+html.light [class*="from-blue"] span,
+html.light [class*="from-red"] span {
+  color: #ffffff !important;
 }
 
-html.light .bg-slate-850,
-html.light .bg-slate-800 {
+/* Ensure bright yellow/gold rainbow buttons retain crisp black text */
+html.light .btn-3d-rainbow,
+html.light .btn-3d-rainbow span,
+html.light .btn-3d-rainbow-special,
+html.light .btn-3d-rainbow-special span,
+html.light .btn-3d-gold,
+html.light .btn-3d-gold span,
+html.light .btn-gold-gradient,
+html.light .btn-gold-gradient span {
+  color: #000000 !important;
+}
+
+html.light .bg-slate-950:not([class*="btn-"]):not([class*="aspect-"]):not(.keep-dark),
+html.light .bg-slate-900\/80:not([class*="btn-"]),
+html.light .bg-slate-900\/90:not([class*="btn-"]),
+html.light .bg-slate-900:not([class*="btn-"]) {
+  background-color: var(--card-bg, #ffffff) !important;
+  color: var(--text-primary, #0f172a) !important;
+}
+
+html.light .bg-slate-850:not([class*="btn-"]),
+html.light .bg-slate-800:not([class*="btn-"]) {
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
   border-color: #e2e8f0 !important;

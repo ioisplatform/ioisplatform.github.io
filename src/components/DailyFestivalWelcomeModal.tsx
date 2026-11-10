@@ -13,14 +13,15 @@ import {
   BookOpen,
   Volume2
 } from 'lucide-react';
-import { DayFestivalInfo } from '../services/festivalPanchangService';
+import { DayFestivalInfo, calculateLiveVedicPanchang } from '../services/festivalPanchangService';
 import { PageType } from '../types';
 
 interface DailyFestivalWelcomeModalProps {
-  festival: DayFestivalInfo;
+  festival?: DayFestivalInfo;
   isOpen: boolean;
   onClose: () => void;
   onNavigate?: (page: PageType) => void;
+  onNavigatePanchang?: () => void;
   onOpenRashifal?: () => void;
   userName?: string;
 }
@@ -30,6 +31,7 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
   isOpen,
   onClose,
   onNavigate,
+  onNavigatePanchang,
   onOpenRashifal,
   userName
 }) => {
@@ -38,14 +40,16 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
 
   if (!isOpen) return null;
 
+  const safeFestival: DayFestivalInfo = festival || calculateLiveVedicPanchang().festivalsToday;
+
   const handleShareOnWhatsApp = () => {
-    const text = `🎉 *${festival.nameHindi}* 🎉\n${festival.tagline}\n\n🌟 *आज का शुभ मुहूर्त:* ${festival.shubhMuhurat}\n\n📖 *महत्व:* ${festival.significance.slice(0, 150)}...\n\n🙏 ${festival.greetingsMessage}\n\n👉 संपूर्ण दैनिक पंचांग व शुभ मुहूर्त देखें: ${window.location.origin}`;
+    const text = `🎉 *${safeFestival.nameHindi}* 🎉\n${safeFestival.tagline}\n\n🌟 *आज का शुभ मुहूर्त:* ${safeFestival.shubhMuhurat}\n\n📖 *महत्व:* ${safeFestival.significance.slice(0, 150)}...\n\n🙏 ${safeFestival.greetingsMessage}\n\n👉 संपूर्ण दैनिक पंचांग व शुभ मुहूर्त देखें: ${window.location.origin}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleCopyGreeting = () => {
-    const text = `${festival.nameHindi}\n\n${festival.greetingsMessage}\n\nशुभ मुहूर्त: ${festival.shubhMuhurat}\n\nIOIS 2026: ${window.location.origin}`;
+    const text = `${safeFestival.nameHindi}\n\n${safeFestival.greetingsMessage}\n\nशुभ मुहूर्त: ${safeFestival.shubhMuhurat}\n\nIOIS 2026: ${window.location.origin}`;
     navigator.clipboard.writeText(text);
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2500);
@@ -85,20 +89,26 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
           {/* 1. Festive Header Artwork Banner (100% Uncropped 16:9 Display) */}
           <div className="relative rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-xl bg-black">
             <div className="w-full aspect-video relative flex items-center justify-center bg-black">
-              <img 
-                src={festival.imageUrl} 
-                alt={festival.nameHindi} 
-                className="w-full h-full object-contain"
-              />
+              {safeFestival.imageUrl ? (
+                <img 
+                  src={safeFestival.imageUrl} 
+                  alt={safeFestival.nameHindi} 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-amber-300 font-black text-sm">
+                  IOIS FESTIVAL 2026
+                </div>
+              )}
             </div>
             
             <div className="px-3.5 py-2 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-amber-500/30 flex items-center justify-between flex-wrap gap-2">
               <span className="text-amber-300 text-xs font-black flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>{festival.badge}</span>
+                <span>{safeFestival.badge}</span>
               </span>
               <span className="text-[10.5px] font-mono text-slate-300 bg-slate-800/90 px-2 py-0.5 rounded-md">
-                {festival.dateStr}
+                {safeFestival.dateStr}
               </span>
             </div>
           </div>
@@ -115,16 +125,16 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
             </div>
 
             <h3 className="text-lg sm:text-2xl font-black text-white leading-tight">
-              {festival.nameHindi}
+              {safeFestival.nameHindi}
             </h3>
 
             <p className="text-xs sm:text-sm font-bold text-amber-200">
-              {festival.tagline}
+              {safeFestival.tagline}
             </p>
 
             {/* Heartfelt Greeting Card */}
             <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/10 via-slate-900/90 to-slate-950 border border-amber-500/40 text-xs sm:text-sm leading-relaxed text-amber-100">
-              <p>{festival.greetingsMessage}</p>
+              <p>{safeFestival.greetingsMessage}</p>
             </div>
           </div>
 
@@ -141,7 +151,7 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
             </div>
 
             <div className="text-base sm:text-lg font-black text-white font-mono bg-slate-950/80 p-2.5 rounded-xl border border-emerald-500/40 flex items-center justify-between flex-wrap gap-2">
-              <span className="text-amber-300">{festival.shubhMuhurat}</span>
+              <span className="text-amber-300">{safeFestival.shubhMuhurat}</span>
               <span className="text-[10px] text-emerald-400 font-sans font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
                 ● सर्वाधिक फलदायी
               </span>
@@ -149,7 +159,7 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
 
             {/* Sub-Muhurats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
-              {festival.muhuratDetails.map((m, idx) => (
+              {(safeFestival.muhuratDetails || []).map((m, idx) => (
                 <div key={idx} className="p-2 bg-slate-950/60 rounded-xl border border-slate-800">
                   <span className="text-slate-400 block text-[10px] font-bold">{m.label}:</span>
                   <strong className="text-white font-mono block">{m.time}</strong>
@@ -204,10 +214,10 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
                   <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>पौराणिक इतिहास व सामाजिक महत्व:</span>
                 </div>
-                <p className="text-slate-200">{festival.significance}</p>
+                <p className="text-slate-200">{safeFestival.significance}</p>
                 <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/20 text-xs text-amber-200">
                   <strong className="text-amber-300 block mb-1">📜 कथा व मान्यता:</strong>
-                  {festival.story}
+                  {safeFestival.story}
                 </div>
               </div>
             )}
@@ -219,7 +229,7 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
                   चरणबद्ध पावन पूजा विधि:
                 </strong>
                 <ul className="space-y-1.5 text-slate-300 text-xs">
-                  {festival.pujaVidhi.map((step, idx) => (
+                  {(safeFestival.pujaVidhi || []).map((step, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         {idx + 1}
@@ -238,7 +248,7 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
                   आज का पावन संकल्प व आशीर्वाद मंत्र:
                 </span>
                 <p className="text-sm sm:text-base font-bold text-white font-serif leading-relaxed">
-                  "{festival.mantra}"
+                  "{safeFestival.mantra}"
                 </p>
                 <span className="text-[10px] text-slate-400 block">
                   (पूजन या तिलक के समय इस पावन मंत्र का 3 या 11 बार स्मरण करें)

@@ -80,7 +80,11 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
   if (slides.length === 0) return null;
 
   const currentSlide = slides[currentIndex] || slides[0];
-  const isFestivalSlide = currentSlide.category === 'festival' || currentSlide.id.startsWith('dynamic-festive');
+  if (!currentSlide) return null;
+
+  const isFestivalSlide = Boolean(
+    currentSlide.category === 'festival' || (currentSlide.id && currentSlide.id.startsWith('dynamic-festive'))
+  );
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));

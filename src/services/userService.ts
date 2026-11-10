@@ -8,7 +8,10 @@ import {
   getDoc,
   getDocs, 
   deleteDoc,
-  onSnapshot 
+  onSnapshot,
+  query,
+  where,
+  limit 
 } from 'firebase/firestore';
 
 const STORAGE_USERS_KEY = 'iois_database_users_v2';
@@ -1000,14 +1003,17 @@ export const checkUserAlreadyExists = async (
     }
   }
 
-  // 2. Check Server API
+  // 2. Check Server API with fast 1500ms timeout
   try {
     const params = new URLSearchParams();
     if (mobileDigits.length >= 10) params.append('mobile', mobileDigits);
     if (cleanEmail.length > 3) params.append('email', cleanEmail);
     if (excludeUserId) params.append('excludeUserId', excludeUserId);
 
-    const res = await fetch(`/api/users/check-duplicate?${params.toString()}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`/api/users/check-duplicate?${params.toString()}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data.exists) {
@@ -1019,35 +1025,36 @@ export const checkUserAlreadyExists = async (
         };
       }
     }
-  } catch (e) {
+  } catch {
     // ignore network err
   }
 
-  // 3. Direct Firestore check if available
-  if (db) {
+  // 3. Fast Targeted Firestore query (0-latency limit(1) instead of unbounded collection download)
+  if (db && (mobileDigits.length >= 10 || cleanEmail.length > 3)) {
     try {
       const col = collection(db, 'users');
-      const snap = await getDocs(col);
-      for (const d of snap.docs) {
-        const u = d.data() as UserProfile;
-        if (!u || !u.userId) continue;
-        if (excludeUserId && u.userId.toUpperCase() === excludeUserId.toUpperCase()) continue;
-
-        const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
-        const mobileMatch = mobileDigits.length >= 10 && uDigits.endsWith(mobileDigits.slice(-10));
-        const emailMatch = cleanEmail.length > 3 && u.email && u.email.trim().toLowerCase() === cleanEmail;
-
-        if (mobileMatch || emailMatch) {
-          return {
-            exists: true,
-            matchedBy: mobileMatch && emailMatch ? 'both' : mobileMatch ? 'mobile' : 'email',
-            maskedMobile: maskMobile(u.mobileNumber),
-            maskedEmail: maskEmail(u.email),
-          };
+      const timeoutPromise = new Promise<DuplicateCheckResult>((resolve) => setTimeout(() => resolve({ exists: false }), 1200));
+      const queryPromise = (async (): Promise<DuplicateCheckResult> => {
+        if (mobileDigits.length >= 10) {
+          const q = query(col, where('mobileNumber', '==', mobileDigits.slice(-10)), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const u = snap.docs[0].data() as UserProfile;
+            return {
+              exists: true,
+              matchedBy: 'mobile',
+              maskedMobile: maskMobile(u.mobileNumber),
+              maskedEmail: maskEmail(u.email),
+            };
+          }
         }
-      }
-    } catch (e) {
-      console.warn('Firestore duplicate check query note:', e);
+        return { exists: false };
+      })();
+
+      const fastResult = await Promise.race([queryPromise, timeoutPromise]);
+      if (fastResult.exists) return fastResult;
+    } catch {
+      // non-blocking fallback
     }
   }
 
@@ -1278,23 +1285,12 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
   const firestoreUsers: UserProfile[] = [];
   let serverUsers: UserProfile[] = [];
 
-  // 1. Fetch from Firestore
+  // 1. FAST PATH: Fetch from backend server with 1500ms timeout (immediate response from disk)
   try {
-    if (db) {
-      const col = collection(db, 'users');
-      const snap = await getDocs(col);
-      snap.forEach((d) => {
-        const u = d.data() as UserProfile;
-        if (u && u.userId) firestoreUsers.push(u);
-      });
-    }
-  } catch (e) {
-    console.warn('Direct firestore users query warning:', e);
-  }
-
-  // 2. Fetch from backend server
-  try {
-    const res = await fetch('/api/users');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch('/api/users', { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.users)) {
@@ -1302,23 +1298,30 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
       }
     }
   } catch (err) {
-    console.warn('Could not connect to server /api/users, using cached data.', err);
+    console.warn('Server users fetch note, falling back to local/cloud cache:', err);
+  }
+
+  // 2. Non-blocking Firestore sync with 1500ms timeout
+  if (db) {
+    try {
+      const col = collection(db, 'users');
+      const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      const fetchPromise = (async () => {
+        const snap = await getDocs(col);
+        snap.forEach((d) => {
+          const u = d.data() as UserProfile;
+          if (u && u.userId) firestoreUsers.push(u);
+        });
+      })();
+      await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (e) {
+      console.warn('Firestore background users sync note:', e);
+    }
   }
 
   // Merge all data sources so old users and new users are all preserved
   const allMerged = mergeUserLists(firestoreUsers, serverUsers, localUsers, INITIAL_DEMO_USERS);
   saveUsers(allMerged);
-
-  // Background self-healing sync: sync any server/local-only users to Firestore
-  if (db && allMerged.length > 0) {
-    setTimeout(() => {
-      allMerged.forEach((u) => {
-        if (!firestoreUsers.some((fu) => fu.userId.toUpperCase() === u.userId.toUpperCase())) {
-          syncUserToFirestore(u).catch(() => {});
-        }
-      });
-    }, 1000);
-  }
 
   return allMerged;
 };
@@ -1382,13 +1385,17 @@ export const registerNewUserAsync = async (
     createdAt: new Date().toISOString(),
   };
 
-  // 3. Contact backend server first to verify server-side uniqueness
+  // 3. Contact backend server with 2000ms timeout
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const serverRes = await fetch('/api/users/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newUser),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (serverRes.status === 409) {
       const serverData = await serverRes.json();
@@ -1787,77 +1794,63 @@ export const loginUserAsync = async (
 
   let matchedUser: UserProfile | null = null;
 
-  // 1. Direct Firestore document lookup (Instant O(1) fetch if User ID)
-  if (db && cleanId.length >= 4) {
-    try {
-      const docRef = doc(db, 'users', cleanUpper);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        matchedUser = snap.data() as UserProfile;
-      }
-    } catch (e) {
-      console.warn('Direct Firestore doc get note:', e);
+  // 1. ULTRA-FAST PATH: Check local cache first (0ms instant login on device, no network lag)
+  matchedUser = loginUser(identifier, password);
+  if (matchedUser) {
+    // Verified instantly from local device!
+    if (password && matchedUser.password && matchedUser.password !== password) {
+      return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है।' };
     }
+    // Background sync to keep cache fresh without blocking user
+    syncUserToFirestore(matchedUser).catch(() => {});
+    return { success: true, user: matchedUser };
   }
 
-  // 2. Query Firestore collection if not found via direct ID
+  // 2. Fast Server API Login with 1500ms timeout (for cross-device login)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch('/api/users/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: cleanId, password }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await res.json();
+    if (res.ok && data.success && data.user) {
+      matchedUser = data.user;
+    } else if (res.status === 401) {
+      return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
+    }
+  } catch {
+    // Fast fallback to targeted Firestore
+  }
+
+  // 3. Fast Targeted Firestore query (0ms wait, maximum 1500ms race timeout)
   if (!matchedUser && db) {
     try {
-      const col = collection(db, 'users');
-      const snap = await getDocs(col);
-      snap.forEach((d) => {
-        const u = d.data() as UserProfile;
-        if (u && !matchedUser) {
-          const uidMatch = u.userId && u.userId.toUpperCase() === cleanUpper;
-          const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
-          const mobMatch = digits.length >= 10 && uDigits.endsWith(digits.slice(-10));
-          const emailMatch = u.email && u.email.toLowerCase() === cleanLower;
-          if (uidMatch || mobMatch || emailMatch) {
-            matchedUser = u;
-          }
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const firestorePromise = (async (): Promise<UserProfile | null> => {
+        if (cleanId.length >= 4) {
+          const docRef = doc(db, 'users', cleanUpper);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) return snap.data() as UserProfile;
         }
-      });
-    } catch (e) {
-      console.warn('Direct firestore login check warning:', e);
+        if (digits.length >= 10) {
+          const col = collection(db, 'users');
+          const q = query(col, where('mobileNumber', '==', digits.slice(-10)), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) return snap.docs[0].data() as UserProfile;
+        }
+        return null;
+      })();
+
+      matchedUser = await Promise.race([firestorePromise, timeoutPromise]);
+    } catch {
+      // ignore
     }
-  }
-
-  // 3. Try Server API Login (fetches from server database)
-  if (!matchedUser) {
-    try {
-      const res = await fetch('/api/users/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: cleanId, password }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.user) {
-        matchedUser = data.user;
-      } else if (res.status === 401) {
-        return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
-      }
-    } catch (err) {
-      console.warn('Server login note:', err);
-    }
-  }
-
-  // 4. Local cache fallback
-  if (!matchedUser) {
-    matchedUser = loginUser(identifier, password);
-  }
-
-  // If user is not found in any source
-  if (!matchedUser) {
-    return {
-      success: false,
-      error: 'यह User ID या मोबाइल नंबर पंजीकृत नहीं है। कृपया सही विवरण दर्ज करें या नया रजिस्ट्रेशन करें।',
-    };
-  }
-
-  // Password verification if password is provided
-  if (password && matchedUser.password && matchedUser.password !== password) {
-    return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है।' };
   }
 
   // Persist logged-in user to local cache & active session

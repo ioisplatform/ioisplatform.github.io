@@ -319,7 +319,13 @@ export default function App() {
       }}
     >
       {/* 1. Header & Navigation + Live News Ticker (Unified Sticky Top Bar - Zero Mobile Overlap) */}
-      <div className="sticky top-0 z-50 w-full shadow-2xl bg-slate-950">
+      <div 
+        className="sticky top-0 z-50 w-full shadow-2xl border-b transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--btn-border)',
+        }}
+      >
         <Navbar
           currentUser={currentUser}
           currentPage={currentPage}
@@ -351,26 +357,40 @@ export default function App() {
       </div>
 
       {/* 2. Live Vedic Panchang, Festival Greeting & Daily Rashifal Quick Bar */}
-      <div className="bg-gradient-to-r from-amber-950/90 via-slate-900 to-amber-950/90 border-b border-amber-500/30 py-2 px-2.5 sm:px-4 text-xs text-white relative z-20 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 text-center md:text-left">
+      <div 
+        className="border-b py-2 px-2.5 sm:px-4 text-xs relative z-20 backdrop-blur-md transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--card-bg)',
+          borderColor: 'var(--btn-border)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5 text-center md:text-left">
           <div className="flex items-center gap-2 flex-wrap justify-center md:justify-start">
-            <span className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+            <span className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-[9.5px] sm:text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
               <span>🚩</span>
               <span>{dailyPanchang.festivalsToday.nameHindi}</span>
             </span>
-            <span className="text-amber-200/90 text-[11px] font-medium hidden sm:inline">
-              तिथि: <strong className="text-white">{dailyPanchang.tithi}</strong> • नक्षत्र: <strong className="text-white">{dailyPanchang.nakshatra}</strong>
+            <span className="text-[10px] sm:text-[11px] font-medium hidden sm:inline opacity-90">
+              तिथि: <strong className="font-bold">{dailyPanchang.tithi}</strong> • नक्षत्र: <strong className="font-bold">{dailyPanchang.nakshatra}</strong>
             </span>
-            <span className="text-amber-400 font-bold text-[11px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-amber-500/30">
+            <span 
+              className="font-bold text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md border"
+              style={{
+                backgroundColor: 'var(--btn-surface)',
+                borderColor: 'var(--btn-border)',
+                color: 'var(--primary-accent)',
+              }}
+            >
               शुभ मुहूर्त: {dailyPanchang.abhijitMuhurat}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap justify-center">
             <button
               type="button"
               onClick={() => setIsFestivalWelcomeOpen(true)}
-              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[10.5px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[9.5px] sm:text-[10px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1 min-h-[30px]"
               title="आज के पावन पर्व का महत्व, कथा व शुभ मुहूर्त पॉपअप"
             >
               <span>🎉</span>
@@ -379,7 +399,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsDailyRashifalOpen(true)}
-              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-[10.5px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+              className="btn-3d-amethyst px-2.5 py-1 rounded-lg text-white font-black text-[9.5px] sm:text-[10px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1 min-h-[30px]"
               title="12 राशियों का दैनिक राशिफल व उपाय पॉपअप"
             >
               <span>🔮</span>
@@ -388,7 +408,12 @@ export default function App() {
             <button
               type="button"
               onClick={() => setPopupPage('panchang-rashifal')}
-              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold text-[10.5px] transition cursor-pointer flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg border font-bold text-[9.5px] sm:text-[10px] transition cursor-pointer flex items-center gap-1 min-h-[30px]"
+              style={{
+                backgroundColor: 'var(--btn-surface)',
+                borderColor: 'var(--btn-border)',
+                color: 'var(--primary-accent)',
+              }}
             >
               <span>📅</span>
               <span>पंचांग पॉपअप</span>
@@ -398,7 +423,13 @@ export default function App() {
       </div>
 
       {/* 2.2 3 Categorized New Headers with 11 Instant Popup Windows (Mobile Screen Sized) */}
-      <div className="bg-slate-950/95 border-b border-amber-500/20 py-2 sm:py-2.5 px-2 sm:px-4 relative z-20 shadow-md">
+      <div 
+        className="border-b py-2 sm:py-2.5 px-2 sm:px-4 relative z-20 shadow-md transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--btn-border)',
+        }}
+      >
         <div className="max-w-7xl mx-auto">
           <MultiHeaderPopupNav
             variant="topbar"
@@ -1122,6 +1153,8 @@ export default function App() {
       <DailyFestivalWelcomeModal
         isOpen={isFestivalWelcomeOpen}
         onClose={() => setIsFestivalWelcomeOpen(false)}
+        festival={dailyPanchang.festivalsToday}
+        userName={currentUser?.fullName}
         onOpenRashifal={() => {
           setIsFestivalWelcomeOpen(false);
           setIsDailyRashifalOpen(true);
