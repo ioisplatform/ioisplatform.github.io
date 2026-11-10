@@ -1,3 +1,11 @@
+import smartSavingsImg from '../assets/images/smart_savings_growth_1794240843133.jpg';
+import dhanterasImg from '../assets/images/dhanteras_celebration_1794240857116.jpg';
+import diwaliImg from '../assets/images/diwali_deepavali_festival_1794240871441.jpg';
+import govardhanImg from '../assets/images/govardhan_puja_annakoot_1794240899737.jpg';
+import bhaidoojImg from '../assets/images/bhai_dooj_celebration_1794240914243.jpg';
+import chhathImg from '../assets/images/chhath_puja_arghya_1794240884890.jpg';
+import missionImg from '../assets/images/national_youth_mission_1794240929346.jpg';
+
 export interface HomeSliderItem {
   id: string;
   title: string;
@@ -14,6 +22,7 @@ export interface HomeSliderItem {
   ctaAction: 'plans' | 'register' | 'idcard' | 'rtps-services';
   ctaPlanId?: number;
   highlightText: string;
+  imageUrl: string;
   active: boolean;
   order: number;
 }
@@ -34,6 +43,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'register',
     ctaPlanId: 1,
     highlightText: '50% से 70% दैनिक इंसेंटिव',
+    imageUrl: smartSavingsImg,
     active: true,
     order: 1
   },
@@ -53,6 +63,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'plans',
     ctaPlanId: 3,
     highlightText: 'शुभ महालक्ष्मी कृपा',
+    imageUrl: dhanterasImg,
     active: true,
     order: 2
   },
@@ -72,6 +83,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'plans',
     ctaPlanId: 7,
     highlightText: 'घर-घर शिक्षा व उजाला',
+    imageUrl: diwaliImg,
     active: true,
     order: 3
   },
@@ -91,6 +103,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'register',
     ctaPlanId: 2,
     highlightText: 'प्रकृति रक्षा व आत्मनिर्भरता',
+    imageUrl: govardhanImg,
     active: true,
     order: 4
   },
@@ -109,6 +122,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaText: 'गिफ्ट डिजिटल ID कार्ड',
     ctaAction: 'idcard',
     highlightText: 'सदा सलामत रहे यह प्यार',
+    imageUrl: bhaidoojImg,
     active: true,
     order: 5
   },
@@ -128,6 +142,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'plans',
     ctaPlanId: 6,
     highlightText: 'उगते व अस्ताचल सूर्य को अर्घ्य',
+    imageUrl: chhathImg,
     active: true,
     order: 6
   },
@@ -146,6 +161,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     ctaAction: 'register',
     ctaPlanId: 1,
     highlightText: 'डिजिटल भारत का आधार',
+    imageUrl: missionImg,
     active: true,
     order: 7
   }
@@ -153,7 +169,7 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
 
 export const DEFAULT_HOME_SLIDERS: HomeSliderItem[] = INITIAL_SLIDES;
 
-const STORAGE_SLIDERS_KEY = 'iois_home_sliders_v2';
+const STORAGE_SLIDERS_KEY = 'iois_home_sliders_v4';
 
 export const getStoredSliders = (): HomeSliderItem[] => {
   if (typeof window === 'undefined') return INITIAL_SLIDES;
@@ -164,7 +180,16 @@ export const getStoredSliders = (): HomeSliderItem[] => {
       return INITIAL_SLIDES;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_SLIDES;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item: HomeSliderItem) => {
+        const fallback = INITIAL_SLIDES.find(s => s.id === item.id);
+        return {
+          ...item,
+          imageUrl: item.imageUrl || fallback?.imageUrl || ''
+        };
+      });
+    }
+    return INITIAL_SLIDES;
   } catch {
     return INITIAL_SLIDES;
   }

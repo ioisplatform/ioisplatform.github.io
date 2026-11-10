@@ -46,6 +46,11 @@ import { SponsorCardModal } from './components/SponsorCardModal';
 import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
 import { ReferralPromotionModal } from './components/ReferralPromotionModal';
 import { NotificationModal } from './components/NotificationModal';
+import { DailyFestivalWelcomeModal } from './components/DailyFestivalWelcomeModal';
+import { DailyRashifalModal } from './components/DailyRashifalModal';
+import { MultiHeaderPopupNav } from './components/MultiHeaderPopupNav';
+import { PhotoCompressorModal } from './components/PhotoCompressorModal';
+import { calculateLiveVedicPanchang } from './services/festivalPanchangService';
 import { LockedFooterDock } from './components/LockedFooterDock';
 import { getAdminUnreadCount, getUserUnreadCount, markChatMessagesAsRead } from './services/notificationService';
 import { Plan, UserProfile, PageType } from './types';
@@ -110,6 +115,29 @@ export default function App() {
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
   const [isReferralModalOpen, setIsReferralModalOpen] = useState<boolean>(false);
+
+  // Daily Vedic Panchang & Festival / Rashifal Popups
+  const [dailyPanchang] = useState(() => calculateLiveVedicPanchang());
+  const [isFestivalWelcomeOpen, setIsFestivalWelcomeOpen] = useState<boolean>(false);
+  const [isDailyRashifalOpen, setIsDailyRashifalOpen] = useState<boolean>(false);
+  const [isPhotoCompressorOpen, setIsPhotoCompressorOpen] = useState<boolean>(false);
+
+  // Auto-trigger Festival Welcome Modal once per day/session
+  useEffect(() => {
+    try {
+      const todayKey = new Date().toISOString().split('T')[0];
+      const hasSeenToday = sessionStorage.getItem(`iois_fest_welcome_${todayKey}`);
+      if (!hasSeenToday) {
+        const timer = setTimeout(() => {
+          setIsFestivalWelcomeOpen(true);
+          sessionStorage.setItem(`iois_fest_welcome_${todayKey}`, 'true');
+        }, 1400);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      // Safe fallback
+    }
+  }, []);
 
   // 3D Universal Notification System State
   const [isAppNotificationModalOpen, setIsAppNotificationModalOpen] = useState<boolean>(false);
@@ -313,9 +341,73 @@ export default function App() {
           onToggleMode={handleToggleMode}
           onOpenThemeModal={() => setIsThemeModalOpen(true)}
           onOpenReferralModal={() => setIsReferralModalOpen(true)}
+          onOpenPopupPage={(page) => setPopupPage(page)}
+          onOpenFestivalModal={() => setIsFestivalWelcomeOpen(true)}
+          onOpenRashifalModal={() => setIsDailyRashifalOpen(true)}
+          onOpenPhotoCompressor={() => setIsPhotoCompressorOpen(true)}
         />
 
         <TickerBar onOpenRegister={(planId) => handleSelectPlanForRegister(planId || 1)} />
+      </div>
+
+      {/* 2. Live Vedic Panchang, Festival Greeting & Daily Rashifal Quick Bar */}
+      <div className="bg-gradient-to-r from-amber-950/90 via-slate-900 to-amber-950/90 border-b border-amber-500/30 py-2 px-2.5 sm:px-4 text-xs text-white relative z-20 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 text-center md:text-left">
+          <div className="flex items-center gap-2 flex-wrap justify-center md:justify-start">
+            <span className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+              <span>🚩</span>
+              <span>{dailyPanchang.festivalsToday.nameHindi}</span>
+            </span>
+            <span className="text-amber-200/90 text-[11px] font-medium hidden sm:inline">
+              तिथि: <strong className="text-white">{dailyPanchang.tithi}</strong> • नक्षत्र: <strong className="text-white">{dailyPanchang.nakshatra}</strong>
+            </span>
+            <span className="text-amber-400 font-bold text-[11px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-amber-500/30">
+              शुभ मुहूर्त: {dailyPanchang.abhijitMuhurat}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
+            <button
+              type="button"
+              onClick={() => setIsFestivalWelcomeOpen(true)}
+              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-[10.5px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+              title="आज के पावन पर्व का महत्व, कथा व शुभ मुहूर्त पॉपअप"
+            >
+              <span>🎉</span>
+              <span>पर्व बधाई व महत्व</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDailyRashifalOpen(true)}
+              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-[10.5px] uppercase transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+              title="12 राशियों का दैनिक राशिफल व उपाय पॉपअप"
+            >
+              <span>🔮</span>
+              <span>दैनिक राशिफल (12 राशियां)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPopupPage('panchang-rashifal')}
+              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold text-[10.5px] transition cursor-pointer flex items-center gap-1"
+            >
+              <span>📅</span>
+              <span>पंचांग पॉपअप</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2.2 3 Categorized New Headers with 11 Instant Popup Windows (Mobile Screen Sized) */}
+      <div className="bg-slate-950/95 border-b border-amber-500/20 py-2 sm:py-2.5 px-2 sm:px-4 relative z-20 shadow-md">
+        <div className="max-w-7xl mx-auto">
+          <MultiHeaderPopupNav
+            variant="topbar"
+            onOpenPopupPage={(page) => setPopupPage(page)}
+            onOpenFestivalModal={() => setIsFestivalWelcomeOpen(true)}
+            onOpenRashifalModal={() => setIsDailyRashifalOpen(true)}
+            onOpenPhotoCompressor={() => setIsPhotoCompressorOpen(true)}
+          />
+        </div>
       </div>
 
       {/* 2.5 Active Verified Sponsor Invitation Bar (ACC India / SWACCDK01 Style) */}
@@ -421,6 +513,11 @@ export default function App() {
                 setIsChatOpen(true);
               }}
               onSelectPlanForRegister={handleSelectPlanForRegister}
+              onOpenFestivalWelcome={() => setIsFestivalWelcomeOpen(true)}
+              onOpenPopupPage={(page) => setPopupPage(page)}
+              onOpenFestivalModal={() => setIsFestivalWelcomeOpen(true)}
+              onOpenRashifalModal={() => setIsDailyRashifalOpen(true)}
+              onOpenPhotoCompressor={() => setIsPhotoCompressorOpen(true)}
             />
           </div>
         )}
@@ -1019,6 +1116,40 @@ export default function App() {
             navigateTo('admin');
           }
         }}
+      />
+
+      {/* 16. Automatic Daily Festival & Divas Welcome Popup Window */}
+      <DailyFestivalWelcomeModal
+        isOpen={isFestivalWelcomeOpen}
+        onClose={() => setIsFestivalWelcomeOpen(false)}
+        onOpenRashifal={() => {
+          setIsFestivalWelcomeOpen(false);
+          setIsDailyRashifalOpen(true);
+        }}
+        onNavigatePanchang={() => {
+          setIsFestivalWelcomeOpen(false);
+          navigateTo('panchang-rashifal');
+        }}
+      />
+
+      {/* 17. Dedicated Daily 12 Rashi Forecast Popup Window */}
+      <DailyRashifalModal
+        isOpen={isDailyRashifalOpen}
+        onClose={() => setIsDailyRashifalOpen(false)}
+        onOpenFestival={() => {
+          setIsDailyRashifalOpen(false);
+          setIsFestivalWelcomeOpen(true);
+        }}
+        onNavigatePanchang={() => {
+          setIsDailyRashifalOpen(false);
+          navigateTo('panchang-rashifal');
+        }}
+      />
+
+      {/* 18. Dedicated Photo & Signature Compressor Modal */}
+      <PhotoCompressorModal
+        isOpen={isPhotoCompressorOpen}
+        onClose={() => setIsPhotoCompressorOpen(false)}
       />
     </div>
   );

@@ -370,14 +370,14 @@ export const NewVisitorGuideBanner: React.FC<NewVisitorGuideBannerProps> = ({
                   key={tab.step}
                   type="button"
                   onClick={() => setActivePhotoStep(tab.step)}
-                  className={`p-1.5 sm:p-2.5 rounded-xl text-center border transition cursor-pointer active:scale-95 ${
+                  className={`p-1.5 sm:p-2.5 rounded-xl text-center border transition cursor-pointer active:scale-95 flex flex-col justify-center items-center min-w-0 ${
                     activePhotoStep === tab.step
                       ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-md'
                       : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <span className="block text-[11px] sm:text-xs font-black truncate">{tab.label}</span>
-                  <span className={`block text-[9px] sm:text-[10px] truncate ${activePhotoStep === tab.step ? 'text-slate-950 font-bold' : 'text-slate-400'}`}>
+                  <span className="block text-[10px] sm:text-xs font-black break-words leading-tight text-center">{tab.label}</span>
+                  <span className={`block text-[8.5px] sm:text-[10px] break-words leading-tight mt-0.5 text-center ${activePhotoStep === tab.step ? 'text-slate-950 font-bold' : 'text-slate-400'}`}>
                     {tab.desc}
                   </span>
                 </button>

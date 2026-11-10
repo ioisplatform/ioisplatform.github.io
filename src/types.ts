@@ -145,6 +145,7 @@ export type PageType =
   | 'assessment' 
   | 'parents' 
   | 'utilities' 
+  | 'photo-compressor'
   | 'admin' 
   | 'dashboard' 
   | 'contact'

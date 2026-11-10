@@ -30,6 +30,8 @@ export const HomeHeaderWatch: React.FC = () => {
   });
 
   const [timeDigits, ampm] = digitalTimeStr.split(' ');
+  const monthShort = time.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  const yearStr = time.getFullYear();
 
   const hindiDateStr = time.toLocaleDateString('hi-IN', {
     weekday: 'long',
@@ -167,6 +169,20 @@ export const HomeHeaderWatch: React.FC = () => {
                   <filter id="luxuryHandShadow" x="-30%" y="-30%" width="160%" height="160%">
                     <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.9" />
                   </filter>
+
+                  {/* Golden Glow Filter for Live Date & Time & Crest */}
+                  <filter id="goldenGlowText" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="0.9" floodColor="#F59E0B" floodOpacity="0.95" />
+                    <feDropShadow dx="0" dy="0" stdDeviation="2.2" floodColor="#D97706" floodOpacity="0.75" />
+                  </filter>
+
+                  {/* 3D Royal Crown Golden Gradient */}
+                  <linearGradient id="royalCrownGold" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#FFFBEB" />
+                    <stop offset="25%" stopColor="#FDE047" />
+                    <stop offset="60%" stopColor="#D97706" />
+                    <stop offset="100%" stopColor="#78350F" />
+                  </linearGradient>
                 </defs>
 
                 {/* 1. Outer Case Fluted Solid Base */}
@@ -305,43 +321,79 @@ export const HomeHeaderWatch: React.FC = () => {
                   );
                 })}
 
-                {/* 10. PROMINENT "IOIS INDIA" BRANDING INSIGNIA (Under 12 - Perfectly Centered & Positioned) */}
-                <g transform="translate(120, 75)">
-                  <path
-                    d="M -7 -5 L -9 -13 L -4 -8 L 0 -14 L 4 -8 L 9 -13 L 7 -5 Z"
-                    fill="url(#goldFluted)"
-                    stroke="#D4AF37"
-                    strokeWidth="0.7"
-                    strokeLinejoin="round"
-                  />
-                  {/* Coronet base ring for high-end luxury look */}
-                  <rect x="-6" y="-4.5" width="12" height="1.6" rx="0.8" fill="#F59E0B" />
+                {/* 10. PROMINENT "IOIS INDIA" BRANDING INSIGNIA & LIVE DATE/TIME */}
+                <g transform="translate(120, 68)">
+                  {/* Extra Attractive 5-Point Royal Coronet Icon */}
+                  <g filter="url(#goldenGlowText)">
+                    {/* Royal 5-Point Crown Body */}
+                    <path
+                      d="M -11 -6 L -14 -16 L -7 -9.5 L 0 -19 L 7 -9.5 L 14 -16 L 11 -6 Z"
+                      fill="url(#royalCrownGold)"
+                      stroke="#FFE082"
+                      strokeWidth="0.8"
+                      strokeLinejoin="round"
+                    />
+                    {/* Glowing Pearl Gems on 5 Crown Tips */}
+                    <circle cx="-14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+                    <circle cx="-7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+                    <circle cx="0" cy="-19" r="1.8" fill="#FFFFFF" stroke="#D97706" strokeWidth="0.6" />
+                    <circle cx="7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+                    <circle cx="14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+                    
+                    {/* Coronet Headband with Ruby and Emerald Jewels */}
+                    <rect x="-10" y="-6.2" width="20" height="2.2" rx="1" fill="url(#goldFluted)" stroke="#78350F" strokeWidth="0.5" />
+                    <circle cx="-6" cy="-5.1" r="0.8" fill="#EF4444" />
+                    <circle cx="0" cy="-5.1" r="0.9" fill="#10B981" />
+                    <circle cx="6" cy="-5.1" r="0.8" fill="#EF4444" />
+                  </g>
+
+                  {/* SPACING: Generous, refined gap between crown and "IOIS INDIA" text */}
+                  {/* IOIS INDIA Title */}
                   <text
                     x="0"
-                    y="3"
+                    y="5.5"
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fill="#FFD700"
-                    fontSize="9"
+                    fontSize="9.2"
                     fontWeight="900"
                     fontFamily="system-ui, -apple-system, sans-serif"
                     letterSpacing="1.8"
-                    className="drop-shadow-[0_1px_3px_rgba(0,0,0,1)]"
+                    className="drop-shadow-[0_1px_4px_rgba(0,0,0,1)]"
                   >
                     IOIS INDIA
                   </text>
+
+                  {/* LIVE TIME IN GOLDEN GLOW FONT */}
                   <text
                     x="0"
-                    y="10"
+                    y="13.5"
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="#94A3B8"
-                    fontSize="3.8"
-                    fontWeight="800"
-                    fontFamily="system-ui, -apple-system, sans-serif"
-                    letterSpacing="1.2"
+                    fill="#FDE047"
+                    filter="url(#goldenGlowText)"
+                    fontSize="5"
+                    fontWeight="900"
+                    fontFamily="monospace, system-ui, sans-serif"
+                    letterSpacing="0.8"
                   >
-                    CHRONOMETER • 100M
+                    {timeDigits} {ampm}
+                  </text>
+
+                  {/* LIVE DATE IN GOLDEN GLOW FONT */}
+                  <text
+                    x="0"
+                    y="19"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="#FBBF24"
+                    filter="url(#goldenGlowText)"
+                    fontSize="3.6"
+                    fontWeight="800"
+                    fontFamily="monospace, system-ui, sans-serif"
+                    letterSpacing="1"
+                  >
+                    {dayOfMonth} {monthShort} {yearStr}
                   </text>
                 </g>
 

@@ -34,6 +34,7 @@ import {
   Bell
 } from 'lucide-react';
 import { IoisServicesDrawerModal } from './IoisServicesDrawerModal';
+import { MultiHeaderPopupNav } from './MultiHeaderPopupNav';
 
 interface NavbarProps {
   currentUser: UserProfile | null;
@@ -52,6 +53,10 @@ interface NavbarProps {
   onToggleMode?: () => void;
   onOpenThemeModal?: () => void;
   onOpenReferralModal?: () => void;
+  onOpenPopupPage?: (page: PageType) => void;
+  onOpenFestivalModal?: () => void;
+  onOpenRashifalModal?: () => void;
+  onOpenPhotoCompressor?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -71,6 +76,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleMode,
   onOpenThemeModal,
   onOpenReferralModal,
+  onOpenPopupPage,
+  onOpenFestivalModal,
+  onOpenRashifalModal,
+  onOpenPhotoCompressor,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [servicesModalOpen, setServicesModalOpen] = useState<boolean>(false);
@@ -594,6 +603,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <X className="w-3.5 h-3.5" />
                 <span>मेन्यू बंद</span>
               </button>
+            </div>
+
+            {/* 3 Categorized New Headers with 11 Instant Popup Windows (Mobile Screen Optimized) */}
+            <div className="pt-2 border-t border-slate-800">
+              <MultiHeaderPopupNav
+                variant="menu"
+                onOpenPopupPage={(targetPage) => {
+                  setMenuOpen(false);
+                  if (onOpenPopupPage) onOpenPopupPage(targetPage);
+                  else handleNavClick(targetPage);
+                }}
+                onOpenFestivalModal={() => {
+                  setMenuOpen(false);
+                  if (onOpenFestivalModal) onOpenFestivalModal();
+                  else handleNavClick('panchang-rashifal');
+                }}
+                onOpenRashifalModal={() => {
+                  setMenuOpen(false);
+                  if (onOpenRashifalModal) onOpenRashifalModal();
+                  else handleNavClick('panchang-rashifal');
+                }}
+                onOpenPhotoCompressor={() => {
+                  setMenuOpen(false);
+                  if (onOpenPhotoCompressor) onOpenPhotoCompressor();
+                  else if (onOpenPopupPage) onOpenPopupPage('photo-compressor');
+                }}
+              />
             </div>
 
             {/* User Session Banner inside Menu */}

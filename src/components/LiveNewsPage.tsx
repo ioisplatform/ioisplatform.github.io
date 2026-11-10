@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   LIVE_NEWS_CHANNELS, 
   LIVE_NEWS_ARTICLES, 
-  E_NEWSPAPERS_LIST 
+  E_NEWSPAPERS_LIST,
+  fetchLiveNewsArticles 
 } from '../services/liveUtilityService';
 import { NewsChannel, NewsArticle, PageType, TickerSpeed } from '../types';
 import { 
@@ -279,9 +280,37 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
     setPlayerKey((k) => k + 1);
   };
 
+  // Live Real-Time News API State
+  const [articlesList, setArticlesList] = useState<NewsArticle[]>(LIVE_NEWS_ARTICLES);
+  const [isLiveApiConnected, setIsLiveApiConnected] = useState<boolean>(false);
+  const [isRefreshingNews, setIsRefreshingNews] = useState<boolean>(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('अभी सक्रिय');
+
+  const loadRealTimeNews = async () => {
+    setIsRefreshingNews(true);
+    try {
+      const fresh = await fetchLiveNewsArticles();
+      if (fresh && fresh.length > 0) {
+        setArticlesList(fresh);
+        setIsLiveApiConnected(true);
+        setLastRefreshedAt(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setIsRefreshingNews(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRealTimeNews();
+    const interval = setInterval(loadRealTimeNews, 60000); // 1-minute real-time polling
+    return () => clearInterval(interval);
+  }, []);
+
   const currentEmbedSource = activeCustomUrl || DEFAULT_IOIS_NEWS_VIDEO.embedUrl;
 
-  const filteredArticles = LIVE_NEWS_ARTICLES.filter(a => {
+  const filteredArticles = articlesList.filter(a => {
     const matchesCat = selectedCategory === 'all' || a.category === selectedCategory;
     const matchesSearch = !searchQuery || a.title.toLowerCase().includes(searchQuery.toLowerCase()) || a.summary.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
@@ -343,17 +372,28 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
       <div className="rounded-2xl sm:rounded-3xl bg-slate-950 border-2 border-amber-500/50 shadow-2xl overflow-hidden">
         {/* Speed Controller Header */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-5 py-2.5 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border-b border-slate-800 text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="flex h-2.5 w-2.5 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
             </span>
             <span className="font-black text-white text-xs sm:text-sm tracking-wide">
-              लाइव न्यूज़ टिकर फ़ीड (Live Headlines Ticker)
+              लाइव न्यूज़ टिकर फ़ीड (Real-Time Live News)
             </span>
-            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/40">
-              डिफ़ॉल्ट: धीमी गति (Comfortable Read)
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/40 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{isLiveApiConnected ? 'लाइव API कनेक्टेड' : 'रीयल-टाइम फ़ीड'}</span>
             </span>
+            <button
+              type="button"
+              onClick={loadRealTimeNews}
+              disabled={isRefreshingNews}
+              className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer text-[10px] flex items-center gap-1 border border-slate-700"
+              title="ताज़ा समाचार रीफ़्रेश करें"
+            >
+              <RefreshCw className={`w-3 h-3 ${isRefreshingNews ? 'animate-spin text-amber-400' : ''}`} />
+              <span className="hidden sm:inline">रीफ़्रेश ({lastRefreshedAt})</span>
+            </button>
           </div>
 
           {/* Interactive Manual Speed Controls */}
@@ -422,7 +462,7 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
           onMouseLeave={() => setIsTickerHovered(false)}
         >
           <div className={getTickerClass()}>
-            {[...LIVE_NEWS_ARTICLES, ...LIVE_NEWS_ARTICLES].map((art, idx) => (
+            {[...articlesList, ...articlesList].map((art, idx) => (
               <button
                 key={`${art.id}-${idx}`}
                 onClick={() => setActiveArticle(art)}

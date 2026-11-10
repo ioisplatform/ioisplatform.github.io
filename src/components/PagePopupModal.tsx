@@ -19,7 +19,8 @@ import {
   Sparkles, 
   Calculator,
   UserPlus,
-  Maximize2
+  Maximize2,
+  Image as ImageIcon
 } from 'lucide-react';
 
 import { RtpsJaminServicesPage } from './RtpsJaminServicesPage';
@@ -41,6 +42,7 @@ import { AdminPanel } from './AdminPanel';
 import { AssessmentPortal } from './AssessmentPortal';
 import { LegalPolicyPages } from './LegalPolicyPages';
 import { ContactFaq } from './ContactFaq';
+import { PhotoCompressorTool } from './PhotoCompressorModal';
 
 interface PagePopupModalProps {
   page: PageType;
@@ -129,6 +131,8 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         return { title: 'नीति, नियम व अस्वीकरण (Legal & Policy Pages)', subtitle: 'Google AdSense, डिजिटल सुरक्षा व नागरिक अधिकारों का विवरण', icon: FileText, color: 'text-amber-300' };
       case 'register':
         return { title: 'नया सदस्य रजिस्ट्रेशन (Member Registration)', subtitle: '3 आसान चरणों में पंजीकरण पूर्ण करें और तुरंत डिजिटल ID कार्ड प्राप्त करें', icon: UserPlus, color: 'text-amber-400' };
+      case 'photo-compressor':
+        return { title: 'फोटो कंप्रेसर व रिसाइज़र (Smart Photo Resizer)', subtitle: 'सरकारी फॉर्म, RTPS व SSC हेतु 20KB, 50KB व 100KB में फोटो व सिग्नेचर कंप्रेस करें', icon: ImageIcon, color: 'text-pink-400' };
       default:
         return { title: 'IOIS डिजिटल सेवा', subtitle: 'आधिकारिक डिजिटल सेवा पोर्टल', icon: Sparkles, color: 'text-amber-400' };
     }
@@ -287,6 +291,10 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
 
           {page === 'contact' && (
             <ContactFaq />
+          )}
+
+          {page === 'photo-compressor' && (
+            <PhotoCompressorTool />
           )}
 
           {(page === 'privacy-policy' || page === 'terms' || page === 'disclaimer') && (

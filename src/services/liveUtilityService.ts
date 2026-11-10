@@ -374,6 +374,23 @@ export const LIVE_NEWS_ARTICLES: NewsArticle[] = [
   }
 ];
 
+/**
+ * Fetch real-time live news articles from backend /api/live-news API
+ */
+export async function fetchLiveNewsArticles(): Promise<NewsArticle[]> {
+  try {
+    const res = await fetch('/api/live-news');
+    if (!res.ok) throw new Error('Live news API response not ok');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.articles) && data.articles.length > 0) {
+      return data.articles;
+    }
+  } catch (err) {
+    console.warn('Could not fetch real-time news API, using verified cached feed:', err);
+  }
+  return LIVE_NEWS_ARTICLES;
+}
+
 export const E_NEWSPAPERS_LIST: ENewspaper[] = [
   {
     id: 'epaper-jagran',

@@ -36,6 +36,7 @@ import { SuccessStoriesCarousel } from './SuccessStoriesCarousel';
 import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
 import { AskQuestionsHub } from './AskQuestionsHub';
 import { NewVisitorGuideBanner } from './NewVisitorGuideBanner';
+import { MultiHeaderPopupNav } from './MultiHeaderPopupNav';
 
 interface HomePageDashboardProps {
   onNavigate: (page: PageType) => void;
@@ -45,6 +46,11 @@ interface HomePageDashboardProps {
   onOpenDashboard?: () => void;
   onOpenIdCard?: () => void;
   onSelectPlanForRegister?: (planId: number) => void;
+  onOpenFestivalWelcome?: () => void;
+  onOpenPopupPage?: (page: PageType) => void;
+  onOpenFestivalModal?: () => void;
+  onOpenRashifalModal?: () => void;
+  onOpenPhotoCompressor?: () => void;
 }
 
 export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
@@ -55,6 +61,11 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
   onOpenDashboard,
   onOpenIdCard,
   onSelectPlanForRegister,
+  onOpenFestivalWelcome,
+  onOpenPopupPage,
+  onOpenFestivalModal,
+  onOpenRashifalModal,
+  onOpenPhotoCompressor,
 }) => {
   const [chromeSearchQuery, setChromeSearchQuery] = useState<string>('');
   const [isExplainerModalOpen, setIsExplainerModalOpen] = useState<boolean>(false);
@@ -179,6 +190,30 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         onSelectPlanForRegister={onSelectPlanForRegister}
       />
 
+      {/* 0.5 3 NEW HEADERS WITH 11 INSTANT POPUP BUTTONS (AUTO-SIZED FOR ALL SCREENS) */}
+      <section className="w-full">
+        <MultiHeaderPopupNav
+          variant="dashboard"
+          onOpenPopupPage={(page) => {
+            if (onOpenPopupPage) onOpenPopupPage(page);
+            else onNavigate(page);
+          }}
+          onOpenFestivalModal={() => {
+            if (onOpenFestivalModal) onOpenFestivalModal();
+            else if (onOpenFestivalWelcome) onOpenFestivalWelcome();
+            else onNavigate('panchang-rashifal');
+          }}
+          onOpenRashifalModal={() => {
+            if (onOpenRashifalModal) onOpenRashifalModal();
+            else onNavigate('panchang-rashifal');
+          }}
+          onOpenPhotoCompressor={() => {
+            if (onOpenPhotoCompressor) onOpenPhotoCompressor();
+            else if (onOpenPopupPage) onOpenPopupPage('photo-compressor');
+          }}
+        />
+      </section>
+
       {/* 1. TOP HEADER WATCH (DIGITAL CLOCK + LUXURY ANALOG WATCH 1..12) */}
       <section className="w-full space-y-4">
         <HomeHeaderWatch />
@@ -186,6 +221,7 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
         <FestiveHomeSlider
           onNavigate={onNavigate}
           onOpenRegister={onOpenRegister}
+          onOpenFestivalWelcome={onOpenFestivalWelcome}
         />
       </section>
 
