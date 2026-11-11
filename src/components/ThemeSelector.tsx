@@ -1,6 +1,13 @@
-import React from 'react';
-import { Sun, Moon, Palette, Check, Sparkles, X } from 'lucide-react';
-import { ThemeMode, ThemePreset, THEME_PRESETS } from '../services/themeService';
+import React, { useState } from 'react';
+import { Sun, Moon, Palette, Check, Sparkles, X, Type } from 'lucide-react';
+import { 
+  ThemeMode, 
+  ThemePreset, 
+  THEME_PRESETS,
+  TextScalingMode,
+  getSavedTextScaling,
+  applyTextScalingToDocument
+} from '../services/themeService';
 
 interface ThemeSelectorProps {
   currentMode: ThemeMode;
@@ -19,6 +26,13 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorProps> = ({
   isOpen,
   onClose,
 }) => {
+  const [textScaling, setTextScaling] = useState<TextScalingMode>(() => getSavedTextScaling());
+
+  const handleScalingChange = (mode: TextScalingMode) => {
+    setTextScaling(mode);
+    applyTextScalingToDocument(mode);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -202,6 +216,58 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorProps> = ({
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* 3. Global Responsive Text Scaling Setting */}
+        <div className="mb-4 pt-3 border-t" style={{ borderColor: currentMode === 'light' ? '#e2e8f0' : 'rgba(255,255,255,0.1)' }}>
+          <label className="text-xs font-black uppercase tracking-wider block mb-1 opacity-90 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-amber-500" />
+              <span>रेस्पॉन्सिव टेक्स्ट स्केलिंग (Responsive Text Scaling)</span>
+            </span>
+            <span className="text-[10px] text-amber-500 font-bold">ग्लोबल फ़ॉन्ट फ़िट</span>
+          </label>
+          <p className="text-[11px] opacity-75 mb-2.5">
+            सुनिश्चित करें कि टेक्स्ट हर स्क्रीन पर एकदम सही और बिना कटे दिखे:
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleScalingChange('compact')}
+              className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-1 active:scale-95 ${
+                textScaling === 'compact'
+                  ? 'btn-3d-silver text-black border-white shadow-md ring-2 ring-amber-400'
+                  : 'bg-black/10 dark:bg-black/30 border-slate-700/60 opacity-80 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black">Compact (फ़िक्स)</span>
+                {textScaling === 'compact' && <Check className="w-3.5 h-3.5 text-black stroke-[3]" />}
+              </div>
+              <span className="text-[10px] opacity-80 leading-tight">
+                मानक स्थिर फॉन्ट साइज़ (Standard Fixed Size)
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleScalingChange('auto-adjust')}
+              className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-1 active:scale-95 ${
+                textScaling === 'auto-adjust'
+                  ? 'btn-3d-gold text-slate-950 border-white shadow-md ring-2 ring-amber-400'
+                  : 'bg-black/10 dark:bg-black/30 border-slate-700/60 opacity-80 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black">Auto-Adjust (डायनामिक)</span>
+                {textScaling === 'auto-adjust' && <Check className="w-3.5 h-3.5 text-black stroke-[3]" />}
+              </div>
+              <span className="text-[10px] opacity-80 leading-tight">
+                स्क्रीन चौड़ाई अनुसार ऑटो-स्केलिंग (Dynamic Fluid Fit)
+              </span>
+            </button>
           </div>
         </div>
 

@@ -255,6 +255,15 @@ export const Footer: React.FC<FooterProps> = ({
           </button>
           <span className="text-slate-700 hidden sm:inline">•</span>
           <button
+            onClick={() => onNavigate?.('about')}
+            className="hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1"
+            title="About Us: उद्देश्य, विज़न और टीम"
+          >
+            <ShieldCheck className="w-3 h-3 text-amber-400" />
+            <span>हमारे बारे में (About Us)</span>
+          </button>
+          <span className="text-slate-700 hidden sm:inline">•</span>
+          <button
             onClick={() => onNavigate?.('privacy-policy')}
             className="hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1"
           >
@@ -283,7 +292,15 @@ export const Footer: React.FC<FooterProps> = ({
             className="hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1"
           >
             <PhoneCall className="w-3 h-3 text-amber-400" />
-            <span>हेल्पलाइन व संपर्क</span>
+            <span>संपर्क करें (Contact Us)</span>
+          </button>
+          <span className="text-slate-700 hidden sm:inline">•</span>
+          <button
+            onClick={() => onNavigate?.('contact')}
+            className="hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1"
+          >
+            <HelpCircle className="w-3 h-3 text-amber-400" />
+            <span>FAQ (हेल्प केंद्र)</span>
           </button>
         </div>
 

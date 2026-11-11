@@ -22,6 +22,24 @@
     --gold-light: #F3E5AB;
   }
 
+  /* Responsive Text Scaling Engine: Compact (fixed size) vs Auto-Adjust (dynamic font scaling) */
+  html[data-text-scaling="compact"],
+  :root[data-text-scaling="compact"],
+  html.text-scaling-compact {
+    font-size: 14.5px;
+  }
+
+  html[data-text-scaling="auto-adjust"],
+  :root[data-text-scaling="auto-adjust"],
+  html.text-scaling-auto {
+    /* Fluid typography dynamically auto-adjusting to viewport width */
+    font-size: clamp(12.5px, 10.5px + 0.6vw, 16px);
+  }
+
+  body {
+    overflow-wrap: break-word;
+  }
+
   /* Light Mode Root Overrides */
   html.light,
   :root[data-mode="light"] {

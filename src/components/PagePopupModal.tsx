@@ -125,6 +125,8 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         return { title: 'IOIS अधिकृत एडमिन कंसोल (Admin Panel)', subtitle: 'उपयोगकर्ता सत्यापन, पेआउट अप्रूवल, ऑडिट लॉग्स व सिस्टम सेटिंग्स', icon: ShieldAlert, color: 'text-red-400' };
       case 'contact':
         return { title: '24x7 हेल्पलाइन, सहायता व अक्सर पूछे जाने वाले सवाल (Contact & FAQ)', subtitle: 'आधिकारिक टेलीग्राम, ईमेल और समस्या समाधान', icon: PhoneCall, color: 'text-amber-400' };
+      case 'about':
+        return { title: 'हमारे बारे में (About Us) — IOIS राष्ट्रीय डिजिटल मिशन', subtitle: 'भारतीय ऑनलाइन आय सहयोग प्रणाली का परिचय, उद्देश्य, विज़न और टीम', icon: ShieldCheck, color: 'text-amber-400' };
       case 'privacy-policy':
       case 'terms':
       case 'disclaimer':
@@ -303,15 +305,15 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
           )}
 
           {page === 'contact' && (
-            <ContactFaq />
+            <ContactFaq onAskAI={onOpenAiChat} />
           )}
 
           {page === 'photo-compressor' && (
             <PhotoCompressorTool />
           )}
 
-          {(page === 'privacy-policy' || page === 'terms' || page === 'disclaimer') && (
-            <LegalPolicyPages activeTab={page} />
+          {(page === 'privacy-policy' || page === 'terms' || page === 'disclaimer' || page === 'about') && (
+            <LegalPolicyPages activeTab={page as 'about' | 'privacy-policy' | 'terms' | 'disclaimer'} />
           )}
 
           {page === 'register' && (

@@ -624,6 +624,22 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
           replyContent = `IOIS के सभी 7 प्लान्स का संक्षिप्त विवरण:\n\n1. Plan 01 (₹10): ₹7 इंस्टेंट पेआउट (70%)\n2. Plan 02 (₹49): ₹34 इंस्टेंट पेआउट (70%)\n3. Plan 03 (₹99): ₹64 इंस्टेंट पेआउट (65%)\n4. Plan 04 (₹199): ₹119 इंस्टेंट पेआउट (60%)\n5. Plan 05 (₹299): ₹179 इंस्टेंट पेआउट (60%)\n6. Plan 06 (₹499): ₹274 इंस्टेंट पेआउट (55%)\n7. Plan 07 (₹999): ₹499 इंस्टेंट पेआउट (50%)\n\n[[NAV:page:plans|7 मास्टर प्लांस विवरण देखें]]\n[[NAV:page:register|नया रजिस्ट्रेशन करें]]`;
         } else if (lower.includes('payout') || lower.includes('पेआउट') || lower.includes('पैसे') || lower.includes('कमाई')) {
           replyContent = `IOIS में स्मार्ट इंस्टेंट पेआउट प्रोटोकॉल है। जब भी आपके रेफरल से कोई यूजर वेरिफाई होता है, उसका पैसा (₹7 से ₹499) तुरंत आपके खाते/वॉलेट में ट्रांसफर कर दिया जाता है।\n\n[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]`;
+        } else if (lower.includes('rashifal') || lower.includes('राशिफल') || lower.includes('rashi') || lower.includes('राशि') || lower.includes('horoscope')) {
+          replyContent = `🌟 दैनिक 12 राशिफल (Daily Horoscope) — IOIS प्लेटफॉर्म\n\nहमारे प्लेटफॉर्म पर सभी 12 राशियों (मेष, वृषभ, मिथुन, कर्क, सिंह, कन्या, तुला, वृश्चिक, धनु, मकर, कुंभ, मीन) का प्रामाणिक दैनिक भविष्यफल, अनुकूल रंग, भाग्यशाली अंक और वैदिक ज्योतिषीय उपाय 24x7 उपलब्ध हैं।\n\nआप किसी भी समय अपने दिन की शुभ शुरुआत के लिए लाइव राशिफल पॉपअप देख सकते हैं।\n\n[[NAV:page:panchang-rashifal|दैनिक 12 राशिफल व पंचांग खोलें]]`;
+        } else if (lower.includes('job') || lower.includes('जॉब') || lower.includes('नौकरी') || lower.includes('vacancy') || lower.includes('भर्ती') || lower.includes('alert')) {
+          replyContent = `💼 लाइव जॉब व करियर अलर्ट्स (Job Alerts Hub)\n\nIOIS प्लेटफॉर्म पर केंद्र व राज्य सरकारों की नवीनतम रिक्तियां (SSC, Railway, Banking, Police, Teaching, UPSC, BPSC), निजी कंपनियां, एडमिट कार्ड, परीक्षा तिथियां और सिलेबस की सत्यापित जानकारी 100% निःशुल्क उपलब्ध है।\n\n[[NAV:page:jobs|नवीनतम जॉब अलर्ट्स पोर्टल खोलें]]`;
+        } else if (lower.includes('weather') || lower.includes('मौसम') || lower.includes('mausam') || lower.includes('rain') || lower.includes('barish') || lower.includes('तापमान')) {
+          replyContent = `🌤️ लाइव मौसम व 7-दिवसीय वर्षा रडार (Live Weather)\n\nभारतीय मौसम विज्ञान विभाग (IMD) के उपग्रह डेटा आधारित लाइव तापमान, बादलों की स्थिति, आर्द्रता, वायु गुणवत्ता (AQI) और 7 दिनों का मौसम पूर्वानुमान IOIS पर तुरंत देखें।\n\n[[NAV:page:weather|लाइव मौसम व उपग्रह रडार खोलें]]`;
+        } else if (lower.includes('panchang') || lower.includes('पंचांग') || lower.includes('muhurat') || lower.includes('मुहूर्त') || lower.includes('choghadiya') || lower.includes('चौघड़िया') || lower.includes('tithi')) {
+          replyContent = `🗓️ वैदिक पंचांग व शुभ मुहूर्त (Vedic Panchang)\n\nआज का सूर्योदय, सूर्यास्त, तिथि, पक्ष, नक्षत्र, योग, करण, अभिजित मुहूर्त, अमृत काल और राहुकाल का सटीक समय IOIS पंचांग पर लाइव अपडेट होता है।\n\n[[NAV:page:panchang-rashifal|वैदिक पंचांग व शुभ मुहूर्त खोलें]]`;
+        } else if (lower.includes('rtps') || lower.includes('jamin') || lower.includes('जमीन') || lower.includes('dakhil') || lower.includes('दाखिल') || lower.includes('lpc') || lower.includes('jati') || lower.includes('जाति') || lower.includes('niwas') || lower.includes('aay') || lower.includes('आय') || lower.includes('parimarjan')) {
+          replyContent = `🏛️ RTPS व जमीन नागरिक सेवाएं (Citizen Services Guide)\n\n• जाति, आय, निवास प्रमाण पत्र ऑनलाइन आवेदन व डाउनलोड\n• जमीन का दाखिल-खारिज, ऑनलाइन लगान रसीद, जमाबंदी पंजी व परिमार्जन\n• LPC प्रमाण पत्र, Instant e-PAN कार्ड और राशन कार्ड सूची\nसभी के आधिकारिक डायरेक्ट लिंक व आवेदन मार्गदर्शिका IOIS पर उपलब्ध हैं।\n\n[[NAV:page:rtps-services|RTPS व जमीन नागरिक सेवाएं खोलें]]`;
+        } else if (lower.includes('compress') || lower.includes('photo') || lower.includes('फोटो') || lower.includes('signature') || lower.includes('हस्ताक्षर') || lower.includes('20kb') || lower.includes('50kb')) {
+          replyContent = `🖼️ स्मार्ट फोटो व सिग्नेचर कंप्रेसर (20KB - 50KB Tool)\n\nसरकारी नौकरियों, RTPS और ऑनलाइन फॉर्म के लिए अपनी फोटो और हस्ताक्षर को बिना क्वालिटी खोए 20KB, 50KB या 100KB में तुरंत कंप्रेस व रिसाइज करें। 100% सुरक्षित और इन-ब्राउज़र टूल।\n\n[[NAV:page:photo-compressor|फोटो कंप्रेसर टूल खोलें]]`;
+        } else if (lower.includes('study') || lower.includes('ncert') || lower.includes('notes') || lower.includes('विद्यार्थी') || lower.includes('class') || lower.includes('कक्षा')) {
+          replyContent = `📚 विद्यार्थी शिक्षा व अध्ययन हब (Student Study Portal)\n\nClass 1 से 12 तक के सभी विषयों के NCERT नोट्स, फॉर्मूला शीट्स, ADCA कंप्यूटर कोर्स, बोनाफाइड सर्टिफिकेट और सामान्य ज्ञान सामग्री छात्रों के लिए 100% फ्री उपलब्ध है।\n\n[[NAV:page:student-study|विद्यार्थी शिक्षा व नोट्स हब खोलें]]`;
+        } else if (lower.includes('id') || lower.includes('card') || lower.includes('कार्ड') || lower.includes('पहचान')) {
+          replyContent = `🪪 256-Bit एन्क्रिप्टेड स्मार्ट डिजिटल ID कार्ड\n\nIOIS का प्रत्येक सदस्य अपना आधिकारिक डिजिटल ID कार्ड (Front & Back) प्राप्त कर सकता है, जिसमें क्यूआर कोड और यूनिक मेंबर आईडी होती है। आप इसे तुरंत HD PNG में डाउनलोड या प्रिंट कर सकते हैं।\n\n[[NAV:page:idcard|डिजिटल ID कार्ड खोलें]]`;
         } else if (lower.includes('contact') || lower.includes('संपर्क') || lower.includes('whatsapp') || lower.includes('help') || lower.includes('telegram') || lower.includes('helpline')) {
           replyContent = `🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】\n\nआप आधिकारिक सहायता हेतु संपर्क कर सकते हैं:\n• Telegram Link: t.me/newuserhelpline\n• Contact us on Email - newuserhelpline@gmail.com 🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】\n\n[[NAV:external:https://t.me/newuserhelpline|🎧 𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘 (Telegram)]]`;
         } else {
@@ -722,13 +738,13 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h4 className="text-white font-black text-xs sm:text-sm leading-none">IOIS Smart AI Navigator</h4>
+              <h4 className="text-white font-black text-xs sm:text-sm leading-none">IOIS Help Chat</h4>
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
               </span>
             </div>
-            <p className="text-[10px] text-amber-300/90 font-medium leading-none mt-1">बाल विकास चिंटू AI शिक्षक • सीधा व सटीक उत्तर</p>
+            <p className="text-[10px] text-amber-300/90 font-medium leading-none mt-1">24x7 आधिकारिक सहायता केंद्र • पंचांग, राशिफल, जॉब अलर्ट व 7 प्लान्स</p>
           </div>
         </div>
 

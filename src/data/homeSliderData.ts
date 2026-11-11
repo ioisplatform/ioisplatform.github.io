@@ -181,13 +181,15 @@ export const getStoredSliders = (): HomeSliderItem[] => {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map((item: HomeSliderItem) => {
-        const fallback = INITIAL_SLIDES.find(s => s.id === item.id);
-        return {
-          ...item,
-          imageUrl: item.imageUrl || fallback?.imageUrl || ''
-        };
-      });
+      return parsed
+        .filter((item): item is HomeSliderItem => Boolean(item && typeof item === 'object'))
+        .map((item: HomeSliderItem) => {
+          const fallback = INITIAL_SLIDES.find(s => s && s.id === item.id);
+          return {
+            ...item,
+            imageUrl: item.imageUrl || fallback?.imageUrl || ''
+          };
+        });
     }
     return INITIAL_SLIDES;
   } catch {

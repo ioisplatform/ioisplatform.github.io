@@ -149,6 +149,7 @@ export type PageType =
   | 'admin' 
   | 'dashboard' 
   | 'contact'
+  | 'about'
   | 'privacy-policy'
   | 'terms'
   | 'disclaimer';

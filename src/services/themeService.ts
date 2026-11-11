@@ -127,8 +127,41 @@ export const applyThemeToDocument = (mode: ThemeMode, preset: ThemePreset) => {
     }
   }
 
-  // 5. Dispatch custom event for reactive listeners
+// 5. Dispatch custom event for reactive listeners
   try {
     window.dispatchEvent(new CustomEvent('iois-theme-changed', { detail: { mode, preset } }));
   } catch (e) {}
 };
+
+export type TextScalingMode = 'compact' | 'auto-adjust';
+
+const STORAGE_SCALING_KEY = 'iois_text_scaling_mode';
+
+export const getSavedTextScaling = (): TextScalingMode => {
+  if (typeof window === 'undefined') return 'auto-adjust';
+  try {
+    const saved = localStorage.getItem(STORAGE_SCALING_KEY);
+    if (saved === 'compact' || saved === 'auto-adjust') return saved;
+    return 'auto-adjust'; // Default to auto-adjust for perfect mobile scaling
+  } catch {
+    return 'auto-adjust';
+  }
+};
+
+export const applyTextScalingToDocument = (scaling: TextScalingMode) => {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.setAttribute('data-text-scaling', scaling);
+  if (scaling === 'auto-adjust') {
+    root.classList.add('text-scaling-auto');
+    root.classList.remove('text-scaling-compact');
+  } else {
+    root.classList.add('text-scaling-compact');
+    root.classList.remove('text-scaling-auto');
+  }
+  try {
+    localStorage.setItem(STORAGE_SCALING_KEY, scaling);
+    window.dispatchEvent(new CustomEvent('iois-scaling-changed', { detail: { scaling } }));
+  } catch (e) {}
+};
+

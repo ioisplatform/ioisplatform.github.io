@@ -40,16 +40,34 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
 
   if (!isOpen) return null;
 
-  const safeFestival: DayFestivalInfo = festival || calculateLiveVedicPanchang().festivalsToday;
+  const defaultFestival: DayFestivalInfo = {
+    id: 'daily-divas',
+    nameHindi: '🌟 आज का पावन सनातन दिवस व दैनिक संकल्प 2026 🌟',
+    englishName: "Today's Auspicious Day",
+    tagline: 'दैनिक वैदिक ऊर्जा, शुभ मुहूर्त, सकारात्मक विचार व स्वावलंबन',
+    dateStr: new Date().toLocaleDateString('hi-IN'),
+    badge: 'आज का दिवस संदेश 🌅',
+    imageUrl: '',
+    significance: 'प्रत्येक नया दिन ईश्वर का दिया हुआ एक अनमोल अवसर है।',
+    story: 'सनातन परंपरा में प्रत्येक दिन किसी न किसी देवी-देवता और ग्रह को समर्पित है।',
+    shubhMuhurat: 'अभिजित मुहूर्त: 11:43 AM से 12:28 PM',
+    muhuratDetails: [],
+    pujaVidhi: [],
+    mantra: 'ॐ भूर्भुवः स्वः तत्सवितुर्वरेण्यं भर्गो देवस्य धीमहि धियो यो नः प्रचोदयात्॥',
+    greetingsMessage: 'IOIS डिजिटल परिवार की ओर से आपका आज का दिन अत्यंत मंगलमय हो!',
+    dosAndDonts: { dos: [], donts: [] }
+  };
+
+  const safeFestival: DayFestivalInfo = festival || calculateLiveVedicPanchang()?.festivalsToday || defaultFestival;
 
   const handleShareOnWhatsApp = () => {
-    const text = `🎉 *${safeFestival.nameHindi}* 🎉\n${safeFestival.tagline}\n\n🌟 *आज का शुभ मुहूर्त:* ${safeFestival.shubhMuhurat}\n\n📖 *महत्व:* ${safeFestival.significance.slice(0, 150)}...\n\n🙏 ${safeFestival.greetingsMessage}\n\n👉 संपूर्ण दैनिक पंचांग व शुभ मुहूर्त देखें: ${window.location.origin}`;
+    const text = `🎉 *${safeFestival?.nameHindi || 'IOIS 2026'}* 🎉\n${safeFestival?.tagline || ''}\n\n🌟 *आज का शुभ मुहूर्त:* ${safeFestival?.shubhMuhurat || ''}\n\n📖 *महत्व:* ${(safeFestival?.significance || '').slice(0, 150)}...\n\n🙏 ${safeFestival?.greetingsMessage || ''}\n\n👉 संपूर्ण दैनिक पंचांग व शुभ मुहूर्त देखें: ${window.location.origin}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleCopyGreeting = () => {
-    const text = `${safeFestival.nameHindi}\n\n${safeFestival.greetingsMessage}\n\nशुभ मुहूर्त: ${safeFestival.shubhMuhurat}\n\nIOIS 2026: ${window.location.origin}`;
+    const text = `${safeFestival?.nameHindi || 'IOIS 2026'}\n\n${safeFestival?.greetingsMessage || ''}\n\nशुभ मुहूर्त: ${safeFestival?.shubhMuhurat || ''}\n\nIOIS 2026: ${window.location.origin}`;
     navigator.clipboard.writeText(text);
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2500);
@@ -89,10 +107,10 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
           {/* 1. Festive Header Artwork Banner (100% Uncropped 16:9 Display) */}
           <div className="relative rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-xl bg-black">
             <div className="w-full aspect-video relative flex items-center justify-center bg-black">
-              {safeFestival.imageUrl ? (
+              {safeFestival?.imageUrl ? (
                 <img 
                   src={safeFestival.imageUrl} 
-                  alt={safeFestival.nameHindi} 
+                  alt={safeFestival?.nameHindi || 'पर्व'} 
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -105,10 +123,10 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
             <div className="px-3.5 py-2 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-amber-500/30 flex items-center justify-between flex-wrap gap-2">
               <span className="text-amber-300 text-xs font-black flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>{safeFestival.badge}</span>
+                <span>{safeFestival?.badge || 'विशेष पर्व'}</span>
               </span>
               <span className="text-[10.5px] font-mono text-slate-300 bg-slate-800/90 px-2 py-0.5 rounded-md">
-                {safeFestival.dateStr}
+                {safeFestival?.dateStr || ''}
               </span>
             </div>
           </div>

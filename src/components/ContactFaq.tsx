@@ -6,31 +6,39 @@ import {
   OFFICIAL_PAYEE_NAME
 } from '../data/plansData';
 import { 
-  MessageSquare, 
   Send, 
   Mail, 
   HelpCircle, 
   ChevronDown, 
-  ShieldCheck, 
-  Sparkles, 
   CreditCard, 
   Copy, 
   Check, 
   Search,
-  Lock,
-  Zap,
-  GraduationCap,
-  FileText
+  X,
+  MapPin,
+  Sparkles, 
+  RotateCcw,
+  MessageSquare,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 
 interface ContactFaqProps {
-  onAskAI: (question: string) => void;
+  onAskAI?: (question?: string) => void;
 }
 
-export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
+export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI = (_question?: string) => {} }) => {
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
+  const [copiedEmail, setCopiedEmail] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'income' | 'privacy' | 'plans' | 'citizen'>('all');
+
+  // Interactive Message Form State
+  const [formName, setFormName] = useState<string>('');
+  const [formContact, setFormContact] = useState<string>('');
+  const [formSubject, setFormSubject] = useState<string>('सामान्य पूछताछ / सहायता');
+  const [formMessage, setFormMessage] = useState<string>('');
+  const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
 
   const handleCopyUpi = async () => {
     try {
@@ -40,6 +48,40 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
     } catch {
       // Fallback
     }
+  };
+
+  const handleCopyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(OFFICIAL_EMAIL);
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim() || !formContact.trim() || !formMessage.trim()) return;
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('iois_contact_messages') || '[]');
+      const newMsg = {
+        id: `msg-${Date.now()}`,
+        name: formName.trim(),
+        contact: formContact.trim(),
+        subject: formSubject,
+        message: formMessage.trim(),
+        date: new Date().toISOString()
+      };
+      localStorage.setItem('iois_contact_messages', JSON.stringify([newMsg, ...existing]));
+    } catch {}
+
+    setFormSubmitted(true);
+    setFormName('');
+    setFormContact('');
+    setFormMessage('');
+    setTimeout(() => setFormSubmitted(false), 6000);
   };
 
   const faqItems = [
@@ -115,6 +157,8 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
     }
   ];
 
+  const quickSearchTags = ['पेआउट', 'आईडी कार्ड', 'प्राइवेसी', '7 प्लान्स', 'रेफरल', 'RTPS सेवाएं'];
+
   const filteredFaqs = faqItems.filter((faq) => {
     const matchesCat = activeCategory === 'all' || faq.category === activeCategory;
     const query = searchQuery.toLowerCase().trim();
@@ -126,229 +170,415 @@ export const ContactFaq: React.FC<ContactFaqProps> = ({ onAskAI }) => {
     );
   });
 
+  const handleResetSearch = () => {
+    setSearchQuery('');
+    setActiveCategory('all');
+  };
+
   return (
-    <section id="contact-hub" className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-10">
-      {/* 1. Official Support Hub */}
-      <div className="glass-card-premium p-5 sm:p-8 space-y-6">
-        <div className="space-y-1">
-          <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-            24X7 VERIFIED HELPLINE & PAYMENTS
-          </span>
-          <h2 className="gold-metallic-text text-xl sm:text-2xl md:text-3xl font-black uppercase">
-            Official Support Hub
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            आधिकारिक सहायता, त्वरित चैट, पेमेंट सत्यापन एवं आधिकारिक संचार चैनल
-          </p>
-        </div>
+    <section id="contact-hub" className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-10 w-full max-w-6xl mx-auto">
+      {/* ================= 1. OFFICIAL SUPPORT HUB & MESSAGE FORM ================= */}
+      <div className="glass-card-premium p-4 sm:p-7 space-y-6 flex flex-col justify-between">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>24X7 VERIFIED HELPLINE & PAYMENTS</span>
+            </span>
+            <h2 className="gold-metallic-text text-xl sm:text-2xl md:text-3xl font-black uppercase">
+              Official Support Hub
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              आधिकारिक सहायता, त्वरित चैट, पेमेंट सत्यापन एवं आधिकारिक संचार चैनल
+            </p>
+          </div>
 
-        <div className="space-y-3.5 text-xs sm:text-sm">
-          {/* Official Telegram Helpline */}
-          <a
-            href={OFFICIAL_TELEGRAM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 bg-gradient-to-r from-sky-950/90 to-slate-900 border-2 border-sky-400/60 hover:border-sky-300 rounded-2xl transition group shadow-xl"
-          >
-            <div className="w-12 h-12 rounded-xl bg-sky-500/25 text-sky-300 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition shadow-inner">
-              <Send className="w-6 h-6 text-sky-400" />
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[11px] text-sky-300 uppercase font-black tracking-wider">
-                🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】
-              </span>
-              <div className="text-white text-base sm:text-lg font-black font-mono">
-                t.me/newuserhelpline
+          <div className="space-y-3.5 text-xs sm:text-sm">
+            {/* Official Telegram Helpline */}
+            <a
+              href={OFFICIAL_TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3.5 p-3.5 sm:p-4 bg-gradient-to-r from-sky-950/90 to-slate-900 border-2 border-sky-400/60 hover:border-sky-300 rounded-2xl transition group shadow-xl"
+            >
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-sky-500/25 text-sky-300 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition shadow-inner">
+                <Send className="w-5 h-5 sm:w-6 sm:h-6 text-sky-400" />
               </div>
-              <span className="text-[10px] text-emerald-400 font-bold block">
-                24x7 त्वरित टेलीग़्राम सहायता व मार्गदर्शन
-              </span>
-            </div>
-          </a>
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-[10.5px] text-sky-300 uppercase font-black tracking-wider block">
+                  🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】
+                </span>
+                <div className="text-white text-sm sm:text-base font-black font-mono truncate">
+                  t.me/newuserhelpline
+                </div>
+                <span className="text-[10px] text-emerald-400 font-bold block">
+                  24x7 त्वरित टेलीग़्राम सहायता व मार्गदर्शन
+                </span>
+              </div>
+            </a>
 
-          {/* Official Payment Address Card */}
-          <div className="p-4 bg-slate-900/95 border-2 border-amber-500/40 rounded-2xl space-y-2.5 shadow-lg">
-            <div className="flex items-center justify-between">
+            {/* Official Payment Address Card */}
+            <div className="p-3.5 sm:p-4 bg-slate-900/95 border-2 border-amber-500/40 rounded-2xl space-y-2.5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-amber-300 font-black uppercase">Official Payment UPI ID</span>
+                </div>
+                <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold border border-green-500/30">
+                  100% VERIFIED
+                </span>
+              </div>
+
+              <div className="text-xs text-slate-300">
+                खाता धारक (Account Name): <strong className="text-white font-black">{OFFICIAL_PAYEE_NAME}</strong>
+              </div>
+
               <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-amber-400" />
-                <span className="text-xs text-amber-300 font-black uppercase">Official Payment UPI ID</span>
+                <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs font-black text-amber-400 select-all truncate">
+                  {OFFICIAL_UPI_ID}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyUpi}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-2 rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0 shadow-sm active:scale-95"
+                >
+                  {copiedUpi ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedUpi ? 'कॉपी हुआ' : 'कॉपी UPI'}</span>
+                </button>
               </div>
-              <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-bold border border-green-500/30">
-                100% VERIFIED
-              </span>
             </div>
 
-            <div className="text-xs text-slate-300">
-              खाता धारक (Account Name): <strong className="text-white font-black">{OFFICIAL_PAYEE_NAME}</strong>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs font-black text-amber-400 select-all truncate">
-                {OFFICIAL_UPI_ID}
+            {/* Email Support Helpline */}
+            <div className="p-3.5 sm:p-4 bg-slate-900/80 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition flex items-center justify-between gap-3 shadow-md flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10.5px] text-amber-300 uppercase font-black block">
+                    🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】EMAIL
+                  </span>
+                  <a href={`mailto:${OFFICIAL_EMAIL}`} className="text-white text-xs sm:text-sm font-bold font-mono hover:text-amber-400 transition block truncate">
+                    {OFFICIAL_EMAIL}
+                  </a>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={handleCopyUpi}
-                className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-2 rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0 shadow-sm"
+                onClick={handleCopyEmail}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                title="ईमेल कॉपी करें"
               >
-                {copiedUpi ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedUpi ? 'कॉपी हुआ' : 'कॉपी UPI'}</span>
+                {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedEmail ? 'कॉपी हुआ' : 'कॉपी'}</span>
               </button>
             </div>
+
+            {/* Office Address Card */}
+            <div className="p-3.5 sm:p-4 bg-slate-900/70 border border-slate-800 rounded-2xl flex items-start gap-3 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-400 flex items-center justify-center shrink-0 mt-0.5">
+                <MapPin className="w-5 h-5 text-red-400" />
+              </div>
+              <div className="space-y-0.5 text-xs">
+                <span className="text-[10.5px] text-slate-400 uppercase font-black block">
+                  कार्यालय पता (Registered Office Address)
+                </span>
+                <div className="text-slate-200 font-bold leading-relaxed">
+                  IOIS Digital Foundation, Gandhi Maidan, Patna, Bihar - 800001, India
+                </div>
+                <span className="text-[10px] text-slate-400 block">
+                  समय: सोमवार से शनिवार (10:00 AM से 06:00 PM)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive Direct Message Form */}
+        <div className="pt-4 border-t border-slate-800/80 space-y-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-black text-white uppercase tracking-wider">
+              सीधा संदेश भेजें (Direct Support Message Form)
+            </span>
           </div>
 
-          {/* Email Support Helpline */}
-          <a
-            href={`mailto:${OFFICIAL_EMAIL}`}
-            className="flex items-center gap-4 p-4 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition group shadow-md"
-          >
-            <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl shrink-0 group-hover:scale-105 transition">
-              <Mail className="w-6 h-6" />
+          {formSubmitted ? (
+            <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-xs font-bold flex items-center gap-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <p>धन्यवाद! आपका संदेश सफलतापूर्वक भेज दिया गया है।</p>
+                <p className="text-[11px] text-emerald-400 font-normal mt-0.5">हमारी सपोर्ट टीम 2 घंटे के भीतर आपके संपर्क नंबर/ईमेल पर जवाब देगी।</p>
+              </div>
             </div>
-            <div>
-              <span className="text-[11px] text-amber-300 uppercase font-black">
-                🎧【『𝗡𝗘𝗪 𝗨𝗦𝗘𝗥 𝗛𝗘𝗟𝗣𝗟𝗜𝗡𝗘』】EMAIL
-              </span>
-              <div className="text-white text-sm sm:text-base font-bold font-mono">{OFFICIAL_EMAIL}</div>
-              <span className="text-[10px] text-slate-400 block">
-                Contact us on Email - {OFFICIAL_EMAIL}
-              </span>
-            </div>
-          </a>
+          ) : (
+            <form onSubmit={handleFormSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10.5px] text-slate-400 font-bold block mb-1">
+                    आपका नाम (Your Full Name) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="जैसे: राहुल कुमार"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10.5px] text-slate-400 font-bold block mb-1">
+                    मोबाइल नंबर या ईमेल *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formContact}
+                    onChange={(e) => setFormContact(e.target.value)}
+                    placeholder="+91 9876543210 या email@example.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10.5px] text-slate-400 font-bold block mb-1">
+                  विषय (Subject)
+                </label>
+                <select
+                  value={formSubject}
+                  onChange={(e) => setFormSubject(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-400 transition cursor-pointer"
+                >
+                  <option value="सामान्य पूछताछ / सहायता">सामान्य पूछताछ / सहायता</option>
+                  <option value="पेमेंट सत्यापन / UTR समस्या">पेमेंट सत्यापन / UTR समस्या</option>
+                  <option value="रेफरल व पेआउट विथड्रॉल">रेफरल व पेआउट विथड्रॉल</option>
+                  <option value="डिजिटल ID कार्ड समस्या">डिजिटल ID कार्ड समस्या</option>
+                  <option value="विद्यार्थी व RTPS सेवाएं">विद्यार्थी व RTPS सेवाएं</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10.5px] text-slate-400 font-bold block mb-1">
+                  आपका संदेश या समस्या (Message) *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={formMessage}
+                  onChange={(e) => setFormMessage(e.target.value)}
+                  placeholder="कृपया अपनी समस्या या सवाल विस्तार से लिखें ताकि हम तुरंत समाधान कर सकें..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 transition resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+              >
+                <Send className="w-3.5 h-3.5 text-black" />
+                <span>संदेश सबमिट करें (Send Message)</span>
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
-      {/* 2. Frequently Asked Questions (FAQ) with Category Tabs & Search */}
-      <div className="glass-card-premium p-5 sm:p-8 space-y-4 sm:space-y-5">
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <HelpCircle className="w-4 h-4" />
-              <span>अक्सर पूछे जाने वाले प्रश्न (FAQS)</span>
-            </span>
-            <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-bold">
-              10 महत्वपूर्ण सवाल
-            </span>
-          </div>
-          <h2 className="gold-metallic-text text-xl sm:text-2xl md:text-3xl font-black uppercase">
-            Clear Answers & Guidance
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            प्लेटफॉर्म, रेफरल इनकम, प्राइवेसी सुरक्षा, ID कार्ड और प्लान्स की पूरी जानकारी:
-          </p>
-        </div>
-
-        {/* Search Bar for FAQ */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="सवालों में खोजें (जैसे: पेआउट, आईडी कार्ड, प्राइवेसी, प्लान्स)..."
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400"
-          />
-        </div>
-
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
-          <button
-            onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 ${
-              activeCategory === 'all'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            सभी प्रश्न ({faqItems.length})
-          </button>
-          <button
-            onClick={() => setActiveCategory('income')}
-            className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 ${
-              activeCategory === 'income'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            रेफरल व पेआउट
-          </button>
-          <button
-            onClick={() => setActiveCategory('privacy')}
-            className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 ${
-              activeCategory === 'privacy'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            प्राइवेसी व ID कार्ड
-          </button>
-          <button
-            onClick={() => setActiveCategory('plans')}
-            className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 ${
-              activeCategory === 'plans'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            7 मास्टर प्लान्स
-          </button>
-          <button
-            onClick={() => setActiveCategory('citizen')}
-            className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 ${
-              activeCategory === 'citizen'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            RTPS व विद्यार्थी
-          </button>
-        </div>
-
-        {/* Accordion FAQ Items */}
-        <div className="space-y-2.5 text-xs sm:text-sm max-h-[480px] overflow-y-auto pr-1">
-          {filteredFaqs.length === 0 ? (
-            <div className="p-6 text-center text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800">
-              कोई प्रश्न नहीं मिला। कृपया अलग शब्द खोजें या नीचे दिए गए बटन से AI से पूछें।
+      {/* ================= 2. FREQUENTLY ASKED QUESTIONS (FAQ) WITH SEARCH BAR ================= */}
+      <div className="glass-card-premium p-4 sm:p-7 space-y-4 flex flex-col justify-between">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <HelpCircle className="w-4 h-4" />
+                <span>अक्सर पूछे जाने वाले प्रश्न (FAQS)</span>
+              </span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/30 font-bold">
+                {faqItems.length} महत्वपूर्ण सवाल
+              </span>
             </div>
-          ) : (
-            filteredFaqs.map((faq, idx) => (
-              <details key={idx} className="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 sm:p-4 transition open:border-amber-500/50 group">
-                <summary className="cursor-pointer font-bold text-amber-300 text-xs sm:text-sm flex justify-between items-center list-none select-none gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold shrink-0">
-                      {faq.badge}
-                    </span>
-                    <span className="text-white group-open:text-amber-300 transition">{faq.question}</span>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition transform shrink-0" />
-                </summary>
-                <div className="text-slate-300 mt-3 leading-relaxed border-t border-slate-800/80 pt-2.5 space-y-2">
-                  <p>{faq.answer}</p>
+            <h2 className="gold-metallic-text text-xl sm:text-2xl md:text-3xl font-black uppercase">
+              Clear Answers & Guidance
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              प्लेटफॉर्म, रेफरल इनकम, प्राइवेसी सुरक्षा, ID कार्ड और प्लान्स की पूरी जानकारी खोजें:
+            </p>
+          </div>
+
+          {/* Enhanced Search Bar for FAQ */}
+          <div className="space-y-2">
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 absolute left-3 text-amber-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchQuery('');
+                }}
+                placeholder="सवालों में तुरंत खोजें (उदा: पेआउट, आईडी कार्ड, प्राइवेसी, प्लान्स)..."
+                className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 shadow-inner transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 p-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                  title="सर्च साफ़ करें (Clear)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Keyword Suggestion Tags & Result Count */}
+            <div className="flex items-center justify-between gap-2 flex-wrap text-[10.5px]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400 font-bold">त्वरित सुझाव:</span>
+                {quickSearchTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setSearchQuery(tag)}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                      searchQuery === tag
+                        ? 'bg-amber-400 text-slate-950 border-amber-400'
+                        : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-amber-400/50 hover:text-amber-300'
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+
+              {searchQuery && (
+                <span className="text-amber-400 font-black bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                  🎯 {filteredFaqs.length} सवाल मिले
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 text-xs ${
+                activeCategory === 'all'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              सभी प्रश्न ({faqItems.length})
+            </button>
+            <button
+              onClick={() => setActiveCategory('income')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 text-xs ${
+                activeCategory === 'income'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              रेफरल व पेआउट
+            </button>
+            <button
+              onClick={() => setActiveCategory('privacy')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 text-xs ${
+                activeCategory === 'privacy'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              प्राइवेसी व ID कार्ड
+            </button>
+            <button
+              onClick={() => setActiveCategory('plans')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 text-xs ${
+                activeCategory === 'plans'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              7 मास्टर प्लान्स
+            </button>
+            <button
+              onClick={() => setActiveCategory('citizen')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer shrink-0 text-xs ${
+                activeCategory === 'citizen'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              RTPS व विद्यार्थी
+            </button>
+          </div>
+
+          {/* Accordion FAQ Items */}
+          <div className="space-y-2.5 text-xs sm:text-sm max-h-[480px] overflow-y-auto pr-1">
+            {filteredFaqs.length === 0 ? (
+              <div className="p-6 text-center text-slate-300 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+                <p className="text-xs">
+                  "{searchQuery}" के लिए कोई सवाल नहीं मिला।
+                </p>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => onAskAI(faq.suggestQuery)}
-                    className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer mt-1"
+                    onClick={handleResetSearch}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700"
                   >
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span>इसके बारे में AI से और विस्तार से पूछें →</span>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>सर्च रीसेट करें</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAskAI(searchQuery || 'मुझे IOIS के बारे में जानकारी चाहिए')}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>AI असिस्टेंट से पूछें</span>
                   </button>
                 </div>
-              </details>
-            ))
-          )}
+              </div>
+            ) : (
+              filteredFaqs.map((faq, idx) => (
+                <details key={idx} className="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 sm:p-4 transition open:border-amber-500/50 group">
+                  <summary className="cursor-pointer font-bold text-amber-300 text-xs sm:text-sm flex justify-between items-center list-none select-none gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold shrink-0">
+                        {faq.badge}
+                      </span>
+                      <span className="text-white group-open:text-amber-300 transition leading-snug">{faq.question}</span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition transform shrink-0" />
+                  </summary>
+                  <div className="text-slate-300 mt-3 leading-relaxed border-t border-slate-800/80 pt-2.5 space-y-2">
+                    <p className="text-xs leading-relaxed">{faq.answer}</p>
+                    <button
+                      type="button"
+                      onClick={() => onAskAI(faq.suggestQuery)}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer mt-1"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>इसके बारे में AI से और विस्तार से पूछें →</span>
+                    </button>
+                  </div>
+                </details>
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Ask AI Banner */}
-        <div className="pt-2">
+        {/* 24x7 AI Help Chat Banner */}
+        <div className="pt-3 border-t border-slate-800/80">
           <button
             onClick={() => onAskAI('मुझे IOIS के बारे में और अधिक जानकारी चाहिए, कृपया मार्गदर्शन करें।')}
             className="w-full py-3 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-850 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md hover:scale-[1.01]"
           >
             <Sparkles className="w-4 h-4 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>क्या आपका कोई अन्य सवाल है? 24x7 AI असिस्टेंट से पूछें</span>
+            <span>क्या आपका कोई अन्य सवाल है? 24x7 IOIS Help Chat से पूछें</span>
           </button>
         </div>
-
       </div>
     </section>
   );

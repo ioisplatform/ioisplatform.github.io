@@ -675,7 +675,7 @@ export function generateFestiveSliderItem(targetDate: Date = new Date()): HomeSl
     ctaText: '🎉 पावन पर्व स्वागत, कथा व मुहूर्त देखें',
     ctaAction: 'plans',
     highlightText: `शुभ मुहूर्त: ${shortMuhurat}`,
-    imageUrl: activeFest.imageUrl,
+    imageUrl: activeFest?.imageUrl || missionImg,
     active: true,
     order: 0,
   };

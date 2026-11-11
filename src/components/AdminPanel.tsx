@@ -73,6 +73,12 @@ import { RegistrationModal } from './RegistrationModal';
 import { NotificationModal } from './NotificationModal';
 import { getAdminUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
 import { getStoredSliders, saveStoredSliders, HomeSliderItem, DEFAULT_HOME_SLIDERS } from '../data/homeSliderData';
+import { 
+  HomePopupPhoto, 
+  getAllAdminPopupPhotos, 
+  saveAdminPopupPhotos 
+} from '../data/homePopupData';
+import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
 
 interface AdminPanelProps {
   onUserStatusChange?: () => void;
@@ -96,6 +102,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [sliderList, setSliderList] = useState<HomeSliderItem[]>(() => getStoredSliders());
   const [editingSlider, setEditingSlider] = useState<HomeSliderItem | null>(null);
   const [sliderSuccessMsg, setSliderSuccessMsg] = useState<string>('');
+
+  // 7-Photo Home Popup Manager State
+  const [popupPhotos, setPopupPhotos] = useState<HomePopupPhoto[]>(() => getAllAdminPopupPhotos());
+  const [showPopupPreview, setShowPopupPreview] = useState<boolean>(false);
+  const [popupSuccessMsg, setPopupSuccessMsg] = useState<string>('');
 
   useEffect(() => {
     const updateAdminUnread = () => {
@@ -695,10 +706,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[9.5px] font-bold text-amber-300">स्लाइडर व पोस्टर्स</span>
+            <span className="text-[9.5px] font-bold text-amber-300">7 फोटो होम पॉपअप</span>
             <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           </div>
-          <div className="text-[11px] font-black text-white mt-0.5">7 बैनर एडिट</div>
+          <div className="text-[11px] font-black text-white mt-0.5">पॉपअप व स्लाइडर</div>
         </button>
 
         <button
@@ -2693,24 +2704,341 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
       )}
 
+      {/* 7-Photo Home Popup Manager Handlers */}
+      {showPopupPreview && (
+        <AdminHomePhotoPopup
+          onNavigate={() => {}}
+          forceShowForPreview={true}
+        />
+      )}
+
       {/* ========================================================================= */}
-      {/* TAB 9: HOMEPAGE SLIDER & FESTIVE POSTER MANAGER                            */}
+      {/* TAB 9: HOMEPAGE SLIDER & FESTIVE POSTER MANAGER + 7-PHOTO HOME POPUP      */}
       {/* ========================================================================= */}
       {activeTab === 'sliders' && (
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
-                <Sliders className="w-3 h-3 text-amber-400" />
-                <span>7 FESTIVE & SMART SAVINGS BANNERS</span>
+        <div className="space-y-8">
+          
+          {/* ================= 7-PHOTO HOME POPUP SYSTEM (USER REQUESTED FEATURE) ================= */}
+          <div className="glass-card p-5 sm:p-7 rounded-3xl border-2 border-amber-500/70 shadow-2xl space-y-6 bg-slate-950/95">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-yellow-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                    <span>7-PHOTO HOME POPUP SYSTEM</span>
+                  </span>
+                  <span className={`text-[10.5px] font-black px-2.5 py-0.5 rounded-full border ${
+                    popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    {popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0 
+                      ? `🟢 सक्रिय फोटो: ${popupPhotos.filter(p => p && p.active && p.imageUrl).length}/7 (होम पेज पर पॉपअप चालू)` 
+                      : '⚪ कोई सक्रिय फोटो नहीं (होम पेज पर कोई पॉपअप नहीं आएगा)'}
+                  </span>
+                </div>
+
+                <h3 className="text-base sm:text-xl font-black text-white">
+                  होम पेज 7-फोटो पॉपअप व स्लाइडर सिस्टम (Auto-Sized Zoom-In/Out)
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+                  <strong>नियम:</strong> यदि आप यहाँ फोटो अपलोड करेंगे तो होम पेज पर विज़िटर के सामने ऑटोमेटिक ज़ूम इन/आउट इफ़ेक्ट के साथ पॉपअप खुलेगा। पॉपअप फोटो के वास्तविक आकार (size) के अनुसार ऑटो-एडजस्ट होगा। <strong>यदि आप कोई फोटो अपलोड नहीं करेंगे या सभी फोटो बंद रखेंगे, तो होम पेज पर कोई पॉपअप नहीं आएगा।</strong>
+                </p>
               </div>
-              <h3 className="text-lg sm:text-xl font-black text-white">
-                होमपेज ऑटो-स्लाइडर व फेस्टिव पोस्टर मैनेजर
-              </h3>
-              <p className="text-xs text-slate-400">
-                यहाँ से आप धनतेरस, दिवाली, गोवर्धन पूजा, भाई दूज, छठ पूजा और स्मार्ट सेविंग्स के सभी 7 बैनर व उनकी तस्वीरें लाइव अपडेट कर सकते हैं।
-              </p>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (popupPhotos.length >= 7) {
+                      alert('अधिकतम 7 फोटो स्लॉट जोड़े जा सकते हैं।');
+                      return;
+                    }
+                    const newPhoto: HomePopupPhoto = {
+                      id: `popup-${Date.now()}`,
+                      imageUrl: '',
+                      title: `विशेष घोषणा #${popupPhotos.length + 1}`,
+                      description: 'IOIS परिवार की ओर से विशेष शुभकामना व घोषणा संदेश।',
+                      actionType: 'register',
+                      actionText: 'ज्वाइन करें',
+                      active: true,
+                      order: popupPhotos.length + 1,
+                      createdAt: new Date().toISOString(),
+                    };
+                    const updated = [...popupPhotos, newPhoto];
+                    setPopupPhotos(updated);
+                    saveAdminPopupPhotos(updated);
+                    setPopupSuccessMsg('नया फोटो स्लॉट जुड़ गया! कृपया फोटो अपलोड करें।');
+                    setTimeout(() => setPopupSuccessMsg(''), 3000);
+                  }}
+                  disabled={popupPhotos.length >= 7}
+                  className="btn-3d-rainbow-special px-3.5 py-2 rounded-xl text-xs font-black text-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-40"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-black" />
+                  <span>+ नया फोटो स्लॉट ({popupPhotos.length}/7)</span>
+                </button>
+
+                {popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPopupPreview(true);
+                      setTimeout(() => setShowPopupPreview(false), 5000);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
+                    title="होम पेज पर ज़ूम इफ़ेक्ट के साथ पॉपअप कैसा दिखेगा, अभी देखें"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>ज़ूम पॉपअप प्रिव्यू करें</span>
+                  </button>
+                )}
+
+                {popupPhotos.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('क्या आप होम पेज के सभी पॉपअप फोटो हटाना चाहते हैं? इसके बाद होम पेज पर कोई पॉपअप नहीं आएगा।')) {
+                        setPopupPhotos([]);
+                        saveAdminPopupPhotos([]);
+                        setPopupSuccessMsg('सभी पॉपअप फोटो हटा दिए गए। अब होम पेज पर कोई पॉपअप नहीं खुलेगा।');
+                        setTimeout(() => setPopupSuccessMsg(''), 3000);
+                      }
+                    }}
+                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-red-950 border border-slate-700 hover:border-red-500 text-red-300 text-xs font-bold transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
+
+            {popupSuccessMsg && (
+              <div className="p-3 bg-emerald-950/90 border border-emerald-500 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{popupSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* If no photos are added yet */}
+            {popupPhotos.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl border-2 border-dashed border-slate-800 space-y-3 bg-slate-900/40">
+                <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-white">कोई होम पेज पॉपअप फोटो सक्रिय नहीं है</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    वर्तमान में होम पेज पर कोई भी पॉपअप नहीं खुलेगा। जब भी आप त्योहार (दिवाली, भाई दूज, छठ पूजा) या कोई विशेष सूचना दिखाना चाहें, ऊपर '+ नया फोटो स्लॉट' बटन दबाकर फोटो अपलोड करें।
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Grid of Popup Photo Slots (Up to 7) */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {popupPhotos.map((photo, idx) => (
+                  <div
+                    key={photo?.id || idx}
+                    className={`p-4 rounded-2xl border-2 transition flex flex-col justify-between gap-3 shadow-lg ${
+                      photo && photo.active && photo.imageUrl
+                        ? 'bg-slate-900/90 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                        : 'bg-slate-950 border-slate-800 opacity-80'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      {/* Slot Header */}
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="text-xs font-black text-amber-300">
+                          फोटो स्लॉट #{idx + 1}
+                        </span>
+
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold">
+                            <input
+                              type="checkbox"
+                              checked={photo.active}
+                              onChange={(e) => {
+                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, active: e.target.checked } : p);
+                                setPopupPhotos(updated);
+                                saveAdminPopupPhotos(updated);
+                              }}
+                              className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                            />
+                            <span className={photo.active ? 'text-emerald-400' : 'text-slate-500'}>
+                              {photo.active ? 'सक्रिय (On)' : 'बंद (Off)'}
+                            </span>
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = popupPhotos.filter(p => p.id !== photo.id);
+                              setPopupPhotos(updated);
+                              saveAdminPopupPhotos(updated);
+                            }}
+                            className="text-slate-500 hover:text-red-400 p-1 cursor-pointer"
+                            title="स्लॉट हटाएं"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Photo Image Preview with natural aspect ratio */}
+                      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black min-h-[140px] max-h-[220px] flex items-center justify-center group">
+                        {photo.imageUrl ? (
+                          <img
+                            src={photo.imageUrl}
+                            alt={photo.title}
+                            className="max-h-[220px] w-auto max-w-full object-contain"
+                          />
+                        ) : (
+                          <div className="p-4 text-center text-slate-500 text-xs">
+                            <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
+                            <span>फोटो अभी अपलोड नहीं है</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Upload / URL Controls */}
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-300 mb-1">
+                            1. अपने फोन/कंप्यूटर से फोटो अपलोड करें:
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const dataUrl = ev.target?.result as string;
+                                  if (dataUrl) {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: dataUrl } : p);
+                                    setPopupPhotos(updated);
+                                    saveAdminPopupPhotos(updated);
+                                    setPopupSuccessMsg(`स्लॉट #${idx + 1} में फोटो सफलतापूर्वक अपलोड हो गई!`);
+                                    setTimeout(() => setPopupSuccessMsg(''), 3000);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-300 cursor-pointer"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">
+                            या इमेज URL पेस्ट करें:
+                          </label>
+                          <input
+                            type="text"
+                            value={photo.imageUrl}
+                            onChange={(e) => {
+                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: e.target.value } : p);
+                              setPopupPhotos(updated);
+                              saveAdminPopupPhotos(updated);
+                            }}
+                            placeholder="https://example.com/festival-banner.jpg"
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Photo Title & Description */}
+                      <div className="space-y-1.5">
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">शीर्षक / पर्व का नाम:</label>
+                          <input
+                            type="text"
+                            value={photo.title}
+                            onChange={(e) => {
+                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, title: e.target.value } : p);
+                              setPopupPhotos(updated);
+                              saveAdminPopupPhotos(updated);
+                            }}
+                            placeholder="उदा: भाई दूज की हार्दिक शुभकामनाएं"
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">संदेश / विवरण:</label>
+                          <textarea
+                            value={photo.description}
+                            onChange={(e) => {
+                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, description: e.target.value } : p);
+                              setPopupPhotos(updated);
+                              saveAdminPopupPhotos(updated);
+                            }}
+                            rows={2}
+                            placeholder="संदेश या ऑफर का विवरण लिखें..."
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none resize-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">बटन एक्शन:</label>
+                            <select
+                              value={photo.actionType}
+                              onChange={(e) => {
+                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionType: e.target.value as any } : p);
+                                setPopupPhotos(updated);
+                                saveAdminPopupPhotos(updated);
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
+                            >
+                              <option value="none">कोई बटन नहीं</option>
+                              <option value="register">ज्वाइन / रजिस्ट्रेशन</option>
+                              <option value="plans">7 मास्टर प्लान</option>
+                              <option value="idcard">डिजिटल ID कार्ड</option>
+                              <option value="rtps-services">RTPS नागरिक सेवा</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">बटन टेक्स्ट:</label>
+                            <input
+                              type="text"
+                              value={photo.actionText}
+                              onChange={(e) => {
+                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionText: e.target.value } : p);
+                                setPopupPhotos(updated);
+                                saveAdminPopupPhotos(updated);
+                              }}
+                              placeholder="उदा: अभी देखें"
+                              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ================= EXISTING 7 FESTIVE AUTO-CAROUSEL BANNER MANAGER ================= */}
+          <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
+                  <Sliders className="w-3 h-3 text-amber-400" />
+                  <span>7 FESTIVE & SMART SAVINGS BANNERS</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-white">
+                  होमपेज ऑटो-स्लाइडर व फेस्टिव पोस्टर मैनेजर
+                </h3>
+                <p className="text-xs text-slate-400">
+                  यहाँ से आप धनतेरस, दिवाली, गोवर्धन पूजा, भाई दूज, छठ पूजा और स्मार्ट सेविंग्स के सभी 7 बैनर व उनकी तस्वीरें लाइव अपडेट कर सकते हैं।
+                </p>
+              </div>
 
             <div className="flex items-center gap-2">
               <button
@@ -2902,6 +3230,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             </div>
           )}
         </div>
+      </div>
       )}
 
       {/* ========================================================================= */}

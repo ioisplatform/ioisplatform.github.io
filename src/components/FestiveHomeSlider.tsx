@@ -149,18 +149,18 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
       onTouchEnd={handleTouchEnd}
     >
       {/* 1. Ambient Background Layer with Slide Image & Gradients */}
-      {currentSlide.imageUrl ? (
+      {currentSlide?.imageUrl ? (
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
           <img 
             src={currentSlide.imageUrl} 
-            alt={currentSlide.title} 
+            alt={currentSlide?.title || 'स्लाइड'} 
             className="w-full h-full object-cover object-center opacity-25 filter blur-[2px] scale-105 transition-all duration-700" 
           />
-          <div className={`absolute inset-0 bg-gradient-to-br ${currentSlide.bgGradient} opacity-85 mix-blend-multiply`} />
+          <div className={`absolute inset-0 bg-gradient-to-br ${currentSlide?.bgGradient || 'from-slate-900 to-slate-950'} opacity-85 mix-blend-multiply`} />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-slate-950/70" />
         </div>
       ) : (
-        <div className={`absolute inset-0 bg-gradient-to-br ${currentSlide.bgGradient} opacity-90 transition-all duration-700 pointer-events-none`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${currentSlide?.bgGradient || 'from-slate-900 to-slate-950'} opacity-90 transition-all duration-700 pointer-events-none`} />
       )}
 
       {/* 2. Main Content Container - Non-overlapping Safe Margins (px-8 sm:px-11 md:px-14) */}
@@ -198,16 +198,16 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
         <div className="flex flex-col md:flex-row md:items-center gap-3 sm:gap-5 w-full">
           
           {/* Mobile Dedicated Image Card (< 768px): 100% COMPLETE PICTURE WITHOUT ANY CROPPING */}
-          {currentSlide.imageUrl && (
+          {currentSlide?.imageUrl && (
             <div 
-              onClick={() => setPreviewImage({ url: currentSlide.imageUrl, title: currentSlide.title })}
+              onClick={() => setPreviewImage({ url: currentSlide.imageUrl, title: currentSlide?.title || '' })}
               className="block md:hidden w-full relative rounded-xl sm:rounded-2xl overflow-hidden border-2 border-amber-500/50 shadow-2xl bg-black cursor-pointer group/mobilepic"
               title="पूरा पोस्टर व फोटो देखने के लिए क्लिक करें"
             >
               <div className="w-full aspect-video max-h-[195px] sm:max-h-[250px] relative flex items-center justify-center bg-black overflow-hidden">
                 <img 
                   src={currentSlide.imageUrl} 
-                  alt={currentSlide.title} 
+                  alt={currentSlide?.title || 'स्लाइड'} 
                   className="w-full h-full object-contain select-none"
                   loading="eager"
                 />
@@ -269,16 +269,16 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
           </div>
 
           {/* Desktop/Tablet Dedicated Image Frame (>= 768px): 100% COMPLETE PICTURE */}
-          {currentSlide.imageUrl && (
+          {currentSlide?.imageUrl && (
             <div 
-              onClick={() => setPreviewImage({ url: currentSlide.imageUrl, title: currentSlide.title })}
+              onClick={() => setPreviewImage({ url: currentSlide.imageUrl, title: currentSlide?.title || '' })}
               className="hidden md:flex flex-col items-center shrink-0 w-72 lg:w-96 cursor-pointer group/deskpic"
               title="पूरी तस्वीर बड़ी स्क्रीन में देखें (Click for HD Fullscreen)"
             >
               <div className="w-full aspect-video rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-[0_8px_25px_rgba(245,158,11,0.25)] relative group-hover/deskpic:border-amber-300 transition-all bg-black flex items-center justify-center">
                 <img 
                   src={currentSlide.imageUrl} 
-                  alt={currentSlide.title} 
+                  alt={currentSlide?.title || 'स्लाइड'} 
                   className="w-full h-full object-contain group-hover/deskpic:scale-[1.02] transition-transform duration-500 select-none" 
                   loading="eager"
                 />
