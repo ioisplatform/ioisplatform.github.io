@@ -57,6 +57,7 @@ import { SessionSecurityAlertModal } from './components/SessionSecurityAlertModa
 import { SponsorAddMemberModal } from './components/SponsorAddMemberModal';
 import { PublicProfileModal } from './components/PublicProfileModal';
 import { IoisChatHelpHub } from './components/IoisChatHelpHub';
+import { AdminHomePhotoPopup } from './components/AdminHomePhotoPopup';
 import { getAdminUnreadCount, getUserUnreadCount, markChatMessagesAsRead } from './services/notificationService';
 import { fetchSocialBootstrapAsync, getSocialUnreadCache } from './services/socialChatService';
 import { getProfileFrameById } from './data/profileFramesData';
@@ -503,11 +504,18 @@ export default function App() {
                   <div className="flex items-center gap-3 text-center sm:text-left">
                     <div
                       onClick={() => handleOpenPublicProfile(currentUser)}
-                      className={`p-1 rounded-full cursor-pointer shrink-0 ${homeFrame.cssClass || homeFrame.effectClass}`}
+                      className={`p-1.5 rounded-full cursor-pointer shrink-0 ${homeFrame.cssClass || homeFrame.effectClass}`}
                       title="अपनी पब्लिक प्रोफाइल देखें"
                     >
-                      <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-900 bg-slate-900">
-                        <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                      <div className="relative z-10 w-12 h-12 rounded-full overflow-hidden border border-slate-900 bg-slate-900">
+                        <img
+                          src={currentUser.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80'}
+                          alt={currentUser.fullName}
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80';
+                          }}
+                          className="w-full h-full object-cover object-top"
+                        />
                       </div>
                     </div>
                     <div className="min-w-0">
@@ -580,6 +588,22 @@ export default function App() {
               onOpenFestivalModal={() => setIsFestivalWelcomeOpen(true)}
               onOpenRashifalModal={() => setIsDailyRashifalOpen(true)}
               onOpenPhotoCompressor={() => setIsPhotoCompressorOpen(true)}
+              suppressHomePopup={
+                isDashboardModalOpen ||
+                popupPage !== null ||
+                isAuthModalOpen ||
+                isRegisterModalOpen ||
+                isSponsorAddMemberOpen ||
+                isPublicProfileOpen ||
+                isIdCardModalOpen ||
+                isServicesModalOpen ||
+                isReferralModalOpen ||
+                isThemeModalOpen ||
+                isAppNotificationModalOpen ||
+                isFestivalWelcomeOpen ||
+                isDailyRashifalOpen ||
+                isPhotoCompressorOpen
+              }
             />
           </div>
         )}
@@ -1342,6 +1366,27 @@ export default function App() {
             handleOpenLogin('login');
           }
         }}
+      />
+
+      {/* 23. Global Celebration & Photo Popup for "All Pages" target (runs outside Home/Dashboard/Admin) */}
+      <AdminHomePhotoPopup
+        currentUser={currentUser}
+        location="global"
+        onNavigate={navigateTo}
+        onOpenRegister={handleOpenRegister}
+        onOpenSponsorAddMember={handleOpenSponsorAddMember}
+        onOpenIdCard={handleOpenIdCard}
+        suppressAutoOpen={
+          currentPage === 'home' ||
+          currentPage === 'dashboard' ||
+          currentPage === 'admin' ||
+          popupPage === 'admin' ||
+          isDashboardModalOpen ||
+          isAuthModalOpen ||
+          isRegisterModalOpen ||
+          isSponsorAddMemberOpen ||
+          isPublicProfileOpen
+        }
       />
     </div>
   );

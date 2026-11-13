@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, HelpTicket } from '../types';
 import { PLANS } from '../data/plansData';
 import { 
@@ -67,18 +68,30 @@ import {
   Image as ImageIcon,
   Calendar,
   Printer,
-  CalendarDays
+  CalendarDays,
+  PartyPopper,
+  Upload
 } from 'lucide-react';
 import { RegistrationModal } from './RegistrationModal';
 import { NotificationModal } from './NotificationModal';
 import { getAdminUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
-import { getStoredSliders, saveStoredSliders, HomeSliderItem, DEFAULT_HOME_SLIDERS } from '../data/homeSliderData';
+import {
+  getStoredSliders,
+  saveStoredSlidersAsync,
+  fetchStoredSlidersFromServer,
+  HomeSliderItem,
+  DEFAULT_HOME_SLIDERS
+} from '../data/homeSliderData';
 import { 
-  HomePopupPhoto, 
+  HomePopupPhoto,
+  PopupDisplayTarget,
   getAllAdminPopupPhotos, 
-  saveAdminPopupPhotos 
+  saveAdminPopupPhotosAsync,
+  fetchHomePopupPhotosFromServer,
+  isPopupSlotConfigured
 } from '../data/homePopupData';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
+import { compressImageFileToDataUrl } from '../utils/imageCompress';
 import {
   fetchAdminSocialMonitorAsync,
   adminDeleteSocialMessageAsync,
@@ -111,15 +124,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
   const [adminUnreadCount, setAdminUnreadCount] = useState<number>(() => getAdminUnreadCount());
 
-  // Slider & Festive Banner Manager State
+  // Slider & Festive Banner Manager State (Slider 1)
+  const [activeSliderButton, setActiveSliderButton] = useState<'slider1' | 'slider2'>('slider2');
   const [sliderList, setSliderList] = useState<HomeSliderItem[]>(() => getStoredSliders());
   const [editingSlider, setEditingSlider] = useState<HomeSliderItem | null>(null);
   const [sliderSuccessMsg, setSliderSuccessMsg] = useState<string>('');
+  const [isCompressingSliderImg, setIsCompressingSliderImg] = useState<boolean>(false);
 
-  // 7-Photo Home Popup Manager State
+  // 7-Photo Celebration & Home/Dashboard Popup Manager State (Slider 2)
   const [popupPhotos, setPopupPhotos] = useState<HomePopupPhoto[]>(() => getAllAdminPopupPhotos());
   const [showPopupPreview, setShowPopupPreview] = useState<boolean>(false);
+  const [previewFocusPhotoId, setPreviewFocusPhotoId] = useState<string | null>(null);
   const [popupSuccessMsg, setPopupSuccessMsg] = useState<string>('');
+  const [popupErrorMsg, setPopupErrorMsg] = useState<string>('');
+  const [uploadingSlotId, setUploadingSlotId] = useState<string | null>(null);
+  const [confirmClearAllPopups, setConfirmClearAllPopups] = useState<boolean>(false);
+
+  useEffect(() => {
+    void fetchHomePopupPhotosFromServer().then((serverPopups) => {
+      setPopupPhotos(serverPopups);
+    });
+    void fetchStoredSlidersFromServer().then((serverSliders) => {
+      setSliderList(serverSliders);
+    });
+  }, []);
 
   useEffect(() => {
     const updateAdminUnread = () => {
@@ -2741,533 +2769,888 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
       )}
 
-      {/* 7-Photo Home Popup Manager Handlers */}
+      {/* Celebration & Home/Dashboard Popup Live Preview */}
       {showPopupPreview && (
         <AdminHomePhotoPopup
           onNavigate={() => {}}
           forceShowForPreview={true}
+          focusPhotoId={previewFocusPhotoId}
+          onPreviewClosed={() => {
+            setShowPopupPreview(false);
+            setPreviewFocusPhotoId(null);
+          }}
+          location="preview"
         />
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 9: HOMEPAGE SLIDER & FESTIVE POSTER MANAGER + 7-PHOTO HOME POPUP      */}
+      {/* TAB 9: TWIN TWO-BUTTON SLIDER & CELEBRATION POPUP MANAGER                 */}
       {/* ========================================================================= */}
       {activeTab === 'sliders' && (
-        <div className="space-y-8">
-          
-          {/* ================= 7-PHOTO HOME POPUP SYSTEM (USER REQUESTED FEATURE) ================= */}
-          <div className="glass-card p-5 sm:p-7 rounded-3xl border-2 border-amber-500/70 shadow-2xl space-y-6 bg-slate-950/95">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-yellow-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                    <span>7-PHOTO HOME POPUP SYSTEM</span>
-                  </span>
-                  <span className={`text-[10.5px] font-black px-2.5 py-0.5 rounded-full border ${
-                    popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-slate-800 text-slate-400 border-slate-700'
-                  }`}>
-                    {popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0 
-                      ? `🟢 सक्रिय फोटो: ${popupPhotos.filter(p => p && p.active && p.imageUrl).length}/7 (होम पेज पर पॉपअप चालू)` 
-                      : '⚪ कोई सक्रिय फोटो नहीं (होम पेज पर कोई पॉपअप नहीं आएगा)'}
-                  </span>
-                </div>
-
-                <h3 className="text-base sm:text-xl font-black text-white">
-                  होम पेज 7-फोटो पॉपअप व स्लाइडर सिस्टम (Auto-Sized Zoom-In/Out)
-                </h3>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-                  <strong>नियम:</strong> यदि आप यहाँ फोटो अपलोड करेंगे तो होम पेज पर विज़िटर के सामने ऑटोमेटिक ज़ूम इन/आउट इफ़ेक्ट के साथ पॉपअप खुलेगा। पॉपअप फोटो के वास्तविक आकार (size) के अनुसार ऑटो-एडजस्ट होगा। <strong>यदि आप कोई फोटो अपलोड नहीं करेंगे या सभी फोटो बंद रखेंगे, तो होम पेज पर कोई पॉपअप नहीं आएगा।</strong>
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (popupPhotos.length >= 7) {
-                      alert('अधिकतम 7 फोटो स्लॉट जोड़े जा सकते हैं।');
-                      return;
-                    }
-                    const newPhoto: HomePopupPhoto = {
-                      id: `popup-${Date.now()}`,
-                      imageUrl: '',
-                      title: `विशेष घोषणा #${popupPhotos.length + 1}`,
-                      description: 'IOIS परिवार की ओर से विशेष शुभकामना व घोषणा संदेश।',
-                      actionType: 'register',
-                      actionText: 'ज्वाइन करें',
-                      active: true,
-                      order: popupPhotos.length + 1,
-                      createdAt: new Date().toISOString(),
-                    };
-                    const updated = [...popupPhotos, newPhoto];
-                    setPopupPhotos(updated);
-                    saveAdminPopupPhotos(updated);
-                    setPopupSuccessMsg('नया फोटो स्लॉट जुड़ गया! कृपया फोटो अपलोड करें।');
-                    setTimeout(() => setPopupSuccessMsg(''), 3000);
-                  }}
-                  disabled={popupPhotos.length >= 7}
-                  className="btn-3d-rainbow-special px-3.5 py-2 rounded-xl text-xs font-black text-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-40"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-black" />
-                  <span>+ नया फोटो स्लॉट ({popupPhotos.length}/7)</span>
-                </button>
-
-                {popupPhotos.filter(p => p && p.active && p.imageUrl).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPopupPreview(true);
-                      setTimeout(() => setShowPopupPreview(false), 5000);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
-                    title="होम पेज पर ज़ूम इफ़ेक्ट के साथ पॉपअप कैसा दिखेगा, अभी देखें"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>ज़ूम पॉपअप प्रिव्यू करें</span>
-                  </button>
-                )}
-
-                {popupPhotos.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('क्या आप होम पेज के सभी पॉपअप फोटो हटाना चाहते हैं? इसके बाद होम पेज पर कोई पॉपअप नहीं आएगा।')) {
-                        setPopupPhotos([]);
-                        saveAdminPopupPhotos([]);
-                        setPopupSuccessMsg('सभी पॉपअप फोटो हटा दिए गए। अब होम पेज पर कोई पॉपअप नहीं खुलेगा।');
-                        setTimeout(() => setPopupSuccessMsg(''), 3000);
-                      }
-                    }}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-red-950 border border-slate-700 hover:border-red-500 text-red-300 text-xs font-bold transition cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+        <div className="space-y-6">
+          {/* TWIN DUAL SLIDER ACTION BUTTONS */}
+          <div className="glass-card p-4 sm:p-6 rounded-3xl border-2 border-amber-500/50 bg-slate-950/95 space-y-4">
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
+                <Sliders className="w-3 h-3 text-amber-400" />
+                <span>2-BUTTON SLIDER &amp; CELEBRATION POPUP CONTROL</span>
+              </span>
+              <h3 className="text-base sm:text-xl font-black text-white">
+                स्लाइडर 1 (बैनर स्लाइडर) और स्लाइडर 2 (सेलिब्रेशन व पॉपअप इफ़ेक्ट)
+              </h3>
+              <p className="text-xs text-slate-300">
+                नीचे दिए गए दोनों स्लाइडर बटन एक समान डिज़ाइन में हैं: <strong>पहला बटन</strong> वेबसाइट का स्लाइडर बैनर संभालता है और <strong>दूसरा बटन</strong> Congratulations &amp; Celebration Effect + Cut (✕) बटन वाला लाइव पॉपअप सिस्टम खोलता है।
+              </p>
             </div>
 
-            {popupSuccessMsg && (
-              <div className="p-3 bg-emerald-950/90 border border-emerald-500 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{popupSuccessMsg}</span>
-              </div>
-            )}
-
-            {/* If no photos are added yet */}
-            {popupPhotos.length === 0 ? (
-              <div className="p-8 text-center rounded-2xl border-2 border-dashed border-slate-800 space-y-3 bg-slate-900/40">
-                <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
-                  <ImageIcon className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black text-white">कोई होम पेज पॉपअप फोटो सक्रिय नहीं है</h4>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    वर्तमान में होम पेज पर कोई भी पॉपअप नहीं खुलेगा। जब भी आप त्योहार (दिवाली, भाई दूज, छठ पूजा) या कोई विशेष सूचना दिखाना चाहें, ऊपर '+ नया फोटो स्लॉट' बटन दबाकर फोटो अपलोड करें।
-                  </p>
-                </div>
-              </div>
-            ) : (
-              /* Grid of Popup Photo Slots (Up to 7) */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {popupPhotos.map((photo, idx) => (
-                  <div
-                    key={photo?.id || idx}
-                    className={`p-4 rounded-2xl border-2 transition flex flex-col justify-between gap-3 shadow-lg ${
-                      photo && photo.active && photo.imageUrl
-                        ? 'bg-slate-900/90 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                        : 'bg-slate-950 border-slate-800 opacity-80'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      {/* Slot Header */}
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span className="text-xs font-black text-amber-300">
-                          फोटो स्लॉट #{idx + 1}
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                          <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold">
-                            <input
-                              type="checkbox"
-                              checked={photo.active}
-                              onChange={(e) => {
-                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, active: e.target.checked } : p);
-                                setPopupPhotos(updated);
-                                saveAdminPopupPhotos(updated);
-                              }}
-                              className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
-                            />
-                            <span className={photo.active ? 'text-emerald-400' : 'text-slate-500'}>
-                              {photo.active ? 'सक्रिय (On)' : 'बंद (Off)'}
-                            </span>
-                          </label>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = popupPhotos.filter(p => p.id !== photo.id);
-                              setPopupPhotos(updated);
-                              saveAdminPopupPhotos(updated);
-                            }}
-                            className="text-slate-500 hover:text-red-400 p-1 cursor-pointer"
-                            title="स्लॉट हटाएं"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Photo Image Preview with natural aspect ratio */}
-                      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black min-h-[140px] max-h-[220px] flex items-center justify-center group">
-                        {photo.imageUrl ? (
-                          <img
-                            src={photo.imageUrl}
-                            alt={photo.title}
-                            className="max-h-[220px] w-auto max-w-full object-contain"
-                          />
-                        ) : (
-                          <div className="p-4 text-center text-slate-500 text-xs">
-                            <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                            <span>फोटो अभी अपलोड नहीं है</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Upload / URL Controls */}
-                      <div className="space-y-2">
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-slate-300 mb-1">
-                            1. अपने फोन/कंप्यूटर से फोटो अपलोड करें:
-                          </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => {
-                                  const dataUrl = ev.target?.result as string;
-                                  if (dataUrl) {
-                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: dataUrl } : p);
-                                    setPopupPhotos(updated);
-                                    saveAdminPopupPhotos(updated);
-                                    setPopupSuccessMsg(`स्लॉट #${idx + 1} में फोटो सफलतापूर्वक अपलोड हो गई!`);
-                                    setTimeout(() => setPopupSuccessMsg(''), 3000);
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-300 cursor-pointer"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">
-                            या इमेज URL पेस्ट करें:
-                          </label>
-                          <input
-                            type="text"
-                            value={photo.imageUrl}
-                            onChange={(e) => {
-                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: e.target.value } : p);
-                              setPopupPhotos(updated);
-                              saveAdminPopupPhotos(updated);
-                            }}
-                            placeholder="https://example.com/festival-banner.jpg"
-                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-amber-400"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Photo Title & Description */}
-                      <div className="space-y-1.5">
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">शीर्षक / पर्व का नाम:</label>
-                          <input
-                            type="text"
-                            value={photo.title}
-                            onChange={(e) => {
-                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, title: e.target.value } : p);
-                              setPopupPhotos(updated);
-                              saveAdminPopupPhotos(updated);
-                            }}
-                            placeholder="उदा: भाई दूज की हार्दिक शुभकामनाएं"
-                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">संदेश / विवरण:</label>
-                          <textarea
-                            value={photo.description}
-                            onChange={(e) => {
-                              const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, description: e.target.value } : p);
-                              setPopupPhotos(updated);
-                              saveAdminPopupPhotos(updated);
-                            }}
-                            rows={2}
-                            placeholder="संदेश या ऑफर का विवरण लिखें..."
-                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none resize-none"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">बटन एक्शन:</label>
-                            <select
-                              value={photo.actionType}
-                              onChange={(e) => {
-                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionType: e.target.value as any } : p);
-                                setPopupPhotos(updated);
-                                saveAdminPopupPhotos(updated);
-                              }}
-                              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
-                            >
-                              <option value="none">कोई बटन नहीं</option>
-                              <option value="register">ज्वाइन / रजिस्ट्रेशन</option>
-                              <option value="plans">7 मास्टर प्लान</option>
-                              <option value="idcard">डिजिटल ID कार्ड</option>
-                              <option value="rtps-services">RTPS नागरिक सेवा</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">बटन टेक्स्ट:</label>
-                            <input
-                              type="text"
-                              value={photo.actionText}
-                              onChange={(e) => {
-                                const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionText: e.target.value } : p);
-                                setPopupPhotos(updated);
-                                saveAdminPopupPhotos(updated);
-                              }}
-                              placeholder="उदा: अभी देखें"
-                              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ================= EXISTING 7 FESTIVE AUTO-CAROUSEL BANNER MANAGER ================= */}
-          <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
-                  <Sliders className="w-3 h-3 text-amber-400" />
-                  <span>7 FESTIVE & SMART SAVINGS BANNERS</span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-black text-white">
-                  होमपेज ऑटो-स्लाइडर व फेस्टिव पोस्टर मैनेजर
-                </h3>
-                <p className="text-xs text-slate-400">
-                  यहाँ से आप धनतेरस, दिवाली, गोवर्धन पूजा, भाई दूज, छठ पूजा और स्मार्ट सेविंग्स के सभी 7 बैनर व उनकी तस्वीरें लाइव अपडेट कर सकते हैं।
-                </p>
-              </div>
-
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* SLIDER BUTTON 1 */}
               <button
                 type="button"
-                onClick={() => {
-                  saveStoredSliders(DEFAULT_HOME_SLIDERS);
-                  setSliderList([...DEFAULT_HOME_SLIDERS]);
-                  setSliderSuccessMsg('सभी 7 बैनर डिफ़ॉल्ट पर रीसेट हो गए!');
-                  setTimeout(() => setSliderSuccessMsg(''), 3000);
-                }}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                onClick={() => setActiveSliderButton('slider1')}
+                className={`p-4 rounded-2xl border-2 text-left transition cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                  activeSliderButton === 'slider1'
+                    ? 'bg-gradient-to-r from-amber-500/25 via-yellow-500/15 to-amber-500/25 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.3)]'
+                    : 'bg-slate-900/90 border-slate-700 hover:border-amber-500/60'
+                }`}
               >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                <span>डिफ़ॉल्ट रीसेट करें</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block">
+                      स्लाइडर बटन 1 • CAROUSEL SLIDER
+                    </span>
+                    <strong className="text-sm font-black text-white block truncate">
+                      होमपेज बैनर स्लाइडर लगाएं
+                    </strong>
+                    <span className="text-[11px] text-slate-300 block truncate">
+                      सक्रिय स्लाइड्स: {sliderList.filter(s => s.active).length} / {sliderList.length}
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 ${
+                  activeSliderButton === 'slider1' ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {activeSliderButton === 'slider1' ? 'चयनित ✓' : 'खोलें'}
+                </span>
+              </button>
+
+              {/* SLIDER BUTTON 2 (TWIN STYLE -> CONNECTED TO POP & CELEBRATION EFFECT + CUT BUTTON) */}
+              <button
+                type="button"
+                onClick={() => setActiveSliderButton('slider2')}
+                className={`p-4 rounded-2xl border-2 text-left transition cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                  activeSliderButton === 'slider2'
+                    ? 'bg-gradient-to-r from-amber-500/25 via-rose-500/15 to-amber-500/25 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.3)]'
+                    : 'bg-slate-900/90 border-slate-700 hover:border-amber-500/60'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-rose-400 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+                    <PartyPopper className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block">
+                      स्लाइडर बटन 2 • POP + CELEBRATION
+                    </span>
+                    <strong className="text-sm font-black text-white block truncate">
+                      पॉपअप व सेलिब्रेशन इफ़ेक्ट लगाएं
+                    </strong>
+                    <span className="text-[11px] text-slate-300 block truncate">
+                      सक्रिय पॉपअप: {popupPhotos.filter(p => isPopupSlotConfigured(p)).length}/7 (Cut बटन सहित)
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 ${
+                  activeSliderButton === 'slider2' ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {activeSliderButton === 'slider2' ? 'चयनित ✓' : 'खोलें'}
+                </span>
               </button>
             </div>
           </div>
 
-          {sliderSuccessMsg && (
-            <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>{sliderSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* Sliders Grid List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sliderList.map((slide, idx) => (
-              <div 
-                key={slide.id}
-                className="p-4 rounded-2xl bg-slate-950/90 border-2 border-slate-800 hover:border-amber-500/50 transition flex flex-col justify-between gap-3 shadow-lg"
-              >
-                <div className="space-y-2.5">
-                  {/* Slide Image Preview */}
-                  <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
-                    <img 
-                      src={slide.imageUrl} 
-                      alt={slide.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                    />
-                    <div className="absolute top-2 left-2 bg-slate-950/90 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40">
-                      Slide #{idx + 1}
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-full ${
-                        slide.isActive 
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                          : 'bg-red-500/20 text-red-300 border border-red-500/40'
-                      }`}>
-                        {slide.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Texts */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                      {slide.badge}
+          {/* ========================================================================= */}
+          {/* SLIDER BUTTON 2 PANEL: CELEBRATION & PHOTO POPUP SYSTEM (CUT BUTTON)      */}
+          {/* ========================================================================= */}
+          {activeSliderButton === 'slider2' && (
+            <div className="glass-card p-5 sm:p-7 rounded-3xl border-2 border-amber-500/70 shadow-2xl space-y-6 bg-slate-950/95">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-rose-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400">
+                      <PartyPopper className="w-3.5 h-3.5 text-amber-300" />
+                      <span>SLIDER 2 • CELEBRATION POPUP EFFECT</span>
                     </span>
-                    <h4 className="text-sm font-black text-white line-clamp-1">{slide.title}</h4>
-                    <p className="text-[11px] text-slate-300 line-clamp-2">{slide.subtitle}</p>
+                    <span className={`text-[10.5px] font-black px-2.5 py-0.5 rounded-full border ${
+                      popupPhotos.filter(p => isPopupSlotConfigured(p)).length > 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}>
+                      {popupPhotos.filter(p => isPopupSlotConfigured(p)).length > 0
+                        ? `🟢 सक्रिय पॉपअप: ${popupPhotos.filter(p => isPopupSlotConfigured(p)).length}/7`
+                        : '⚪ कोई कस्टम पॉपअप सेट नहीं (सामान्य दिन पर कोई पॉपअप नहीं आएगा)'}
+                    </span>
                   </div>
+
+                  <h3 className="text-base sm:text-xl font-black text-white">
+                    फोटो + शुभकामना संदेश पॉपअप व सेलिब्रेशन इफ़ेक्ट (Cut बटन सहित)
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+                    <strong>नियम:</strong> यहाँ फोटो अपलोड करें या केवल शुभकामना संदेश लिखें (जैसे: <em>"आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं!"</em>)। जब भी विज़िटर होम स्क्रीन या डैशबोर्ड पर आएंगे, Congratulations &amp; Celebration Effect और Cut (✕) बटन के साथ पॉपअप दिखेगा। <strong>यदि आप कोई फोटो या पॉपअप संदेश सेट नहीं करेंगे, तो केवल वास्तविक त्योहार/सेलिब्रेशन के दिन ही पॉपअप दिखेगा, अन्यथा कोई पॉपअप नहीं आएगा।</strong>
+                  </p>
                 </div>
 
-                {/* Edit Action Button */}
-                <button
-                  type="button"
-                  onClick={() => setEditingSlider({ ...slide })}
-                  className="w-full py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>यह बैनर एडिट करें (Edit Slide)</span>
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Modal to Edit Single Slider */}
-          {editingSlider && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-              <div className="relative w-full max-w-lg bg-slate-950 border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-amber-400" />
-                    <h3 className="text-sm sm:text-base font-black text-white">बैनर विवरण व तस्वीर अपडेट करें</h3>
-                  </div>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
                   <button
                     type="button"
-                    onClick={() => setEditingSlider(null)}
-                    className="text-slate-400 hover:text-white cursor-pointer"
+                    onClick={async () => {
+                      if (popupPhotos.length >= 7) {
+                        setPopupErrorMsg('अधिकतम 7 पॉपअप स्लॉट जोड़े जा सकते हैं।');
+                        return;
+                      }
+                      setPopupErrorMsg('');
+                      const newPhoto: HomePopupPhoto = {
+                        id: `popup-${Date.now()}`,
+                        imageUrl: '',
+                        title: '',
+                        celebrationHeadline: '',
+                        description: '',
+                        celebrationEffect: true,
+                        displayTargets: ['home', 'dashboard'],
+                        actionType: 'none',
+                        actionText: 'अभी देखें',
+                        active: true,
+                        order: popupPhotos.length + 1,
+                        createdAt: new Date().toISOString(),
+                      };
+                      const updated = [...popupPhotos, newPhoto];
+                      setPopupPhotos(updated);
+                      await saveAdminPopupPhotosAsync(updated);
+                      setPopupSuccessMsg('नया खाली स्लॉट जुड़ गया! अब इसमें फोटो अपलोड करें या शुभकामना संदेश लिखें।');
+                      setTimeout(() => setPopupSuccessMsg(''), 3500);
+                    }}
+                    disabled={popupPhotos.length >= 7}
+                    className="btn-3d-rainbow-special px-3.5 py-2 rounded-xl text-xs font-black text-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-40"
                   >
-                    <X className="w-4 h-4" />
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
+                    <span>+ नया पॉपअप स्लॉट ({popupPhotos.length}/7)</span>
                   </button>
-                </div>
 
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">बैनर टैग / बैज:</label>
-                    <input
-                      type="text"
-                      value={editingSlider.badge}
-                      onChange={(e) => setEditingSlider({ ...editingSlider, badge: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">मुख्य शीर्षक (Headline):</label>
-                    <input
-                      type="text"
-                      value={editingSlider.title}
-                      onChange={(e) => setEditingSlider({ ...editingSlider, title: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">उप-शीर्षक / विवरण (Subtitle):</label>
-                    <textarea
-                      rows={2}
-                      value={editingSlider.subtitle}
-                      onChange={(e) => setEditingSlider({ ...editingSlider, subtitle: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">तस्वीर URL (Image URL):</label>
-                    <input
-                      type="text"
-                      value={editingSlider.imageUrl}
-                      onChange={(e) => setEditingSlider({ ...editingSlider, imageUrl: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-mono text-[11px]"
-                    />
-                    <div className="mt-2 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
-                      <img src={editingSlider.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-slate-300 font-bold mb-1">बटन टेक्स्ट (CTA):</label>
-                      <input
-                        type="text"
-                        value={editingSlider.ctaText}
-                        onChange={(e) => setEditingSlider({ ...editingSlider, ctaText: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-300 font-bold mb-1">सक्रिय स्थिति:</label>
-                      <select
-                        value={editingSlider.isActive ? 'active' : 'inactive'}
-                        onChange={(e) => setEditingSlider({ ...editingSlider, isActive: e.target.value === 'active' })}
-                        className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none cursor-pointer"
-                      >
-                        <option value="active">Active (सक्रिय)</option>
-                        <option value="inactive">Inactive (छुपाएं)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
                   <button
                     type="button"
-                    onClick={() => setEditingSlider(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
+                    onClick={async () => {
+                      if (popupPhotos.length >= 7) {
+                        setPopupErrorMsg('अधिकतम 7 पॉपअप स्लॉट जोड़े जा सकते हैं।');
+                        return;
+                      }
+                      setPopupErrorMsg('');
+                      const chhathPopup: HomePopupPhoto = {
+                        id: `popup-${Date.now()}`,
+                        imageUrl: '',
+                        title: '☀️ छठ महापर्व विशेष शुभकामना संदेश',
+                        celebrationHeadline: '🎉 आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं! 🎉',
+                        description: 'भगवान सूर्य देव और छठी मैया की असीम कृपा से आप सभी के जीवन में सुख, शांति, समृद्धि और उत्तम स्वास्थ्य का वास हो। — IOIS परिवार',
+                        celebrationEffect: true,
+                        displayTargets: ['home', 'dashboard', 'all'],
+                        actionType: 'plans',
+                        actionText: 'विशेष ऑफर देखें',
+                        active: true,
+                        order: popupPhotos.length + 1,
+                        createdAt: new Date().toISOString(),
+                      };
+                      const updated = [...popupPhotos, chhathPopup];
+                      setPopupPhotos(updated);
+                      await saveAdminPopupPhotosAsync(updated);
+                      setPreviewFocusPhotoId(chhathPopup.id);
+                      setShowPopupPreview(true);
+                      setPopupSuccessMsg('छठ महापर्व सेलिब्रेशन पॉपअप सक्रिय हो गया!');
+                      setTimeout(() => setPopupSuccessMsg(''), 4000);
+                    }}
+                    disabled={popupPhotos.length >= 7}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95 disabled:opacity-40"
                   >
-                    रद्द करें
+                    <PartyPopper className="w-3.5 h-3.5" />
+                    <span>+ छठ महापर्व बधाई टेम्पलेट</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => {
-                      const updated = sliderList.map((s) => s.id === editingSlider.id ? editingSlider : s);
-                      saveStoredSliders(updated);
-                      setSliderList(updated);
-                      setEditingSlider(null);
-                      setSliderSuccessMsg(`बैनर "${editingSlider.title}" सफलतापूर्वक अपडेट हो गया!`);
+                      setPreviewFocusPhotoId(null);
+                      setShowPopupPreview(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
+                    title="सेलिब्रेशन पॉपअप और Cut बटन का लाइव प्रिव्यू देखें"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>पॉपअप प्रिव्यू (Cut बटन सहित)</span>
+                  </button>
+
+                  {popupPhotos.length > 0 && !confirmClearAllPopups && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearAllPopups(true)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-red-950 border border-slate-700 hover:border-red-500 text-red-300 text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>सभी डिलीट</span>
+                    </button>
+                  )}
+
+                  {confirmClearAllPopups && (
+                    <div className="flex items-center gap-1.5 bg-red-950/90 border border-red-500 px-2.5 py-1 rounded-xl">
+                      <span className="text-[11px] font-bold text-red-200">पक्का हटाएं?</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setPopupPhotos([]);
+                          await saveAdminPopupPhotosAsync([]);
+                          setConfirmClearAllPopups(false);
+                          setPopupSuccessMsg('सभी पॉपअप डिलीट हो गए! अब सामान्य दिनों में कोई पॉपअप नहीं दिखेगा।');
+                          setTimeout(() => setPopupSuccessMsg(''), 3500);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-black cursor-pointer"
+                      >
+                        हाँ डिलीट करें
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearAllPopups(false)}
+                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[10px] font-bold cursor-pointer"
+                      >
+                        नहीं
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {popupErrorMsg && (
+                <div className="p-3 bg-rose-950/90 border border-rose-500 rounded-xl text-rose-200 text-xs font-bold flex items-center justify-between gap-2">
+                  <span>{popupErrorMsg}</span>
+                  <button type="button" onClick={() => setPopupErrorMsg('')} className="cursor-pointer">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {popupSuccessMsg && (
+                <div className="p-3 bg-emerald-950/90 border border-emerald-500 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{popupSuccessMsg}</span>
+                </div>
+              )}
+
+              {popupPhotos.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border-2 border-dashed border-slate-800 space-y-3 bg-slate-900/40">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 text-amber-400 mx-auto flex items-center justify-center">
+                    <PartyPopper className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-white">अभी कोई कस्टम पॉपअप फोटो या संदेश सेट नहीं है</h4>
+                    <p className="text-xs text-slate-400 max-w-lg mx-auto">
+                      सामान्य दिनों में विज़िटर्स के सामने कोई पॉपअप नहीं खुलेगा (केवल वास्तविक त्योहार या सेलिब्रेशन के दिन ऑटो पॉपअप दिखेगा)। नया सेलिब्रेशन पॉपअप लगाने के लिए ऊपर बटन दबाएं।
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {popupPhotos.map((photo, idx) => {
+                    const targets = photo.displayTargets || ['home', 'dashboard'];
+                    const isConfigured = isPopupSlotConfigured(photo);
+                    return (
+                      <div
+                        key={photo?.id || idx}
+                        className={`p-4 rounded-2xl border-2 transition flex flex-col justify-between gap-3 shadow-lg ${
+                          isConfigured
+                            ? 'bg-slate-900/90 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                            : 'bg-slate-950 border-slate-800 opacity-85'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          {/* Slot Header */}
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span className="text-xs font-black text-amber-300">
+                              पॉपअप स्लॉट #{idx + 1}
+                            </span>
+
+                            <div className="flex items-center gap-2">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold">
+                                <input
+                                  type="checkbox"
+                                  checked={photo.active}
+                                  onChange={async (e) => {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, active: e.target.checked } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                  }}
+                                  className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                                />
+                                <span className={photo.active ? 'text-emerald-400' : 'text-slate-500'}>
+                                  {photo.active ? 'चालू (On)' : 'बंद (Off)'}
+                                </span>
+                              </label>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const updated = popupPhotos.filter(p => p.id !== photo.id);
+                                  setPopupPhotos(updated);
+                                  await saveAdminPopupPhotosAsync(updated);
+                                  setPopupSuccessMsg(`स्लॉट #${idx + 1} डिलीट कर दिया गया।`);
+                                  setTimeout(() => setPopupSuccessMsg(''), 2500);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-red-950/70 hover:bg-red-600 text-red-200 hover:text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer transition"
+                                title="स्लॉट डिलीट करें"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>डिलीट</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Preview Image */}
+                          <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black min-h-[120px] max-h-[200px] flex items-center justify-center">
+                            {photo.imageUrl ? (
+                              <>
+                                <img
+                                  src={photo.imageUrl}
+                                  alt={photo.title || 'Preview'}
+                                  className="max-h-[200px] w-auto max-w-full object-contain"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: '' } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                  }}
+                                  className="absolute top-1.5 right-1.5 bg-black/80 hover:bg-red-600 text-white p-1 rounded-full cursor-pointer"
+                                  title="फोटो हटाएं"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <div className="p-4 text-center text-slate-400 text-xs">
+                                <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-60" />
+                                <span>वैकल्पिक फोटो (या केवल संदेश लिखें)</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Compressed File Upload + URL */}
+                          <div className="space-y-2">
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-300 mb-1">
+                                1. फोटो अपलोड करें (ऑटो-कम्प्रेस HD — कोई Quota Error नहीं):
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                  const inputEl = e.currentTarget;
+                                  const file = inputEl.files?.[0];
+                                  if (!file) return;
+                                  setUploadingSlotId(photo.id);
+                                  setPopupErrorMsg('');
+                                  try {
+                                    const compressedUrl = await compressImageFileToDataUrl(file, {
+                                      maxWidth: 1200,
+                                      maxHeight: 1200,
+                                      maxBytes: 260 * 1024,
+                                    });
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: compressedUrl, active: true } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                    setPreviewFocusPhotoId(photo.id);
+                                    setShowPopupPreview(true);
+                                    setPopupSuccessMsg(`स्लॉट #${idx + 1} में फोटो सेव होकर लाइव सेलिब्रेशन पॉपअप सक्रिय हो गया!`);
+                                    setTimeout(() => setPopupSuccessMsg(''), 3500);
+                                  } catch (err: any) {
+                                    setPopupErrorMsg(err?.message || 'फोटो अपलोड करने में समस्या आई।');
+                                  } finally {
+                                    setUploadingSlotId(null);
+                                    inputEl.value = '';
+                                  }
+                                }}
+                                className="w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-300 cursor-pointer"
+                              />
+                              {uploadingSlotId === photo.id && (
+                                <span className="text-[10px] text-amber-300 font-bold block mt-1">⏳ फोटो ऑप्टिमाइज़ व सेव हो रही है...</span>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">
+                                या इमेज URL पेस्ट करें:
+                              </label>
+                              <input
+                                type="text"
+                                value={photo.imageUrl}
+                                onChange={async (e) => {
+                                  const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, imageUrl: e.target.value } : p);
+                                  setPopupPhotos(updated);
+                                  await saveAdminPopupPhotosAsync(updated);
+                                }}
+                                placeholder="https://example.com/chhath-banner.jpg"
+                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-amber-400"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Celebration Headline & Title & Details */}
+                          <div className="space-y-2">
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-amber-300 mb-0.5">
+                                🎉 बधाई / सेलिब्रेशन हेडलाइन:
+                              </label>
+                              <input
+                                type="text"
+                                value={photo.celebrationHeadline || ''}
+                                onChange={async (e) => {
+                                  const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, celebrationHeadline: e.target.value } : p);
+                                  setPopupPhotos(updated);
+                                  await saveAdminPopupPhotosAsync(updated);
+                                }}
+                                placeholder="उदा: आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं!"
+                                className="w-full bg-slate-900 border border-amber-500/40 text-white rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-amber-400"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">शीर्षक (Popup Header):</label>
+                              <input
+                                type="text"
+                                value={photo.title}
+                                onChange={async (e) => {
+                                  const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, title: e.target.value } : p);
+                                  setPopupPhotos(updated);
+                                  await saveAdminPopupPhotosAsync(updated);
+                                }}
+                                placeholder="उदा: छठ महापर्व विशेष सूचना"
+                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">पूरा विवरण / संदेश (Details):</label>
+                              <textarea
+                                value={photo.description}
+                                onChange={async (e) => {
+                                  const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, description: e.target.value } : p);
+                                  setPopupPhotos(updated);
+                                  await saveAdminPopupPhotosAsync(updated);
+                                }}
+                                rows={2}
+                                placeholder="उत्सव बधाई या घोषणा का पूरा विवरण लिखें..."
+                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none resize-none"
+                              />
+                            </div>
+
+                            {/* Congratulations Effect & Display Targets */}
+                            <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-amber-200">
+                                <input
+                                  type="checkbox"
+                                  checked={photo.celebrationEffect !== false}
+                                  onChange={async (e) => {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, celebrationEffect: e.target.checked } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                  }}
+                                  className="rounded border-slate-700 text-amber-400 focus:ring-0 cursor-pointer"
+                                />
+                                <span>✨ Congratulations &amp; Celebration Effect</span>
+                              </label>
+
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400 block">कहाँ दिखाएं (Screen Targets):</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(
+                                    [
+                                      { key: 'home', label: '🏠 Home स्क्रीन' },
+                                      { key: 'dashboard', label: '📊 Dashboard' },
+                                      { key: 'all', label: '🌐 सभी पेज' },
+                                    ] as Array<{ key: PopupDisplayTarget; label: string }>
+                                  ).map((t) => {
+                                    const selected = targets.includes(t.key);
+                                    return (
+                                      <button
+                                        key={t.key}
+                                        type="button"
+                                        onClick={async () => {
+                                          const nextTargets: PopupDisplayTarget[] = selected
+                                            ? targets.filter(x => x !== t.key)
+                                            : [...targets, t.key];
+                                          const safeTargets: PopupDisplayTarget[] = nextTargets.length > 0 ? nextTargets : ['home'];
+                                          const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, displayTargets: safeTargets } : p);
+                                          setPopupPhotos(updated);
+                                          await saveAdminPopupPhotosAsync(updated);
+                                        }}
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                                          selected
+                                            ? 'bg-amber-400 text-slate-950 border-amber-300'
+                                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                                        }`}
+                                      >
+                                        {t.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-0.5">बटन एक्शन:</label>
+                                <select
+                                  value={photo.actionType}
+                                  onChange={async (e) => {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionType: e.target.value as any } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
+                                >
+                                  <option value="none">केवल Cut बटन</option>
+                                  <option value="register">ज्वाइन / रजिस्ट्रेशन</option>
+                                  <option value="plans">7 मास्टर प्लान</option>
+                                  <option value="idcard">डिजिटल ID कार्ड</option>
+                                  <option value="rtps-services">RTPS नागरिक सेवा</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">बटन टेक्स्ट:</label>
+                                <input
+                                  type="text"
+                                  value={photo.actionText}
+                                  onChange={async (e) => {
+                                    const updated = popupPhotos.map(p => p.id === photo.id ? { ...p, actionText: e.target.value } : p);
+                                    setPopupPhotos(updated);
+                                    await saveAdminPopupPhotosAsync(updated);
+                                  }}
+                                  placeholder="उदा: अभी देखें"
+                                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {isConfigured && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewFocusPhotoId(photo.id);
+                                  setShowPopupPreview(true);
+                                }}
+                                className="w-full py-2 rounded-xl bg-amber-400/95 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer transition active:scale-95"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>🎉 इस पॉपअप का लाइव प्रिव्यू देखें (Cut बटन सहित)</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SLIDER BUTTON 1 PANEL: HOMEPAGE BANNER CAROUSEL SLIDER SYSTEM             */}
+          {/* ========================================================================= */}
+          {activeSliderButton === 'slider1' && (
+            <div className="glass-card p-6 rounded-3xl border-2 border-amber-500/60 space-y-6 bg-slate-950/95">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
+                    <Sliders className="w-3 h-3 text-amber-400" />
+                    <span>SLIDER 1 • HOMEPAGE BANNER CAROUSEL</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-white">
+                    होमपेज ऑटो-स्लाइडर व फेस्टिव बैनर मैनेजर
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    यहाँ से आप होमपेज स्लाइडर बैनर जोड़, एडिट, फोटो अपलोड या चालू/बंद कर सकते हैं।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newSlide: HomeSliderItem = {
+                        id: `slide-custom-${Date.now()}`,
+                        title: '✨ नया IOIS विशेष बैनर ✨',
+                        subtitle: 'बैनर का उप-शीर्षक व मुख्य संदेश यहाँ लिखें।',
+                        tag: '🌟 विशेष घोषणा',
+                        category: 'mission',
+                        description: 'इस स्लाइडर बैनर का पूरा विवरण यहाँ लिखें।',
+                        bgGradient: 'from-amber-600/30 via-slate-950 to-emerald-600/30',
+                        badgeText: 'नया स्लाइडर बैनर',
+                        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                        iconName: 'Sparkles',
+                        ctaText: 'अभी देखें ➔',
+                        ctaAction: 'plans',
+                        highlightText: 'IOIS प्लेटफॉर्म अपडेट',
+                        imageUrl: DEFAULT_HOME_SLIDERS[0]?.imageUrl || '',
+                        active: true,
+                        order: sliderList.length + 1,
+                      };
+                      setEditingSlider(newSlide);
+                    }}
+                    className="btn-3d-rainbow-special px-3.5 py-2 rounded-xl text-black font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-black" />
+                    <span>+ नया स्लाइडर जोड़ें</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await saveStoredSlidersAsync(DEFAULT_HOME_SLIDERS);
+                      setSliderList([...DEFAULT_HOME_SLIDERS]);
+                      setSliderSuccessMsg('सभी डिफ़ॉल्ट बैनर रीसेट हो गए!');
                       setTimeout(() => setSliderSuccessMsg(''), 3000);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs hover:from-amber-300 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>अपडेट सुरक्षित करें</span>
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>डिफ़ॉल्ट रीसेट करें</span>
                   </button>
                 </div>
               </div>
+
+              {sliderSuccessMsg && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>{sliderSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Sliders Grid List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sliderList.map((slide, idx) => (
+                  <div
+                    key={slide.id}
+                    className="p-4 rounded-2xl bg-slate-950/90 border-2 border-slate-800 hover:border-amber-500/50 transition flex flex-col justify-between gap-3 shadow-lg"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
+                        <img
+                          src={slide.imageUrl}
+                          alt={slide.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                        <div className="absolute top-2 left-2 bg-slate-950/90 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40">
+                          Slide #{idx + 1}
+                        </div>
+                        <div className="absolute top-2 right-2">
+                          <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-full ${
+                            slide.active
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                          }`}>
+                            {slide.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block truncate">
+                          {slide.badgeText || slide.tag}
+                        </span>
+                        <h4 className="text-sm font-black text-white line-clamp-1">{slide.title}</h4>
+                        <p className="text-[11px] text-slate-300 line-clamp-2">{slide.subtitle}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingSlider({ ...slide })}
+                        className="flex-1 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm active:scale-95"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>एडिट करें</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const updated = sliderList.filter((s) => s.id !== slide.id);
+                          setSliderList(updated);
+                          await saveStoredSlidersAsync(updated);
+                          setSliderSuccessMsg(`बैनर "${slide.title}" हटा दिया गया।`);
+                          setTimeout(() => setSliderSuccessMsg(''), 2500);
+                        }}
+                        className="p-2 rounded-xl bg-slate-900 hover:bg-red-900 text-red-300 border border-slate-700 hover:border-red-500 cursor-pointer"
+                        title="बैनर हटाएं"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Modal to Edit / Add Single Slider via Portal */}
+              {editingSlider && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[1150] flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+                  <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar bg-slate-950 border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-amber-400" />
+                        <h3 className="text-sm sm:text-base font-black text-white">बैनर विवरण व तस्वीर अपडेट करें</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingSlider(null)}
+                        className="p-1.5 rounded-full bg-slate-900 hover:bg-red-600 text-slate-300 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">बैनर टैग / बैज:</label>
+                        <input
+                          type="text"
+                          value={editingSlider.badgeText || ''}
+                          onChange={(e) => setEditingSlider({ ...editingSlider, badgeText: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">मुख्य शीर्षक (Headline):</label>
+                        <input
+                          type="text"
+                          value={editingSlider.title}
+                          onChange={(e) => setEditingSlider({ ...editingSlider, title: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1">उप-शीर्षक / विवरण (Subtitle):</label>
+                        <textarea
+                          rows={2}
+                          value={editingSlider.subtitle}
+                          onChange={(e) => setEditingSlider({ ...editingSlider, subtitle: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-slate-300 font-bold">फ़ोन/कंप्यूटर से फोटो अपलोड करें (ऑटो-कम्प्रेस):</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const inputEl = e.currentTarget;
+                            const file = inputEl.files?.[0];
+                            if (!file) return;
+                            setIsCompressingSliderImg(true);
+                            try {
+                              const compressed = await compressImageFileToDataUrl(file, {
+                                maxWidth: 1280,
+                                maxHeight: 720,
+                                maxBytes: 260 * 1024,
+                              });
+                              setEditingSlider((prev) => prev ? { ...prev, imageUrl: compressed } : prev);
+                            } finally {
+                              setIsCompressingSliderImg(false);
+                              inputEl.value = '';
+                            }
+                          }}
+                          className="w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-300 cursor-pointer"
+                        />
+                        {isCompressingSliderImg && (
+                          <span className="text-[10px] text-amber-300 font-bold block">⏳ तस्वीर ऑप्टिमाइज़ हो रही है...</span>
+                        )}
+
+                        <label className="block text-slate-400 font-bold mb-0.5">या तस्वीर URL (Image URL):</label>
+                        <input
+                          type="text"
+                          value={editingSlider.imageUrl}
+                          onChange={(e) => setEditingSlider({ ...editingSlider, imageUrl: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none font-mono text-[11px]"
+                        />
+                        {editingSlider.imageUrl && (
+                          <div className="mt-2 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-black flex items-center justify-center">
+                            <img src={editingSlider.imageUrl} alt="Preview" className="w-full h-full object-contain" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-300 font-bold mb-1">बटन टेक्स्ट (CTA):</label>
+                          <input
+                            type="text"
+                            value={editingSlider.ctaText}
+                            onChange={(e) => setEditingSlider({ ...editingSlider, ctaText: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-300 font-bold mb-1">सक्रिय स्थिति:</label>
+                          <select
+                            value={editingSlider.active ? 'active' : 'inactive'}
+                            onChange={(e) => setEditingSlider({ ...editingSlider, active: e.target.value === 'active' })}
+                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 outline-none cursor-pointer"
+                          >
+                            <option value="active">Active (सक्रिय)</option>
+                            <option value="inactive">Inactive (छुपाएं)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setEditingSlider(null)}
+                        className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
+                      >
+                        रद्द करें
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const exists = sliderList.some((s) => s.id === editingSlider.id);
+                          const updated = exists
+                            ? sliderList.map((s) => s.id === editingSlider.id ? editingSlider : s)
+                            : [...sliderList, editingSlider];
+                          setSliderList(updated);
+                          await saveStoredSlidersAsync(updated);
+                          setEditingSlider(null);
+                          setSliderSuccessMsg(`बैनर "${editingSlider.title}" सफलतापूर्वक सुरक्षित हो गया!`);
+                          setTimeout(() => setSliderSuccessMsg(''), 3000);
+                        }}
+                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs hover:from-amber-300 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>अपडेट सुरक्षित करें</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
             </div>
           )}
         </div>
-      </div>
       )}
 
       {/* ========================================================================= */}

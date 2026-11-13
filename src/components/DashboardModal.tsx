@@ -69,10 +69,10 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
-      <div className="bg-slate-950 border-2 border-amber-500/40 w-full max-w-6xl rounded-2xl sm:rounded-3xl p-2 sm:p-5 shadow-[0_25px_80px_rgba(245,158,11,0.25)] relative text-white my-2 sm:my-4 max-h-[95dvh] overflow-y-auto overflow-x-hidden">
-        {/* Sticky Modal Header Bar */}
-        <div className="sticky top-0 z-30 flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-800 bg-slate-950/95 backdrop-blur-md px-1">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fadeIn">
+      <div className="bg-slate-950 border-2 border-amber-500/40 w-full max-w-6xl rounded-2xl sm:rounded-3xl shadow-[0_25px_80px_rgba(245,158,11,0.25)] relative text-white max-h-[94dvh] flex flex-col overflow-hidden">
+        {/* Locked Top Modal Header Bar */}
+        <div className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-slate-800 bg-slate-950">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
             <span className="text-xs sm:text-sm font-black text-amber-300 truncate">
@@ -80,6 +80,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
             </span>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-300 hover:text-white w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800 hover:bg-red-600 flex items-center justify-center cursor-pointer transition border border-slate-700 shadow-md shrink-0"
             title="बंद करें"
@@ -89,23 +90,26 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
           </button>
         </div>
 
-        <UserDashboard
-          user={user}
-          onUserUpdated={onUserUpdated}
-          onLogout={() => {
-            onLogout();
-            onClose();
-          }}
-          onScrollToCard={onClose}
-          onOpenSponsorAddMember={(planId) => {
-            onClose();
-            onOpenSponsorAddMember?.(planId);
-          }}
-          onOpenPublicProfile={(target) => {
-            onOpenPublicProfile?.(target);
-          }}
-          initialDashboardTab={initialDashboardTab}
-        />
+        {/* Single Clean Scrollable Body */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-5 custom-scrollbar">
+          <UserDashboard
+            user={user}
+            onUserUpdated={onUserUpdated}
+            onLogout={() => {
+              onLogout();
+              onClose();
+            }}
+            onScrollToCard={onClose}
+            onOpenSponsorAddMember={(planId) => {
+              onClose();
+              onOpenSponsorAddMember?.(planId);
+            }}
+            onOpenPublicProfile={(target) => {
+              onOpenPublicProfile?.(target);
+            }}
+            initialDashboardTab={initialDashboardTab}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Bell, 
   X, 
@@ -105,8 +106,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
+  const modalMarkup = (
+    <div className="fixed inset-0 z-[1150] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fadeIn">
       <div 
         className="relative w-full max-w-lg bg-slate-900 border-2 border-amber-500/60 rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.25)] overflow-hidden my-auto flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
@@ -249,4 +250,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalMarkup, document.body) : modalMarkup;
 };

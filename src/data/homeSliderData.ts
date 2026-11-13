@@ -170,26 +170,119 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
 export const DEFAULT_HOME_SLIDERS: HomeSliderItem[] = INITIAL_SLIDES;
 
 const STORAGE_SLIDERS_KEY = 'iois_home_sliders_v4';
+const IDB_NAME = 'iois_media_store_v1';
+const IDB_STORE = 'kv_store';
+
+let memorySliders: HomeSliderItem[] | null = null;
+
+function openSliderDb(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    try {
+      const req = window.indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function idbSetSliders(slides: HomeSliderItem[]): Promise<void> {
+  try {
+    const db = await openSliderDb();
+    if (!db) return;
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(slides, STORAGE_SLIDERS_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch {}
+}
+
+async function idbGetSliders(): Promise<HomeSliderItem[] | null> {
+  try {
+    const db = await openSliderDb();
+    if (!db) return null;
+    return await new Promise<HomeSliderItem[] | null>((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(STORAGE_SLIDERS_KEY);
+      req.onsuccess = () => resolve((req.result as HomeSliderItem[]) ?? null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSliderItem(item: any, idx: number): HomeSliderItem {
+  const fallback = INITIAL_SLIDES.find((s) => s && s.id === item.id);
+  return {
+    id: item.id || `slide-custom-${idx + 1}`,
+    title: item.title || fallback?.title || '',
+    subtitle: item.subtitle || fallback?.subtitle || '',
+    tag: item.tag || item.badge || fallback?.tag || '✨ IOIS विशेष बैनर',
+    category: item.category || fallback?.category || 'mission',
+    description: item.description || item.subtitle || fallback?.description || '',
+    festivalName: item.festivalName || fallback?.festivalName,
+    bgGradient: item.bgGradient || fallback?.bgGradient || 'from-amber-600/30 via-slate-950 to-emerald-600/30',
+    badgeText: item.badgeText || item.badge || fallback?.badgeText || 'IOIS अपडेट',
+    badgeColor: item.badgeColor || fallback?.badgeColor || 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    iconName: item.iconName || fallback?.iconName || 'Sparkles',
+    ctaText: item.ctaText || fallback?.ctaText || 'अभी देखें ➔',
+    ctaAction: item.ctaAction || fallback?.ctaAction || 'plans',
+    ctaPlanId: item.ctaPlanId ?? fallback?.ctaPlanId,
+    highlightText: item.highlightText || fallback?.highlightText || 'IOIS डिजिटल मिशन',
+    imageUrl: item.imageUrl || fallback?.imageUrl || '',
+    active: typeof item.active === 'boolean' ? item.active : (typeof item.isActive === 'boolean' ? item.isActive : true),
+    order: typeof item.order === 'number' ? item.order : idx + 1,
+  };
+}
+
+function trySafeSliderLocalStorage(slides: HomeSliderItem[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const serialized = JSON.stringify(slides);
+    if (serialized.length > 1_500_000) {
+      localStorage.removeItem(STORAGE_SLIDERS_KEY);
+      return;
+    }
+    localStorage.setItem(STORAGE_SLIDERS_KEY, serialized);
+  } catch {
+    try {
+      localStorage.removeItem(STORAGE_SLIDERS_KEY);
+    } catch {}
+  }
+}
 
 export const getStoredSliders = (): HomeSliderItem[] => {
   if (typeof window === 'undefined') return INITIAL_SLIDES;
+  if (memorySliders !== null && memorySliders.length > 0) {
+    return memorySliders;
+  }
   try {
     const raw = localStorage.getItem(STORAGE_SLIDERS_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_SLIDERS_KEY, JSON.stringify(INITIAL_SLIDES));
+      trySafeSliderLocalStorage(INITIAL_SLIDES);
+      memorySliders = INITIAL_SLIDES;
       return INITIAL_SLIDES;
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed
+      const normalized = parsed
         .filter((item): item is HomeSliderItem => Boolean(item && typeof item === 'object'))
-        .map((item: HomeSliderItem) => {
-          const fallback = INITIAL_SLIDES.find(s => s && s.id === item.id);
-          return {
-            ...item,
-            imageUrl: item.imageUrl || fallback?.imageUrl || ''
-          };
-        });
+        .map((item, idx) => normalizeSliderItem(item, idx));
+      memorySliders = normalized;
+      return normalized;
     }
     return INITIAL_SLIDES;
   } catch {
@@ -197,10 +290,53 @@ export const getStoredSliders = (): HomeSliderItem[] => {
   }
 };
 
-export const saveStoredSliders = (slides: HomeSliderItem[]): void => {
-  if (typeof window === 'undefined') return;
+export const fetchStoredSlidersFromServer = async (): Promise<HomeSliderItem[]> => {
+  if (typeof window === 'undefined') return INITIAL_SLIDES;
   try {
-    localStorage.setItem(STORAGE_SLIDERS_KEY, JSON.stringify(slides));
+    const res = await fetch('/api/home-sliders', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.slides) && data.slides.length > 0) {
+        const normalized = data.slides
+          .filter((item: any) => Boolean(item && typeof item === 'object'))
+          .map((item: any, idx: number) => normalizeSliderItem(item, idx));
+        memorySliders = normalized;
+        await idbSetSliders(normalized);
+        trySafeSliderLocalStorage(normalized);
+        window.dispatchEvent(new Event('iois_sliders_updated'));
+        return normalized;
+      }
+    }
+  } catch {}
+
+  const idb = await idbGetSliders();
+  if (Array.isArray(idb) && idb.length > 0) {
+    const normalized = idb.map((item, idx) => normalizeSliderItem(item, idx));
+    memorySliders = normalized;
     window.dispatchEvent(new Event('iois_sliders_updated'));
+    return normalized;
+  }
+
+  return getStoredSliders();
+};
+
+export const saveStoredSlidersAsync = async (slides: HomeSliderItem[]): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  const normalized = slides.map((s, idx) => normalizeSliderItem(s, idx));
+  memorySliders = normalized;
+  trySafeSliderLocalStorage(normalized);
+  window.dispatchEvent(new Event('iois_sliders_updated'));
+  await idbSetSliders(normalized);
+  try {
+    await fetch('/api/home-sliders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slides: normalized }),
+    });
   } catch {}
 };
+
+export const saveStoredSliders = (slides: HomeSliderItem[]): void => {
+  void saveStoredSlidersAsync(slides);
+};
+

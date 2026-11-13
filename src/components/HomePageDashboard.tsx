@@ -14,6 +14,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { HomeHeaderWatch } from './HomeHeaderWatch';
+import { FestiveHomeSlider } from './FestiveHomeSlider';
 import { PlansGrid } from './PlansGrid';
 import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
@@ -34,6 +35,7 @@ interface HomePageDashboardProps {
   onOpenFestivalModal?: () => void;
   onOpenRashifalModal?: () => void;
   onOpenPhotoCompressor?: () => void;
+  suppressHomePopup?: boolean;
 }
 
 export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
@@ -52,24 +54,36 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
   onOpenFestivalModal,
   onOpenRashifalModal,
   onOpenPhotoCompressor,
+  suppressHomePopup = false,
 }) => {
   const [isExplainerModalOpen, setIsExplainerModalOpen] = useState<boolean>(false);
 
   return (
     <div className="space-y-6 sm:space-y-8 w-full max-w-6xl mx-auto px-1 sm:px-2">
       
-      {/* 0. ADMIN 7-PHOTO POPUP SYSTEM: ONLY RENDERS ON HOME PAGE WHEN ADMIN HAS UPLOADED ACTIVE PHOTOS */}
+      {/* 0. ADMIN CELEBRATION & PHOTO POPUP SYSTEM: ONLY RENDERS WHEN ADMIN SETS PHOTO/MSG OR ON REAL-TIME FESTIVALS */}
       <AdminHomePhotoPopup
         currentUser={currentUser}
         onNavigate={onNavigate}
         onOpenRegister={onOpenRegister}
         onOpenSponsorAddMember={onOpenSponsorAddMember}
         onOpenIdCard={onOpenIdCard}
+        location="home"
+        suppressAutoOpen={suppressHomePopup}
       />
 
       {/* 1. IOIS CLOCK & VEDIC DUAL TIME WATCH (DIRECTLY BELOW HEADER) */}
       <section className="w-full">
         <HomeHeaderWatch />
+      </section>
+
+      {/* 1.5 SLIDER SYSTEM 1: LIVE FESTIVE & MISSION BANNER CAROUSEL */}
+      <section className="w-full">
+        <FestiveHomeSlider
+          onNavigate={onNavigate}
+          onOpenRegister={onOpenRegister}
+          onOpenFestivalWelcome={onOpenFestivalWelcome}
+        />
       </section>
 
       {/* 2. IOIS PLATFORM KE 7 MASTER PLANS (DIRECTLY BELOW CLOCK) */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -17,7 +18,7 @@ import {
   Calendar,
   Gift
 } from 'lucide-react';
-import { HomeSliderItem, getStoredSliders } from '../data/homeSliderData';
+import { HomeSliderItem, getStoredSliders, fetchStoredSlidersFromServer } from '../data/homeSliderData';
 import { generateFestiveSliderItem } from '../services/festivalPanchangService';
 import { PageType } from '../types';
 
@@ -55,11 +56,14 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync when sliders are updated from Admin Panel or date changes
+  // Sync when sliders are updated from Admin Panel, server, or date changes
   useEffect(() => {
     const handleUpdate = () => {
       setSlides(buildActiveSlides());
     };
+    void fetchStoredSlidersFromServer().then(() => {
+      handleUpdate();
+    });
     window.addEventListener('iois_sliders_updated', handleUpdate);
     return () => window.removeEventListener('iois_sliders_updated', handleUpdate);
   }, []);
@@ -388,10 +392,10 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
         ))}
       </div>
 
-      {/* Fullscreen HD Modal on tap/click */}
-      {previewImage && (
+      {/* Fullscreen HD Modal on tap/click via Portal */}
+      {previewImage && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/95 backdrop-blur-md animate-fadeIn"
+          className="fixed inset-0 z-[1170] flex items-center justify-center p-2 sm:p-4 bg-black/95 backdrop-blur-md animate-fadeIn"
           onClick={() => setPreviewImage(null)}
         >
           <div 
@@ -405,7 +409,7 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewImage(null)}
-                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-red-600 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer"
                 aria-label="Close Preview"
               >
                 <X className="w-5 h-5" />
@@ -425,7 +429,8 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
               <span className="text-slate-400">टैप करके बंद करें ✓</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

@@ -21,6 +21,8 @@ const SOCIAL_GROUPS_FILE = path.join(DATA_DIR, "social_groups.json");
 const FRIEND_REQUESTS_FILE = path.join(DATA_DIR, "friend_requests.json");
 const PROFILE_VISITS_FILE = path.join(DATA_DIR, "profile_visits.json");
 const PROFILE_LIKES_FILE = path.join(DATA_DIR, "social_likes.json");
+const HOME_POPUPS_FILE = path.join(DATA_DIR, "home-popups.json");
+const HOME_SLIDERS_FILE = path.join(DATA_DIR, "home-sliders.json");
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -853,6 +855,45 @@ async function startServer() {
   // API Route: Health Check
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // API Route: Home & Dashboard Celebration Popups (Admin 7-Slot Pop Effect System)
+  app.get("/api/home-popups", (_req: Request, res: Response) => {
+    const photos = loadJsonArray(HOME_POPUPS_FILE);
+    res.json({ success: true, photos });
+  });
+
+  app.post("/api/home-popups", (req: Request, res: Response) => {
+    try {
+      const incoming = Array.isArray(req.body?.photos) ? req.body.photos.slice(0, 7) : [];
+      saveJsonArray(HOME_POPUPS_FILE, incoming);
+      res.json({ success: true, photos: incoming });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Failed to save popups" });
+    }
+  });
+
+  // API Route: Homepage Banners & Slider System
+  app.get("/api/home-sliders", (_req: Request, res: Response) => {
+    try {
+      if (!fs.existsSync(HOME_SLIDERS_FILE)) {
+        return res.json({ success: true, slides: null });
+      }
+      const slides = loadJsonArray(HOME_SLIDERS_FILE);
+      res.json({ success: true, slides: slides.length > 0 ? slides : null });
+    } catch {
+      res.json({ success: true, slides: null });
+    }
+  });
+
+  app.post("/api/home-sliders", (req: Request, res: Response) => {
+    try {
+      const incoming = Array.isArray(req.body?.slides) ? req.body.slides : [];
+      saveJsonArray(HOME_SLIDERS_FILE, incoming);
+      res.json({ success: true, slides: incoming });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Failed to save sliders" });
+    }
   });
 
   // In-memory cache for live news
