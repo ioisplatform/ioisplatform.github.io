@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PageType } from '../types';
+import { scrollAppToTop } from '../utils/scrollUtils';
 import { 
   X, 
   Search, 
@@ -49,7 +50,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
   const handleSelectPage = (page: PageType) => {
     onNavigate(page);
     onClose();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollAppToTop();
   };
 
   const serviceCategories = [

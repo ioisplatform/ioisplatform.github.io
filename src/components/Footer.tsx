@@ -66,7 +66,7 @@ export const Footer: React.FC<FooterProps> = ({
   }
 
   return (
-    <footer id="main-footer" className="bg-slate-950 border-t-2 border-slate-900 pt-8 pb-24 sm:pb-28 text-center text-slate-400">
+    <footer id="main-footer" className="bg-slate-950 border-t-2 border-slate-900 pt-8 pb-8 sm:pb-10 text-center text-slate-400">
       <div className="container mx-auto px-4 sm:px-6 space-y-6 max-w-7xl">
         
         {/* ========================================================================= */}

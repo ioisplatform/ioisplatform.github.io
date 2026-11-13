@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PLANS, OFFICIAL_TELEGRAM_URL } from '../data/plansData';
 import { Plan } from '../types';
+import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
 import { 
   Check, 
   ArrowRight, 
@@ -34,6 +35,7 @@ interface PlansGridProps {
 
 export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRegister }) => {
   const [filter, setFilter] = useState<'all' | 'starter' | 'pro' | 'master'>('all');
+  const [isExplainerModalOpen, setIsExplainerModalOpen] = useState<boolean>(false);
   
   // Plan Comparison Feature States
   const [showComparison, setShowComparison] = useState<boolean>(false);
@@ -74,15 +76,47 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
           <Crown className="w-3.5 h-3.5 text-amber-400" />
           <span>स्वदेशी डिजिटल स्वावलंबन नेटवर्क</span>
         </div>
-        <h2 className="gold-metallic-text text-3xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight">
-          IOIS 7 Dynamic Master Plans
-        </h2>
+        <div className="flex flex-col items-center gap-3">
+          <h2 className="gold-metallic-text text-3xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight">
+            IOIS 7 Dynamic Master Plans
+          </h2>
+
+          {/* Prominent "IOIS क्या है? (Full Introduction)" Pop-Up Button */}
+          <button
+            type="button"
+            onClick={() => setIsExplainerModalOpen(true)}
+            className="btn-3d-pulse-hover relative inline-flex items-center gap-2.5 px-5 sm:px-7 py-2.5 sm:py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-[0_0_30px_rgba(245,158,11,0.55)] border-2 border-white/80 transition-all transform hover:scale-105 active:scale-95 cursor-pointer group"
+            title="IOIS क्या है? सम्पूर्ण परिचय व गाइड पॉपअप खोलें"
+          >
+            <span className="flex h-2.5 w-2.5 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+            </span>
+            <BookOpen className="w-4 h-4 text-slate-950 group-hover:rotate-12 transition-transform shrink-0" />
+            <span className="tracking-wide">IOIS क्या है? (Full Introduction व सम्पूर्ण गाइड)</span>
+            <span className="bg-slate-950 text-amber-300 text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full ml-1 border border-amber-400/60 shadow-sm shrink-0">
+              पॉपअप खोलें ⚡
+            </span>
+          </button>
+        </div>
+
         <p className="text-slate-300 text-xs sm:text-base leading-relaxed max-w-3xl mx-auto">
           हर योजना एक नया अवसर है। प्रत्येक प्लान में उच्च-गुणवत्ता वाली डिजिटल सामग्री, प्रमाणित लाभ, लक्षित वर्ग और वास्तविक व्यावहारिक उदाहरण शामिल हैं। अपनी आवश्यकता अनुसार प्लान चुनें और 50% से 70% तक त्वरित पेआउट प्राप्त करें।
         </p>
 
         {/* Action Controls: Filter Buttons & Plan Comparison Launcher */}
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+          {/* Quick Explainer Pop-up Launcher Button */}
+          <button
+            type="button"
+            onClick={() => setIsExplainerModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 border shadow-sm bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-300 border-amber-400/60 hover:bg-amber-500/30"
+            title="IOIS क्या है? पूरा विवरण देखें"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>IOIS सम्पूर्ण परिचय</span>
+          </button>
+
           {[
             { key: 'all', label: 'सभी 7 प्लान (Full Overview)' },
             { key: 'starter', label: 'शुरुआती प्लान (₹10 - ₹49)' },
@@ -424,6 +458,24 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
           );
         })}
       </div>
+
+      {/* Dedicated IOIS Full Introduction & Guide Pop-up Modal */}
+      <IoisExplainerGuideModal
+        isOpen={isExplainerModalOpen}
+        onClose={() => setIsExplainerModalOpen(false)}
+        onSelectPlanForRegister={(planId) => {
+          setIsExplainerModalOpen(false);
+          if (onSelectPlanForRegister) onSelectPlanForRegister(planId);
+        }}
+        onNavigateToPlans={() => {
+          setIsExplainerModalOpen(false);
+          document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        onOpenRegister={() => {
+          setIsExplainerModalOpen(false);
+          if (onSelectPlanForRegister) onSelectPlanForRegister(1);
+        }}
+      />
     </section>
   );
 };

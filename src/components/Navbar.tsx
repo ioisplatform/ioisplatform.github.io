@@ -36,6 +36,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { MultiHeaderPopupNav } from './MultiHeaderPopupNav';
+import { scrollAppToTop } from '../utils/scrollUtils';
 
 interface NavbarProps {
   currentUser: UserProfile | null;
@@ -115,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       onOpenPopupPage(page);
     } else {
       onNavigate(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppToTop();
     }
   };
 
@@ -285,10 +286,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* ================= ONLY 1 CLEAN HEADER AS REQUESTED ================= */}
+      {/* ================= ONLY 1 CLEAN HEADER AS REQUESTED (PERMANENTLY LOCKED TOP) ================= */}
       <header 
         id="main-header"
-        className="w-full backdrop-blur-md border-b-2 transition-colors duration-200 select-none shadow-md z-40 relative"
+        className="relative shrink-0 w-full backdrop-blur-md border-b-2 transition-colors duration-200 select-none shadow-lg z-30"
         style={{
           backgroundColor: 'var(--surface-bg, #020617)',
           borderColor: 'var(--btn-border, #334155)',
@@ -305,8 +306,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               borderColor: 'var(--btn-border, #1e293b)',
             }}
           >
-            {/* Running Announcement Text (Smooth Marquee Animation) */}
-            <div className="flex-1 overflow-hidden relative mr-2">
+            {/* Running Announcement Text (Smooth Infinite Marquee Animation) */}
+            <div className="flex-1 overflow-hidden relative mr-2 select-none">
               <div 
                 className={`whitespace-nowrap flex items-center gap-6 font-bold ${
                   tickerSpeed === 'paused' ? '' : 'animate-marquee'
@@ -316,22 +317,47 @@ export const Navbar: React.FC<NavbarProps> = ({
                   animationPlayState: tickerSpeed === 'paused' ? 'paused' : 'running',
                 }}
               >
-                <span className="text-amber-300 flex items-center gap-1.5 shrink-0">
-                  <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
-                  <span>IOIS डिजिटल पोर्टल 2026: 7 मास्टर प्लान्स (₹10 से ₹999) में 50% से 70% तुरंत दैनिक इंसेंटिव</span>
-                </span>
-                <span className="text-slate-400 shrink-0">•</span>
-                <span className="text-emerald-300 shrink-0">
-                  🛡️ 256-Bit एन्क्रिप्टेड वेरिफाइड डिजिटल ID कार्ड तुरंत जनरेट करें
-                </span>
-                <span className="text-slate-400 shrink-0">•</span>
-                <span className="text-sky-300 shrink-0">
-                  🌤️ लाइव पंचांग, शुभ मुहूर्त, दैनिक 12 राशिफल, मौसम व RTPS नागरिक सेवाएं 24x7 उपलब्ध!
-                </span>
-                <span className="text-slate-400 shrink-0">•</span>
-                <span className="text-amber-200 shrink-0">
-                  ⚡ पारदर्शी व सुरक्षित — 0% कटौती, सीधा आपके UPI खाते में दैनिक भुगतान!
-                </span>
+                {/* Track Set 1 */}
+                <div className="flex items-center gap-6 shrink-0">
+                  <span className="text-amber-300 flex items-center gap-1.5 shrink-0">
+                    <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+                    <span>IOIS डिजिटल पोर्टल 2026: 7 मास्टर प्लान्स (₹10 से ₹999) में 50% से 70% तुरंत दैनिक इंसेंटिव</span>
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-emerald-300 shrink-0">
+                    🛡️ 256-Bit एन्क्रिप्टेड वेरिफाइड डिजिटल ID कार्ड तुरंत जनरेट करें
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-sky-300 shrink-0">
+                    🌤️ लाइव पंचांग, शुभ मुहूर्त, दैनिक 12 राशिफल, मौसम व RTPS नागरिक सेवाएं 24x7 उपलब्ध!
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-amber-200 shrink-0">
+                    ⚡ पारदर्शी व सुरक्षित — 0% कटौती, सीधा आपके UPI खाते में दैनिक भुगतान!
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                </div>
+
+                {/* Track Set 2 (Seamless Infinite Running Loop) */}
+                <div className="flex items-center gap-6 shrink-0" aria-hidden="true">
+                  <span className="text-amber-300 flex items-center gap-1.5 shrink-0">
+                    <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+                    <span>IOIS डिजिटल पोर्टल 2026: 7 मास्टर प्लान्स (₹10 से ₹999) में 50% से 70% तुरंत दैनिक इंसेंटिव</span>
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-emerald-300 shrink-0">
+                    🛡️ 256-Bit एन्क्रिप्टेड वेरिफाइड डिजिटल ID कार्ड तुरंत जनरेट करें
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-sky-300 shrink-0">
+                    🌤️ लाइव पंचांग, शुभ मुहूर्त, दैनिक 12 राशिफल, मौसम व RTPS नागरिक सेवाएं 24x7 उपलब्ध!
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                  <span className="text-amber-200 shrink-0">
+                    ⚡ पारदर्शी व सुरक्षित — 0% कटौती, सीधा आपके UPI खाते में दैनिक भुगतान!
+                  </span>
+                  <span className="text-slate-400 shrink-0">•</span>
+                </div>
               </div>
             </div>
 
@@ -368,7 +394,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-2 cursor-pointer select-none min-w-0"
                 onClick={() => {
                   onNavigate('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  scrollAppToTop();
                 }}
                 title="मुख्य होम पेज पर जाएं"
               >
@@ -533,7 +559,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Clicking any button here opens its corresponding POPUP window as requested */}
       {isMoreMenuOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
           onClick={() => setIsMoreMenuOpen(false)}
         >
           <div 

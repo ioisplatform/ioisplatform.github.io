@@ -1,5 +1,6 @@
 import React from 'react';
 import { PageType } from '../types';
+import { scrollAppToTop } from '../utils/scrollUtils';
 import { 
   Home, 
   Crown, 
@@ -33,12 +34,12 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
   onOpenIdCard,
 }) => {
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollAppToTop();
   };
 
   const handleNavigate = (page: PageType) => {
     onNavigate(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollAppToTop();
   };
 
   return (

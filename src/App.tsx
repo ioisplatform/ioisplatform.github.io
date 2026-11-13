@@ -66,6 +66,7 @@ import {
   OFFICIAL_ROOT_SPONSOR_USER
 } from './services/userService';
 import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus, Share2 } from 'lucide-react';
+import { scrollAppToTop } from './utils/scrollUtils';
 
 const PageFallbackLoader = () => (
   <div className="flex flex-col items-center justify-center min-h-[350px] p-6 text-center space-y-4 animate-fadeIn">
@@ -222,7 +223,7 @@ export default function App() {
     if (page === 'home') {
       setCurrentPage('home');
       setPopupPage(null);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppToTop();
     } else if (page === 'register') {
       handleOpenRegister();
     } else if (page === 'dashboard') {
@@ -300,15 +301,15 @@ export default function App() {
 
   return (
     <div 
-      className="min-h-screen flex flex-col transition-colors duration-300 selection:bg-amber-500 selection:text-black"
+      className="h-screen h-dvh max-h-dvh w-full overflow-hidden flex flex-col transition-colors duration-300 selection:bg-amber-500 selection:text-black"
       style={{
         backgroundColor: 'var(--bg-main)',
         color: 'var(--text-primary)',
       }}
     >
-      {/* 1. Header & Navigation + Live News Ticker (Unified Sticky Top Bar - Zero Mobile Overlap) */}
+      {/* 1. Header & Navigation + Live News Ticker (Locked Top Shell - Never Scrolls) */}
       <div 
-        className="sticky top-0 z-50 w-full shadow-2xl border-b transition-colors duration-200"
+        className="shrink-0 w-full shadow-2xl border-b transition-colors duration-200"
         style={{
           backgroundColor: 'var(--surface-bg)',
           borderColor: 'var(--btn-border)',
@@ -342,6 +343,11 @@ export default function App() {
         />
       </div>
 
+      {/* 2. Independently Scrollable Middle Content Viewport (Keeps Header & Dock Locked) */}
+      <div
+        id="app-scroll-container"
+        className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden flex flex-col scroll-smooth relative z-10"
+      >
       {/* 2.5 Active Verified Sponsor Invitation Bar (ACC India / SWACCDK01 Style) */}
       {sponsorUser && sponsorReferralId && !currentUser && (
         <div className="bg-gradient-to-r from-amber-950 via-slate-950 to-amber-950 border-y border-amber-500/40 py-2.5 px-3 text-xs text-white shadow-lg relative z-30 backdrop-blur-md">
@@ -381,7 +387,7 @@ export default function App() {
       )}
 
       {/* 3. Main Dynamic Content Area based on Current Page - Full width & responsive */}
-      <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-36 sm:pb-16">
+      <main className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-10 space-y-6 sm:space-y-12 flex-1 pb-6 sm:pb-10">
         <Suspense fallback={<PageFallbackLoader />}>
         
         {/* ================= PAGE 1: HOME PAGE (Central Dashboard with all section buttons) ================= */}
@@ -800,8 +806,9 @@ export default function App() {
         onOpenIdCard={handleOpenIdCard}
         onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
       />
+      </div>
 
-      {/* 5. Fixed Locked Bottom Options Dock Bar (Active on Mobile, Tablet & PC) */}
+      {/* 5. Permanently Locked Bottom Options Dock Bar (Outside Scroll Container - Never Scrolls) */}
       <LockedFooterDock
         currentUser={currentUser}
         sponsorId={sponsorReferralId}
@@ -842,7 +849,7 @@ export default function App() {
       />
 
       {/* 6. Floating AI Chatbot Launcher Button - Positioned safely above dock with full clearance */}
-      <div className="fixed bottom-20 sm:bottom-24 right-3 sm:right-6 z-30 flex items-center gap-2">
+      <div className="fixed bottom-24 right-3 sm:right-6 z-40 flex items-center gap-2">
         <button
           type="button"
           onClick={() => {

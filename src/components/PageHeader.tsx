@@ -1,5 +1,6 @@
 import React from 'react';
 import { PageType } from '../types';
+import { scrollAppToTop } from '../utils/scrollUtils';
 import { 
   Home, 
   ArrowLeft, 
@@ -61,7 +62,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <button
             onClick={() => {
               onNavigate('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              scrollAppToTop();
             }}
             className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 text-slate-950 px-3.5 sm:px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow transition cursor-pointer shrink-0"
           >
@@ -91,7 +92,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 key={link.id}
                 onClick={() => {
                   onNavigate(link.id);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  scrollAppToTop();
                 }}
                 className={`px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   isActive
@@ -113,7 +114,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <button 
             onClick={() => {
               onNavigate('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              scrollAppToTop();
             }} 
             className="text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
           >

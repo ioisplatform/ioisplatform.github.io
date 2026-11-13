@@ -96,11 +96,11 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
 
   return (
     <>
-      {/* ================= FIXED LOCKED BOTTOM DOCK BAR (COMPACT & SLIM) ================= */}
+      {/* ================= LOCKED BOTTOM DOCK BAR (PERMANENTLY PINNED, NEVER SCROLLS) ================= */}
       <aside 
         id="locked-footer-dock"
         aria-label="Locked Navigation Dock"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t-2 border-amber-400/50 shadow-[0_-8px_32px_rgba(245,158,11,0.22)] backdrop-blur-2xl transition-all"
+        className="relative shrink-0 w-full z-30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t-2 border-amber-400/50 shadow-[0_-8px_32px_rgba(245,158,11,0.22)] backdrop-blur-2xl transition-all select-none"
       >
         <div className="max-w-7xl mx-auto px-2 sm:px-4">
           
@@ -331,7 +331,7 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
 
       {/* ================= POPUP DIALOG: ENTER SPONSOR ID MANUALLY ================= */}
       {showEnterSponsorDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border-2 border-amber-500/50 w-full max-w-md rounded-3xl p-5 sm:p-6 shadow-2xl relative text-white space-y-4">
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
