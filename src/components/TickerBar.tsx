@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { PLANS, OFFICIAL_FORM_URL } from '../data/plansData';
-import { TickerSpeed } from '../types';
+import { TickerSpeed, UserProfile } from '../types';
 import { 
   Play, 
   Pause, 
@@ -16,10 +16,12 @@ import {
 } from 'lucide-react';
 
 interface TickerBarProps {
+  currentUser?: UserProfile | null;
   onOpenRegister?: (planId?: number) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
 }
 
-export const TickerBar: React.FC<TickerBarProps> = memo(({ onOpenRegister }) => {
+export const TickerBar: React.FC<TickerBarProps> = memo(({ currentUser, onOpenRegister, onOpenSponsorAddMember }) => {
   // Mode: 'card' (Easy-to-Read Slide Mode - Default) vs 'marquee' (Continuous Scroll)
   const [viewMode, setViewMode] = useState<'card' | 'marquee'>('card');
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
@@ -67,7 +69,16 @@ export const TickerBar: React.FC<TickerBarProps> = memo(({ onOpenRegister }) => 
               ⚡ ₹{plan.instantPayout} ({plan.percentage}%) INSTANT PAYOUT
             </span>
           </span>
-          {onOpenRegister ? (
+          {currentUser ? (
+            <button
+              type="button"
+              onClick={() => onOpenSponsorAddMember?.(plan.id)}
+              className="ml-2.5 btn-3d-rainbow text-black font-black text-[10.5px] px-3 py-1 rounded-full border border-black/30 inline-flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-md select-none"
+            >
+              <span>सदस्य जोड़ें</span>
+              <ChevronRight className="w-3 h-3 text-black stroke-[3]" />
+            </button>
+          ) : onOpenRegister ? (
             <button
               type="button"
               onClick={() => onOpenRegister(plan.id)}
@@ -229,10 +240,17 @@ export const TickerBar: React.FC<TickerBarProps> = memo(({ onOpenRegister }) => 
             <div className="shrink-0 flex items-center justify-end w-full md:w-auto">
               <button
                 type="button"
-                onClick={() => onOpenRegister?.(activePlan.id)}
+                onClick={() => {
+                  if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(activePlan.id);
+                  else onOpenRegister?.(activePlan.id);
+                }}
                 className="btn-3d-rainbow-special w-full md:w-auto px-4 py-2 rounded-xl font-black text-xs text-black flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
               >
-                <span>ज्वाइन करें (₹{activePlan.price})</span>
+                <span>
+                  {currentUser
+                    ? `अपने स्पॉन्सर से जोड़ें (₹${activePlan.price})`
+                    : `ज्वाइन करें (₹${activePlan.price})`}
+                </span>
                 <ChevronRight className="w-3.5 h-3.5 text-black stroke-[3]" />
               </button>
             </div>

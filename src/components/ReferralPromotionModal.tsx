@@ -923,7 +923,7 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-                    <span>टेम्पलेट 3: फेसबुक व लिंक्डइन पोस्ट (English Professional)</span>
+                    <span>टेम्पलेट 3: IOIS CHAT & HELP व प्रोफेशनल पोस्ट (English Professional)</span>
                   </span>
                   <button
                     type="button"

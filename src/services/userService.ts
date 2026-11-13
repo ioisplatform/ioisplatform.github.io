@@ -22,6 +22,49 @@ const STORAGE_KNOWLEDGE_KEY = 'iois_ai_knowledge_v2';
 const STORAGE_UNANSWERED_KEY = 'iois_ai_unanswered_v2';
 const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
+const STORAGE_DEVICE_SESSION_TOKEN_KEY = 'iois_device_session_token';
+
+export const getDeviceSessionToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(STORAGE_DEVICE_SESSION_TOKEN_KEY) || '';
+};
+
+export const setDeviceSessionToken = (token: string): void => {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    localStorage.setItem(STORAGE_DEVICE_SESSION_TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(STORAGE_DEVICE_SESSION_TOKEN_KEY);
+  }
+};
+
+export const clearDeviceSessionToken = (): void => {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_DEVICE_SESSION_TOKEN_KEY);
+};
+
+export const getDeviceFingerprintLabel = (): string => {
+  if (typeof navigator === 'undefined') return 'Unknown Device';
+  const ua = navigator.userAgent || '';
+  let os = 'Desktop / Web';
+  if (/Android/i.test(ua)) os = 'Android Mobile';
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iPhone / iOS';
+  else if (/Windows/i.test(ua)) os = 'Windows PC';
+  else if (/Mac/i.test(ua)) os = 'MacBook / macOS';
+  else if (/Linux/i.test(ua)) os = 'Linux Device';
+
+  let browser = 'Browser';
+  if (/Edg/i.test(ua)) browser = 'Edge';
+  else if (/Chrome/i.test(ua)) browser = 'Chrome';
+  else if (/Safari/i.test(ua)) browser = 'Safari';
+  else if (/Firefox/i.test(ua)) browser = 'Firefox';
+
+  return `${os} (${browser})`;
+};
+
+const createClientSessionToken = (): string => {
+  return `sess_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+};
 
 // All demo/mock preview users removed per system requirements
 export const DEMO_USER_IDS = ['IOIS999RK01', 'IOIS49PS01', 'IOIS10AM01', 'IOIS99KV01', 'IOIS999SM01'];
@@ -1777,43 +1820,33 @@ export const getDownlineStats = (userId: string, allUsers?: UserProfile[]): Down
 };
 
 /**
- * Flexible cross-device user login with Firestore + Server verification + local fallback
+ * Flexible cross-device user login with Server + Firestore verification + strict password & single-device session rotation
  */
 export const loginUserAsync = async (
   identifier: string, 
   password?: string
-): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
+): Promise<{ success: boolean; user?: UserProfile; sessionToken?: string; error?: string }> => {
   const cleanId = identifier.trim();
   if (!cleanId) {
-    return { success: false, error: 'कृपया अपना User ID, मोबाइल नंबर या ईमेल दर्ज करें।' };
+    return { success: false, error: 'कृपया अपना User ID, @Username, मोबाइल नंबर या ईमेल दर्ज करें।' };
   }
 
-  const cleanLower = cleanId.toLowerCase();
+  const cleanLower = cleanId.toLowerCase().replace(/^@/, '');
   const cleanUpper = cleanId.toUpperCase();
-  const digits = cleanLower.replace(/\D/g, '');
+  const digits = cleanId.replace(/\D/g, '');
+  const deviceInfo = getDeviceFingerprintLabel();
 
   let matchedUser: UserProfile | null = null;
+  let issuedToken = '';
 
-  // 1. ULTRA-FAST PATH: Check local cache first (0ms instant login on device, no network lag)
-  matchedUser = loginUser(identifier, password);
-  if (matchedUser) {
-    // Verified instantly from local device!
-    if (password && matchedUser.password && matchedUser.password !== password) {
-      return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है।' };
-    }
-    // Background sync to keep cache fresh without blocking user
-    syncUserToFirestore(matchedUser).catch(() => {});
-    return { success: true, user: matchedUser };
-  }
-
-  // 2. Fast Server API Login with 1500ms timeout (for cross-device login)
+  // 1. Try Server API Login FIRST so single-device sessionToken rotates reliably on server & notifies old device
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     const res = await fetch('/api/users/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: cleanId, password }),
+      body: JSON.stringify({ identifier: cleanId, password: password || '', deviceInfo }),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -1821,19 +1854,20 @@ export const loginUserAsync = async (
     const data = await res.json();
     if (res.ok && data.success && data.user) {
       matchedUser = data.user;
+      issuedToken = data.sessionToken || data.user.activeSessionToken || createClientSessionToken();
     } else if (res.status === 401) {
       return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
     }
   } catch {
-    // Fast fallback to targeted Firestore
+    // Fallback to Firestore / local cache if server endpoint unreachable
   }
 
-  // 3. Fast Targeted Firestore query (0ms wait, maximum 1500ms race timeout)
+  // 2. Targeted Firestore query fallback
   if (!matchedUser && db) {
     try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
       const firestorePromise = (async (): Promise<UserProfile | null> => {
-        if (cleanId.length >= 4) {
+        if (cleanId.length >= 4 && !cleanId.startsWith('@')) {
           const docRef = doc(db, 'users', cleanUpper);
           const snap = await getDoc(docRef);
           if (snap.exists()) return snap.data() as UserProfile;
@@ -1844,6 +1878,10 @@ export const loginUserAsync = async (
           const snap = await getDocs(q);
           if (!snap.empty) return snap.docs[0].data() as UserProfile;
         }
+        const col = collection(db, 'users');
+        const qUname = query(col, where('username', '==', cleanLower), limit(1));
+        const snapU = await getDocs(qUname);
+        if (!snapU.empty) return snapU.docs[0].data() as UserProfile;
         return null;
       })();
 
@@ -1853,35 +1891,76 @@ export const loginUserAsync = async (
     }
   }
 
-  // Persist logged-in user to local cache & active session
-  const all = getAllUsers();
-  const merged = mergeUserLists([matchedUser], all, INITIAL_DEMO_USERS);
-  saveUsers(merged);
-  setCurrentUser(matchedUser);
+  // 3. Local device cache fallback
+  if (!matchedUser) {
+    const users = getAllUsers();
+    matchedUser = users.find(
+      (u) =>
+        u.userId?.toLowerCase() === cleanLower ||
+        (u.username && u.username.toLowerCase().replace(/^@/, '') === cleanLower) ||
+        (digits.length >= 10 && (u.mobileNumber || '').replace(/\D/g, '').endsWith(digits.slice(-10))) ||
+        (u.email && u.email.toLowerCase() === cleanLower)
+    ) || null;
+  }
 
-  return { success: true, user: matchedUser };
+  if (!matchedUser) {
+    return { success: false, error: 'यह User ID, Username या मोबाइल नंबर पंजीकृत नहीं मिला।' };
+  }
+
+  // Strict Password Verification whenever account has a password
+  if (matchedUser.password && matchedUser.password.trim() !== '') {
+    if (!password || matchedUser.password !== password) {
+      return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है। कृपया सही पासवर्ड डालें।' };
+    }
+  }
+
+  // Ensure sessionToken is set and synced to Firestore for real-time cross-device invalidation
+  if (!issuedToken) {
+    issuedToken = createClientSessionToken();
+  }
+  const updatedUser: UserProfile = {
+    ...matchedUser,
+    activeSessionToken: issuedToken,
+    lastLoginDevice: matchedUser.lastLoginDevice || deviceInfo,
+    lastLoginAt: matchedUser.lastLoginAt || new Date().toISOString(),
+  };
+
+  setDeviceSessionToken(issuedToken);
+  const all = getAllUsers();
+  const merged = mergeUserLists([updatedUser], all, INITIAL_DEMO_USERS);
+  saveUsers(merged);
+  setCurrentUser(updatedUser);
+
+  // Sync updated activeSessionToken to Firestore so old devices receive instant logout signal
+  syncUserToFirestore(updatedUser).catch(() => {});
+
+  return { success: true, user: updatedUser, sessionToken: issuedToken };
 };
 
 export const loginUser = (identifier: string, password?: string): UserProfile | null => {
   const users = getAllUsers();
-  const cleanId = identifier.trim().toLowerCase();
-  const cleanDigits = cleanId.replace(/\D/g, '');
+  const cleanId = identifier.trim().toLowerCase().replace(/^@/, '');
+  const cleanDigits = identifier.replace(/\D/g, '');
   
   const user = users.find(
     (u) => 
-      u.userId.toLowerCase() === cleanId || 
-      (cleanDigits.length >= 10 && u.mobileNumber.replace(/\D/g, '').endsWith(cleanDigits.slice(-10))) ||
-      u.email.toLowerCase() === cleanId
+      u.userId?.toLowerCase() === cleanId || 
+      (u.username && u.username.toLowerCase().replace(/^@/, '') === cleanId) ||
+      (cleanDigits.length >= 10 && (u.mobileNumber || '').replace(/\D/g, '').endsWith(cleanDigits.slice(-10))) ||
+      (u.email && u.email.toLowerCase() === cleanId)
   );
 
   if (!user) return null;
 
-  if (user.password && password && user.password !== password) {
+  if (user.password && user.password.trim() !== '' && user.password !== (password || '')) {
     return null;
   }
 
-  setCurrentUser(user);
-  return user;
+  const token = getDeviceSessionToken() || createClientSessionToken();
+  setDeviceSessionToken(token);
+  const updatedUser: UserProfile = { ...user, activeSessionToken: token };
+  setCurrentUser(updatedUser);
+  return updatedUser;
 };
 
 export const getCurrentUser = (): UserProfile | null => {
@@ -1910,6 +1989,305 @@ export const setCurrentUser = (user: UserProfile | null): void => {
 
 export const logoutUser = (): void => {
   setCurrentUser(null);
+  clearDeviceSessionToken();
+};
+
+export interface SessionValidityResult {
+  valid: boolean;
+  newDevice?: string;
+  newLoginAt?: string;
+}
+
+export const checkActiveSessionAsync = async (userId: string): Promise<SessionValidityResult> => {
+  const localToken = getDeviceSessionToken();
+  if (!userId || !localToken) return { valid: true };
+  const cleanId = userId.trim().toUpperCase();
+
+  try {
+    const res = await fetch('/api/users/session-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: cleanId, sessionToken: localToken }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.valid === false) {
+        return {
+          valid: false,
+          newDevice: data.newDevice || 'अन्य नया डिवाइस',
+          newLoginAt: data.newLoginAt,
+        };
+      }
+    }
+  } catch {
+    // Fallback to Firestore
+  }
+
+  if (db) {
+    try {
+      const snap = await getDoc(doc(db, 'users', cleanId));
+      if (snap.exists()) {
+        const d = snap.data() as UserProfile;
+        if (d.activeSessionToken && d.activeSessionToken !== localToken) {
+          return {
+            valid: false,
+            newDevice: d.lastLoginDevice || 'अन्य नया डिवाइस',
+            newLoginAt: d.lastLoginAt,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { valid: true };
+};
+
+export const subscribeToSessionValidity = (
+  userId: string,
+  onKickedOut: (info: { newDevice?: string; newLoginAt?: string }) => void
+): (() => void) => {
+  if (!userId) return () => {};
+  const cleanId = userId.trim().toUpperCase();
+  let kicked = false;
+  let unsubscribeSnap = () => {};
+
+  const triggerKick = (info: { newDevice?: string; newLoginAt?: string }) => {
+    if (kicked) return;
+    kicked = true;
+    onKickedOut(info);
+  };
+
+  if (db) {
+    try {
+      unsubscribeSnap = onSnapshot(
+        doc(db, 'users', cleanId),
+        (snap) => {
+          const localToken = getDeviceSessionToken();
+          if (!snap.exists() || !localToken) return;
+          const data = snap.data() as UserProfile;
+          if (data?.activeSessionToken && data.activeSessionToken !== localToken) {
+            triggerKick({
+              newDevice: data.lastLoginDevice || 'नया डिवाइस',
+              newLoginAt: data.lastLoginAt,
+            });
+          }
+        },
+        () => {}
+      );
+    } catch {}
+  }
+
+  const interval = setInterval(async () => {
+    if (kicked) return;
+    const res = await checkActiveSessionAsync(cleanId);
+    if (!res.valid) {
+      triggerKick({ newDevice: res.newDevice, newLoginAt: res.newLoginAt });
+    }
+  }, 5000);
+
+  return () => {
+    unsubscribeSnap();
+    clearInterval(interval);
+  };
+};
+
+export interface SponsorAddMemberPayload {
+  sponsorId: string;
+  fullName: string;
+  mobileNumber: string;
+  email?: string;
+  username?: string;
+  tempPassword: string;
+  selectedPlanId: number;
+  role?: string;
+  telegramUsername?: string;
+  photoUrl?: string;
+  googleDrivePhotoLink?: string;
+  payoutUpi?: string;
+  address?: string;
+  paymentUtr?: string;
+  paymentScreenshotUrl?: string;
+  googleDrivePaymentLink?: string;
+  paymentMode?: string;
+}
+
+/**
+ * Allows a logged-in sponsor to register a new member under their sponsorId
+ * WITHOUT logging out the sponsor and marking the new user with mustChangePassword=true
+ */
+export const registerMemberBySponsorAsync = async (
+  payload: SponsorAddMemberPayload
+): Promise<UserProfile> => {
+  const nameCheck = validateFullName(payload.fullName);
+  if (!nameCheck.isValid) {
+    throw new Error(nameCheck.error || 'कृपया नया सदस्य का सही पूरा नाम दर्ज करें।');
+  }
+  const mobileCheck = validateMobileNumber(payload.mobileNumber);
+  if (!mobileCheck.isValid) {
+    throw new Error(mobileCheck.error || 'कृपया 10-अंकों का वैध मोबाइल नंबर दर्ज करें।');
+  }
+  if (!payload.tempPassword || payload.tempPassword.trim().length < 4) {
+    throw new Error('कृपया कम से कम 4 अक्षरों का शुरुआती अस्थायी पासवर्ड सेट करें।');
+  }
+
+  const cleanSponsorId = (payload.sponsorId || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
+  const cleanEmail = payload.email?.trim().toLowerCase() || `${mobileCheck.cleanDigits}@iois.in`;
+  const cleanUsername = payload.username?.trim().toLowerCase().replace(/^@/, '') || '';
+
+  if (cleanUsername) {
+    const unameRes = await checkUsernameAvailableAsync(cleanUsername);
+    if (!unameRes.available) {
+      throw new Error(unameRes.error || 'यह यूजरनेम उपलब्ध नहीं है।');
+    }
+  }
+
+  const users = getAllUsers();
+  const dup = users.find((u) => {
+    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+    return (
+      (mobileCheck.cleanDigits.length >= 10 && uDigits.endsWith(mobileCheck.cleanDigits.slice(-10))) ||
+      (cleanEmail && u.email?.toLowerCase() === cleanEmail)
+    );
+  });
+  if (dup) {
+    throw new Error('यह मोबाइल नंबर या ईमेल पहले से किसी सदस्य के नाम पर पंजीकृत है।');
+  }
+
+  const plan = PLANS.find((p) => p.id === payload.selectedPlanId) || PLANS[0];
+  const generatedUserId = generateCustomIOISUserId(nameCheck.cleanName, plan.price, users);
+
+  const draftUser: UserProfile = {
+    userId: generatedUserId,
+    username: cleanUsername || undefined,
+    fullName: nameCheck.cleanName,
+    mobileNumber: mobileCheck.cleanDigits,
+    email: cleanEmail,
+    password: payload.tempPassword.trim(),
+    mustChangePassword: true,
+    registeredBySponsorId: cleanSponsorId,
+    sponsorId: cleanSponsorId,
+    selectedPlanId: plan.id,
+    payoutUpi: sanitizeUpiId(payload.payoutUpi),
+    address: payload.address?.trim() || '',
+    telegramUsername: payload.telegramUsername?.trim() || undefined,
+    paymentUtr: payload.paymentUtr?.trim() || '',
+    paymentMode: payload.paymentMode || 'UPI',
+    paymentScreenshotUrl: payload.paymentScreenshotUrl || '',
+    googleDrivePaymentLink: payload.googleDrivePaymentLink?.trim() || undefined,
+    role: payload.role?.trim() || 'Verified Elite Member',
+    photoUrl:
+      payload.photoUrl?.trim() ||
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+    googleDrivePhotoLink: payload.googleDrivePhotoLink?.trim() || undefined,
+    paymentStatus: 'pending',
+    createdAt: new Date().toISOString(),
+    privacySettings: {
+      showFullName: true,
+      showMobile: false,
+      showEmail: false,
+      showPhoto: true,
+      showLocation: true,
+    },
+  };
+
+  let createdUser = draftUser;
+  try {
+    const res = await fetch('/api/users/sponsor-register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draftUser),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'पंजीकरण सर्वर पर सहेजा नहीं जा सका।');
+    }
+    if (data.user) {
+      createdUser = data.user;
+    }
+  } catch (err: any) {
+    if (err?.message && (err.message.includes('पंजीकृत') || err.message.includes('यूजरनेम'))) {
+      throw err;
+    }
+  }
+
+  // Update local directory cache & Firestore WITHOUT changing getCurrentUser() or device session token
+  const merged = mergeUserLists([createdUser], users, INITIAL_DEMO_USERS);
+  saveUsers(merged);
+  syncUserToFirestore(createdUser).catch(() => {});
+
+  return createdUser;
+};
+
+/**
+ * Forces newly sponsor-joined user to change password on first login and rotates session token
+ * so the sponsor can NEVER log into the new member's account.
+ */
+export const forceUpdatePasswordAsync = async (
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
+  const cleanId = userId.trim().toUpperCase();
+  if (!newPassword || newPassword.trim().length < 6) {
+    return { success: false, error: 'नया पासवर्ड कम से कम 6 अक्षरों/अंकों का सुरक्षित होना चाहिए।' };
+  }
+  if (newPassword.trim() === currentPassword.trim()) {
+    return { success: false, error: 'नया पासवर्ड पुराने अस्थायी पासवर्ड से अलग होना चाहिए।' };
+  }
+
+  let updatedUser: UserProfile | null = null;
+  let newToken = createClientSessionToken();
+
+  try {
+    const res = await fetch('/api/users/force-password-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: cleanId,
+        currentPassword,
+        newPassword: newPassword.trim(),
+        deviceInfo: getDeviceFingerprintLabel(),
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.user) {
+      updatedUser = data.user;
+      newToken = data.sessionToken || data.user.activeSessionToken || newToken;
+    } else if (res.status === 401 || res.status === 400) {
+      return { success: false, error: data.error || 'पासवर्ड अपडेट असफल रहा।' };
+    }
+  } catch {
+    // Fallback below
+  }
+
+  const users = getAllUsers();
+  const localCurrent = getCurrentUser();
+  const baseUser = updatedUser || users.find((u) => u.userId?.toUpperCase() === cleanId) || localCurrent;
+  if (!baseUser) {
+    return { success: false, error: 'सदस्य खाता नहीं मिला।' };
+  }
+
+  if (!updatedUser && baseUser.password && baseUser.password !== currentPassword) {
+    return { success: false, error: 'पुराना पासवर्ड मेल नहीं खा रहा है।' };
+  }
+
+  const finalized: UserProfile = {
+    ...baseUser,
+    password: newPassword.trim(),
+    mustChangePassword: false,
+    activeSessionToken: newToken,
+    lastLoginDevice: getDeviceFingerprintLabel(),
+    lastLoginAt: new Date().toISOString(),
+  };
+
+  setDeviceSessionToken(newToken);
+  saveUsers(mergeUserLists([finalized], users, INITIAL_DEMO_USERS));
+  setCurrentUser(finalized);
+  syncUserToFirestore(finalized).catch(() => {});
+
+  return { success: true, user: finalized };
 };
 
 export const findUserByMobile = (mobile: string): UserProfile | null => {

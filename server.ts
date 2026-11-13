@@ -16,10 +16,61 @@ const KNOWLEDGE_FILE = path.join(DATA_DIR, "ai-knowledge.json");
 const UNANSWERED_FILE = path.join(DATA_DIR, "ai-unanswered.json");
 const INTERVIEWS_FILE = path.join(DATA_DIR, "interviews.json");
 const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
+const SOCIAL_MESSAGES_FILE = path.join(DATA_DIR, "social_messages.json");
+const SOCIAL_GROUPS_FILE = path.join(DATA_DIR, "social_groups.json");
+const FRIEND_REQUESTS_FILE = path.join(DATA_DIR, "friend_requests.json");
+const PROFILE_VISITS_FILE = path.join(DATA_DIR, "profile_visits.json");
+const PROFILE_LIKES_FILE = path.join(DATA_DIR, "social_likes.json");
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadJsonArray(filePath: string): any[] {
+  try {
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, JSON.stringify([], null, 2), "utf-8");
+      return [];
+    }
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error(`Error reading ${filePath}:`, err);
+    return [];
+  }
+}
+
+function saveJsonArray(filePath: string, items: any[]): void {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), "utf-8");
+  } catch (err) {
+    console.error(`Error writing ${filePath}:`, err);
+  }
+}
+
+function loadJsonObject(filePath: string): Record<string, any> {
+  try {
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, JSON.stringify({}, null, 2), "utf-8");
+      return {};
+    }
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const data = JSON.parse(raw);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  } catch (err) {
+    console.error(`Error reading ${filePath}:`, err);
+    return {};
+  }
+}
+
+function saveJsonObject(filePath: string, obj: Record<string, any>): void {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (err) {
+    console.error(`Error writing ${filePath}:`, err);
+  }
 }
 
 function loadMessagesFromDisk(): any[] {
@@ -1309,50 +1360,237 @@ async function startServer() {
     }
   });
 
-  // API Route: User Login (Flexible matching by UserID, Mobile, or Email)
+  // API Route: User Login (Flexible matching by UserID, @Username, Mobile, or Email + Single Active Device Session)
   app.post("/api/users/login", (req: Request, res: Response) => {
     try {
-      const { identifier, password } = req.body;
+      const { identifier, password, deviceInfo } = req.body;
 
       if (!identifier || typeof identifier !== "string") {
-        return res.status(400).json({ success: false, error: "कृपया User ID, मोबाइल नंबर या ईमेल दर्ज करें।" });
+        return res.status(400).json({ success: false, error: "कृपया User ID, @Username, मोबाइल नंबर या ईमेल दर्ज करें।" });
       }
 
-      const cleanInput = identifier.trim().toLowerCase();
+      const cleanInput = identifier.trim().toLowerCase().replace(/^@/, "");
       const inputDigits = cleanInput.replace(/\D/g, "");
 
       const users = loadUsersFromDisk();
 
-      const user = users.find((u) => {
-        const uidMatch = u.userId.toLowerCase() === cleanInput;
-        const mobileMatch = inputDigits.length >= 10 && u.mobileNumber.replace(/\D/g, "").endsWith(inputDigits.slice(-10));
+      const userIndex = users.findIndex((u) => {
+        const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
+        const unameMatch = u.username && u.username.toLowerCase().replace(/^@/, "") === cleanInput;
+        const mobileMatch = inputDigits.length >= 10 && (u.mobileNumber || "").replace(/\D/g, "").endsWith(inputDigits.slice(-10));
         const emailMatch = u.email && u.email.toLowerCase() === cleanInput;
-        return uidMatch || mobileMatch || emailMatch;
+        return uidMatch || unameMatch || mobileMatch || emailMatch;
       });
 
-      if (!user) {
+      if (userIndex === -1) {
         return res.status(404).json({
           success: false,
-          error: "यह User ID या मोबाइल नंबर पंजीकृत नहीं है। कृपया सही विवरण दर्ज करें या नया रजिस्ट्रेशन करें।",
+          error: "यह User ID, @Username या मोबाइल नंबर पंजीकृत नहीं है। कृपया सही विवरण दर्ज करें या नया रजिस्ट्रेशन करें।",
         });
       }
 
-      // Check password if provided and user has a password set
-      if (password && user.password && user.password !== password) {
+      const user = users[userIndex];
+
+      // Strict password check whenever account has a password set
+      if (user.password && (!password || user.password !== password)) {
         return res.status(401).json({
           success: false,
           error: "दर्ज किया गया पासवर्ड गलत है। यदि पासवर्ड भूल गए हैं तो 'पासवर्ड रीसेट' का उपयोग करें।",
         });
       }
 
+      // Issue a fresh single-active-device session token so previous devices get auto logged out
+      const sessionToken = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      const nowIso = new Date().toISOString();
+      const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "नया डिवाइस / ब्राउज़र";
+
+      users[userIndex] = {
+        ...user,
+        activeSessionToken: sessionToken,
+        lastLoginDevice: loginDevice,
+        lastLoginAt: nowIso,
+      };
+      saveUsersToDisk(users);
+
       return res.json({
         success: true,
         message: "लॉगिन सफल!",
-        user,
+        sessionToken,
+        user: users[userIndex],
       });
     } catch (err: any) {
       console.error("Login Error:", err);
       return res.status(500).json({ success: false, error: "लॉगिन प्रक्रिया में त्रुटि आई।" });
+    }
+  });
+
+  // API Route: Single-Active-Device Session Validation
+  app.post("/api/users/session-check", (req: Request, res: Response) => {
+    try {
+      const { userId, sessionToken } = req.body;
+      if (!userId || !sessionToken) {
+        return res.json({ valid: true });
+      }
+      const cleanId = String(userId).trim().toUpperCase();
+      const users = loadUsersFromDisk();
+      const user = users.find((u) => u && u.userId && u.userId.toUpperCase() === cleanId);
+      if (!user || !user.activeSessionToken) {
+        return res.json({ valid: true });
+      }
+      if (user.activeSessionToken !== sessionToken) {
+        return res.json({
+          valid: false,
+          newDevice: user.lastLoginDevice || "नया डिवाइस",
+          newLoginAt: user.lastLoginAt || new Date().toISOString(),
+        });
+      }
+      return res.json({ valid: true });
+    } catch {
+      return res.json({ valid: true });
+    }
+  });
+
+  // API Route: Sponsor-Assisted Member Joining (Sponsor stays logged in; New Member must change password on first login)
+  app.post("/api/users/sponsor-register", (req: Request, res: Response) => {
+    try {
+      const {
+        fullName,
+        mobileNumber,
+        email,
+        sponsorId,
+        selectedPlanId,
+        password,
+        username,
+        role,
+        address,
+        payoutUpi,
+        paymentUtr,
+        paymentMode,
+        paymentScreenshotUrl,
+        googleDrivePaymentLink,
+        photoUrl,
+        googleDrivePhotoLink,
+        telegramUsername,
+      } = req.body;
+
+      if (!fullName || !mobileNumber || !sponsorId || !selectedPlanId || !password) {
+        return res.status(400).json({ success: false, error: "नए सदस्य का नाम, मोबाइल नंबर, स्पॉन्सर ID, प्लान और अस्थायी पासवर्ड अनिवार्य हैं।" });
+      }
+
+      const users = loadUsersFromDisk();
+      const cleanSponsor = String(sponsorId).trim().toUpperCase();
+      const cleanDigits = String(mobileNumber).replace(/\D/g, "");
+      const cleanEmail = email ? String(email).trim().toLowerCase() : "";
+      const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "") : "";
+
+      if (cleanDigits.length < 10) {
+        return res.status(400).json({ success: false, error: "कृपया वैध 10 अंकों का मोबाइल नंबर दर्ज करें।" });
+      }
+
+      const conflict = users.find((u) => {
+        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+        const mobMatch = uDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+        const emMatch = cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail;
+        const unameMatch = cleanUsername && u.username && u.username.toLowerCase() === cleanUsername;
+        return mobMatch || emMatch || unameMatch;
+      });
+
+      if (conflict) {
+        return res.status(409).json({
+          success: false,
+          error: "यह मोबाइल नंबर, ईमेल या @Username पहले से पंजीकृत है। कृपया नया विवरण दर्ज करें।",
+        });
+      }
+
+      const planPrice = PLAN_PRICES[Number(selectedPlanId)] || 10;
+      const userId = generateUserIdHelper(fullName, planPrice, users);
+
+      const newMember = {
+        userId,
+        username: cleanUsername || undefined,
+        fullName: String(fullName).trim(),
+        mobileNumber: cleanDigits.slice(-10),
+        email: cleanEmail || `${cleanDigits.slice(-10)}@iois.in`,
+        sponsorId: cleanSponsor,
+        registeredBySponsorId: cleanSponsor,
+        mustChangePassword: true,
+        selectedPlanId: Number(selectedPlanId),
+        role: role ? String(role).trim() : "Verified Elite Member",
+        password: String(password).trim(),
+        photoUrl: photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+        googleDrivePhotoLink: googleDrivePhotoLink ? String(googleDrivePhotoLink).trim() : undefined,
+        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
+        googleDrivePaymentLink: googleDrivePaymentLink ? String(googleDrivePaymentLink).trim() : undefined,
+        paymentUtr: paymentUtr ? String(paymentUtr).trim() : undefined,
+        paymentMode: paymentMode ? String(paymentMode).trim() : "UPI",
+        payoutUpi: payoutUpi ? String(payoutUpi).trim() : undefined,
+        address: address ? String(address).trim() : undefined,
+        telegramUsername: telegramUsername ? String(telegramUsername).trim() : undefined,
+        paymentStatus: "pending",
+        createdAt: new Date().toISOString(),
+        friends: [cleanSponsor],
+        profileViews: 0,
+        profileLikes: [],
+      };
+
+      users.unshift(newMember);
+      saveUsersToDisk(users);
+
+      sendTelegramRegistrationAlert(newMember, req).catch(() => {});
+
+      return res.status(201).json({
+        success: true,
+        message: "नए सदस्य का पंजीकरण आपके स्पॉन्सर ID से सफलतापूर्वक हो गया! पहले लॉगिन पर उन्हें नया पासवर्ड सेट करने का विकल्प मिलेगा।",
+        user: newMember,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || "सदस्य जोड़ने में त्रुटि आई।" });
+    }
+  });
+
+  // API Route: Mandatory Password Update (Clears mustChangePassword & rotates sessionToken so sponsor cannot login)
+  app.post("/api/users/force-password-update", (req: Request, res: Response) => {
+    try {
+      const { userId, currentPassword, newPassword, deviceInfo } = req.body;
+      if (!userId || !newPassword || String(newPassword).trim().length < 4) {
+        return res.status(400).json({ success: false, error: "नया पासवर्ड कम से कम 4 अक्षरों का होना अनिवार्य है।" });
+      }
+
+      const cleanId = String(userId).trim().toUpperCase();
+      const users = loadUsersFromDisk();
+      const index = users.findIndex((u) => u && u.userId && u.userId.toUpperCase() === cleanId);
+
+      if (index === -1) {
+        return res.status(404).json({ success: false, error: "उपयोगकर्ता खाता नहीं मिला।" });
+      }
+
+      const target = users[index];
+      if (target.password && currentPassword && target.password !== currentPassword) {
+        return res.status(401).json({ success: false, error: "वर्तमान/अस्थायी पासवर्ड सही नहीं है।" });
+      }
+
+      const newSessionToken = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "वर्तमान सुरक्षित डिवाइस";
+
+      users[index] = {
+        ...target,
+        password: String(newPassword).trim(),
+        mustChangePassword: false,
+        activeSessionToken: newSessionToken,
+        lastLoginDevice: loginDevice,
+        lastLoginAt: new Date().toISOString(),
+      };
+
+      saveUsersToDisk(users);
+
+      return res.json({
+        success: true,
+        message: "आपका गुप्त पासवर्ड सुरक्षित रूप से अपडेट हो गया है! अब कोई अन्य व्यक्ति या स्पॉन्सर आपका खाता लॉगिन नहीं कर सकेगा।",
+        sessionToken: newSessionToken,
+        user: users[index],
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "पासवर्ड अपडेट करने में त्रुटि आई।" });
     }
   });
 
@@ -1861,6 +2099,562 @@ async function startServer() {
       return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: users[index] });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
+    }
+  });
+
+  // =========================================================================
+  // IOIS CHAT & HELP: SOCIAL PROFILES, FRIENDS, LIKES, VIEWS, GROUPS & DMs
+  // =========================================================================
+
+  function makeDmThreadId(u1: string, u2: string): string {
+    const a = String(u1 || "").trim().toUpperCase();
+    const b = String(u2 || "").trim().toUpperCase();
+    return a < b ? `dm:${a}__${b}` : `dm:${b}__${a}`;
+  }
+
+  function sanitizePublicProfile(u: any, likesMap: Record<string, string[]>, visitsList: any[], friendsList: string[]) {
+    const uid = String(u.userId || "").toUpperCase();
+    const likesArr = Array.isArray(likesMap[uid]) ? likesMap[uid] : (Array.isArray(u.profileLikes) ? u.profileLikes : []);
+    const visitCount = visitsList.filter((v) => v && String(v.targetUserId).toUpperCase() === uid).length || Number(u.profileViews || 0);
+    return {
+      userId: u.userId,
+      username: u.username || u.userId.toLowerCase(),
+      fullName: u.fullName,
+      photoUrl: u.photoUrl,
+      coverUrl: u.coverUrl || undefined,
+      bio: u.bio || "",
+      role: u.role,
+      selectedPlanId: u.selectedPlanId,
+      paymentStatus: u.paymentStatus,
+      sponsorId: u.sponsorId,
+      state: u.state,
+      district: u.district,
+      address: u.address,
+      profileFrameId: u.profileFrameId,
+      privacySettings: u.privacySettings,
+      createdAt: u.createdAt,
+      profileViews: visitCount,
+      profileLikes: likesArr,
+      friends: friendsList,
+    };
+  }
+
+  // Bootstrap IOIS CHAT & HELP for a logged-in user (Directory, Friends, Requests, Groups, Unread Summary per sender/group)
+  app.get("/api/social/bootstrap", (req: Request, res: Response) => {
+    try {
+      const rawUid = String(req.query.userId || "").trim().toUpperCase();
+      const users = loadUsersFromDisk();
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      const allGroups = loadJsonArray(SOCIAL_GROUPS_FILE);
+      const allRequests = loadJsonArray(FRIEND_REQUESTS_FILE);
+      const allVisits = loadJsonArray(PROFILE_VISITS_FILE);
+      const likesMap = loadJsonObject(PROFILE_LIKES_FILE);
+
+      // Compute accepted friendships map
+      const friendsByUser: Record<string, Set<string>> = {};
+      allRequests.forEach((r) => {
+        if (r && r.status === "accepted") {
+          const from = String(r.fromUserId || "").toUpperCase();
+          const to = String(r.toUserId || "").toUpperCase();
+          if (!friendsByUser[from]) friendsByUser[from] = new Set();
+          if (!friendsByUser[to]) friendsByUser[to] = new Set();
+          friendsByUser[from].add(to);
+          friendsByUser[to].add(from);
+        }
+      });
+
+      const directory = users.map((u) => {
+        const uid = String(u.userId || "").toUpperCase();
+        const fSet = friendsByUser[uid] || new Set(Array.isArray(u.friends) ? u.friends : []);
+        return sanitizePublicProfile(u, likesMap, allVisits, Array.from(fSet));
+      });
+
+      const myRequests = rawUid
+        ? allRequests.filter(
+            (r) =>
+              r &&
+              (String(r.fromUserId).toUpperCase() === rawUid || String(r.toUserId).toUpperCase() === rawUid)
+          )
+        : [];
+
+      const myGroups = rawUid
+        ? allGroups.filter(
+            (g) =>
+              g &&
+              Array.isArray(g.memberIds) &&
+              g.memberIds.some((m: string) => String(m).toUpperCase() === rawUid)
+          )
+        : [];
+
+      const myVisitLogs = rawUid
+        ? allVisits
+            .filter((v) => v && String(v.targetUserId).toUpperCase() === rawUid)
+            .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime())
+            .slice(0, 50)
+        : [];
+
+      // Summarize unread messages per thread/sender for this user
+      const unreadMap: Record<string, any> = {};
+      const threadLastMessage: Record<string, any> = {};
+
+      if (rawUid) {
+        const myGroupIds = new Set(myGroups.map((g) => g.id));
+
+        allMsgs.forEach((m) => {
+          if (!m || !m.threadId) return;
+          const isMyDm = m.threadType === "dm" && (String(m.senderId).toUpperCase() === rawUid || String(m.recipientId).toUpperCase() === rawUid);
+          const isMyGroup = m.threadType === "group" && myGroupIds.has(m.groupId);
+          if (!isMyDm && !isMyGroup) return;
+
+          threadLastMessage[m.threadId] = m;
+
+          const senderUpper = String(m.senderId || "").toUpperCase();
+          const readByArr: string[] = Array.isArray(m.readBy) ? m.readBy.map((x: string) => String(x).toUpperCase()) : [];
+
+          if (senderUpper !== rawUid && !readByArr.includes(rawUid)) {
+            if (!unreadMap[m.threadId]) {
+              const senderUser = users.find((u) => u.userId && u.userId.toUpperCase() === senderUpper);
+              const grp = m.threadType === "group" ? myGroups.find((g) => g.id === m.groupId) : null;
+              unreadMap[m.threadId] = {
+                threadId: m.threadId,
+                threadType: m.threadType,
+                senderId: senderUpper,
+                senderName: m.senderName || senderUser?.fullName || senderUpper,
+                senderUsername: m.senderUsername || senderUser?.username || senderUpper.toLowerCase(),
+                senderPhoto: m.senderPhoto || senderUser?.photoUrl,
+                groupName: grp?.name,
+                unreadCount: 0,
+                lastMessage: m.text || (m.mediaType === "image" ? "📷 फोटो भेजा है" : m.mediaType === "video" ? "🎬 वीडियो भेजा है" : m.linkUrl ? "🔗 लिंक भेजा है" : "नया संदेश"),
+                lastMessageAt: m.createdAt,
+              };
+            }
+            unreadMap[m.threadId].unreadCount++;
+            unreadMap[m.threadId].lastMessage = m.text || (m.mediaType === "image" ? "📷 फोटो भेजा है" : m.mediaType === "video" ? "🎬 वीडियो भेजा है" : m.linkUrl ? "🔗 लिंक भेजा है" : "नया संदेश");
+            unreadMap[m.threadId].lastMessageAt = m.createdAt;
+          }
+        });
+      }
+
+      const unreadSummaries = Object.values(unreadMap).sort(
+        (a: any, b: any) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+      );
+
+      return res.json({
+        success: true,
+        directory,
+        friendRequests: myRequests,
+        groups: myGroups,
+        visitLogs: myVisitLogs,
+        unreadSummaries,
+        threadLastMessage,
+        totalUnreadCount: unreadSummaries.reduce((sum: number, item: any) => sum + (item.unreadCount || 0), 0),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || "डेटा लोड करने में त्रुटि आई।" });
+    }
+  });
+
+  // Record a profile visit (increments profile views count)
+  app.post("/api/social/profile-visit", (req: Request, res: Response) => {
+    try {
+      const { targetUserId, visitorUserId, visitorName, visitorUsername } = req.body;
+      if (!targetUserId) {
+        return res.status(400).json({ success: false, error: "targetUserId अनिवार्य है।" });
+      }
+      const targetUpper = String(targetUserId).trim().toUpperCase();
+      const visitorUpper = visitorUserId ? String(visitorUserId).trim().toUpperCase() : "GUEST";
+
+      if (targetUpper === visitorUpper) {
+        const visits = loadJsonArray(PROFILE_VISITS_FILE);
+        const count = visits.filter((v) => String(v.targetUserId).toUpperCase() === targetUpper).length;
+        return res.json({ success: true, profileViews: count });
+      }
+
+      const visits = loadJsonArray(PROFILE_VISITS_FILE);
+      const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+      const recentDuplicate = visits.some(
+        (v) =>
+          String(v.targetUserId).toUpperCase() === targetUpper &&
+          String(v.visitorUserId).toUpperCase() === visitorUpper &&
+          new Date(v.visitedAt).getTime() > tenMinsAgo
+      );
+
+      if (!recentDuplicate) {
+        visits.unshift({
+          id: `VIS-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          targetUserId: targetUpper,
+          visitorUserId: visitorUpper,
+          visitorName: visitorName || (visitorUpper === "GUEST" ? "विज़िटर" : visitorUpper),
+          visitorUsername: visitorUsername || undefined,
+          visitedAt: new Date().toISOString(),
+        });
+        saveJsonArray(PROFILE_VISITS_FILE, visits.slice(0, 5000));
+      }
+
+      const totalViews = visits.filter((v) => String(v.targetUserId).toUpperCase() === targetUpper).length;
+      return res.json({ success: true, profileViews: totalViews });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Toggle profile like
+  app.post("/api/social/profile-like", (req: Request, res: Response) => {
+    try {
+      const { targetUserId, likerUserId } = req.body;
+      if (!targetUserId || !likerUserId) {
+        return res.status(400).json({ success: false, error: "targetUserId और likerUserId अनिवार्य हैं।" });
+      }
+      const targetUpper = String(targetUserId).trim().toUpperCase();
+      const likerUpper = String(likerUserId).trim().toUpperCase();
+      const likesMap = loadJsonObject(PROFILE_LIKES_FILE);
+      const current: string[] = Array.isArray(likesMap[targetUpper]) ? likesMap[targetUpper] : [];
+      const exists = current.includes(likerUpper);
+      const updated = exists ? current.filter((x) => x !== likerUpper) : [...current, likerUpper];
+      likesMap[targetUpper] = updated;
+      saveJsonObject(PROFILE_LIKES_FILE, likesMap);
+
+      return res.json({ success: true, liked: !exists, profileLikes: updated });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Friend requests & friend management (send / accept / reject / cancel / unfriend)
+  app.post("/api/social/friend-request", (req: Request, res: Response) => {
+    try {
+      const { action, fromUserId, toUserId } = req.body;
+      if (!action || !fromUserId || !toUserId) {
+        return res.status(400).json({ success: false, error: "अमान्य अनुरोध विवरण।" });
+      }
+      const fromUpper = String(fromUserId).trim().toUpperCase();
+      const toUpper = String(toUserId).trim().toUpperCase();
+      if (fromUpper === toUpper) {
+        return res.status(400).json({ success: false, error: "आप स्वयं को मित्र अनुरोध नहीं भेज सकते।" });
+      }
+
+      let requests = loadJsonArray(FRIEND_REQUESTS_FILE);
+
+      if (action === "send") {
+        const existing = requests.find(
+          (r) =>
+            (String(r.fromUserId).toUpperCase() === fromUpper && String(r.toUserId).toUpperCase() === toUpper) ||
+            (String(r.fromUserId).toUpperCase() === toUpper && String(r.toUserId).toUpperCase() === fromUpper)
+        );
+        if (existing) {
+          if (existing.status === "rejected") {
+            existing.status = "pending";
+            existing.fromUserId = fromUpper;
+            existing.toUserId = toUpper;
+            existing.updatedAt = new Date().toISOString();
+          }
+        } else {
+          requests.unshift({
+            id: `FR-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            fromUserId: fromUpper,
+            toUserId: toUpper,
+            status: "pending",
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } else if (action === "accept") {
+        requests = requests.map((r) => {
+          if (
+            (String(r.fromUserId).toUpperCase() === fromUpper && String(r.toUserId).toUpperCase() === toUpper) ||
+            (String(r.fromUserId).toUpperCase() === toUpper && String(r.toUserId).toUpperCase() === fromUpper)
+          ) {
+            return { ...r, status: "accepted", updatedAt: new Date().toISOString() };
+          }
+          return r;
+        });
+      } else if (action === "reject" || action === "cancel" || action === "unfriend") {
+        requests = requests.filter(
+          (r) =>
+            !(
+              (String(r.fromUserId).toUpperCase() === fromUpper && String(r.toUserId).toUpperCase() === toUpper) ||
+              (String(r.fromUserId).toUpperCase() === toUpper && String(r.toUserId).toUpperCase() === fromUpper)
+            )
+        );
+      }
+
+      saveJsonArray(FRIEND_REQUESTS_FILE, requests);
+      return res.json({ success: true, friendRequests: requests });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Create Social Group
+  app.post("/api/social/groups", (req: Request, res: Response) => {
+    try {
+      const { name, description, createdBy, memberIds, avatarUrl } = req.body;
+      if (!name || !createdBy) {
+        return res.status(400).json({ success: false, error: "ग्रुप का नाम और निर्माता आवश्यक है।" });
+      }
+      const creatorUpper = String(createdBy).trim().toUpperCase();
+      const uniqueMembers = Array.from(
+        new Set([creatorUpper, ...(Array.isArray(memberIds) ? memberIds.map((m: string) => String(m).trim().toUpperCase()) : [])])
+      ).filter(Boolean);
+
+      const newGroup = {
+        id: `GRP-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+        name: String(name).trim(),
+        description: description ? String(description).trim() : "",
+        avatarUrl: avatarUrl || undefined,
+        createdBy: creatorUpper,
+        adminIds: [creatorUpper],
+        memberIds: uniqueMembers,
+        createdAt: new Date().toISOString(),
+      };
+
+      const groups = loadJsonArray(SOCIAL_GROUPS_FILE);
+      groups.unshift(newGroup);
+      saveJsonArray(SOCIAL_GROUPS_FILE, groups);
+
+      return res.status(201).json({ success: true, group: newGroup });
+    } catch {
+      return res.status(500).json({ success: false, error: "ग्रुप बनाने में त्रुटि आई।" });
+    }
+  });
+
+  // Add or Remove Group Member
+  app.post("/api/social/groups/:groupId/members", (req: Request, res: Response) => {
+    try {
+      const { groupId } = req.params;
+      const { action, memberUserId } = req.body;
+      const targetUpper = String(memberUserId || "").trim().toUpperCase();
+      if (!targetUpper) {
+        return res.status(400).json({ success: false, error: "सदस्य ID आवश्यक है।" });
+      }
+
+      const groups = loadJsonArray(SOCIAL_GROUPS_FILE);
+      const idx = groups.findIndex((g) => g.id === groupId);
+      if (idx === -1) {
+        return res.status(404).json({ success: false, error: "ग्रुप नहीं मिला।" });
+      }
+
+      const currentMembers: string[] = Array.isArray(groups[idx].memberIds) ? groups[idx].memberIds : [];
+      if (action === "remove") {
+        groups[idx].memberIds = currentMembers.filter((m) => m.toUpperCase() !== targetUpper);
+      } else {
+        if (!currentMembers.some((m) => m.toUpperCase() === targetUpper)) {
+          groups[idx].memberIds = [...currentMembers, targetUpper];
+        }
+      }
+
+      saveJsonArray(SOCIAL_GROUPS_FILE, groups);
+      return res.json({ success: true, group: groups[idx] });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Get messages for a thread (DM or Group)
+  app.get("/api/social/messages", (req: Request, res: Response) => {
+    try {
+      const threadId = String(req.query.threadId || "").trim();
+      if (!threadId) {
+        return res.status(400).json({ success: false, error: "threadId आवश्यक है।" });
+      }
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      const filtered = allMsgs
+        .filter((m) => m && m.threadId === threadId)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      return res.json({ success: true, messages: filtered });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Send a social chat message (1:1 or Group, supporting text/photo/video/link)
+  app.post("/api/social/messages", (req: Request, res: Response) => {
+    try {
+      const {
+        threadType,
+        senderId,
+        senderName,
+        senderUsername,
+        senderPhoto,
+        recipientId,
+        groupId,
+        text,
+        mediaType,
+        mediaUrl,
+        linkUrl,
+        linkTitle,
+      } = req.body;
+
+      if (!senderId || (!text && !mediaUrl && !linkUrl)) {
+        return res.status(400).json({ success: false, error: "संदेश या मीडिया आवश्यक है।" });
+      }
+
+      const senderUpper = String(senderId).trim().toUpperCase();
+      const cleanType = threadType === "group" ? "group" : "dm";
+      let threadId = "";
+      let cleanRecipient: string | undefined;
+      let cleanGroup: string | undefined;
+
+      if (cleanType === "group") {
+        if (!groupId) return res.status(400).json({ success: false, error: "groupId अनिवार्य है।" });
+        cleanGroup = String(groupId).trim();
+        threadId = `group:${cleanGroup}`;
+      } else {
+        if (!recipientId) return res.status(400).json({ success: false, error: "recipientId अनिवार्य है।" });
+        cleanRecipient = String(recipientId).trim().toUpperCase();
+        threadId = makeDmThreadId(senderUpper, cleanRecipient);
+      }
+
+      const newMsg = {
+        id: `SMSG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        threadType: cleanType,
+        threadId,
+        senderId: senderUpper,
+        senderName: senderName || senderUpper,
+        senderUsername: senderUsername || undefined,
+        senderPhoto: senderPhoto || undefined,
+        recipientId: cleanRecipient,
+        groupId: cleanGroup,
+        text: text ? String(text).trim() : "",
+        mediaType: mediaType || undefined,
+        mediaUrl: mediaUrl || undefined,
+        linkUrl: linkUrl ? String(linkUrl).trim() : undefined,
+        linkTitle: linkTitle ? String(linkTitle).trim() : undefined,
+        createdAt: new Date().toISOString(),
+        readBy: [senderUpper],
+      };
+
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      allMsgs.push(newMsg);
+      saveJsonArray(SOCIAL_MESSAGES_FILE, allMsgs.slice(-5000));
+
+      return res.status(201).json({ success: true, message: newMsg });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || "संदेश भेजने में त्रुटि आई।" });
+    }
+  });
+
+  // Mark thread messages as read by userId
+  app.post("/api/social/messages/read", (req: Request, res: Response) => {
+    try {
+      const { threadId, userId } = req.body;
+      if (!threadId || !userId) return res.json({ success: true });
+      const cleanUid = String(userId).trim().toUpperCase();
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      let changed = false;
+
+      const updated = allMsgs.map((m) => {
+        if (m && m.threadId === threadId && String(m.senderId).toUpperCase() !== cleanUid) {
+          const arr: string[] = Array.isArray(m.readBy) ? m.readBy.map((x: string) => String(x).toUpperCase()) : [];
+          if (!arr.includes(cleanUid)) {
+            changed = true;
+            return { ...m, readBy: [...arr, cleanUid] };
+          }
+        }
+        return m;
+      });
+
+      if (changed) {
+        saveJsonArray(SOCIAL_MESSAGES_FILE, updated);
+      }
+      return res.json({ success: true });
+    } catch {
+      return res.json({ success: false });
+    }
+  });
+
+  // SILENT ADMIN SURVEILLANCE API: Inspect all DMs, Groups, Shared Photos/Videos/Links, Friend Links (Invisible to Users)
+  app.get("/api/admin/social-monitor", (_req: Request, res: Response) => {
+    try {
+      const users = loadUsersFromDisk();
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      const allGroups = loadJsonArray(SOCIAL_GROUPS_FILE);
+      const allRequests = loadJsonArray(FRIEND_REQUESTS_FILE);
+
+      const userMap = new Map<string, any>();
+      users.forEach((u) => {
+        if (u && u.userId) userMap.set(u.userId.toUpperCase(), u);
+      });
+
+      // Group all messages by threadId
+      const threadsMap: Record<string, any> = {};
+      allMsgs.forEach((m) => {
+        if (!m || !m.threadId) return;
+        if (!threadsMap[m.threadId]) {
+          let title = m.threadId;
+          let participants: any[] = [];
+          if (m.threadType === "group") {
+            const grp = allGroups.find((g) => g.id === m.groupId);
+            title = grp ? `👥 ग्रुप: ${grp.name}` : `👥 ग्रुप (${m.groupId})`;
+            participants = grp ? grp.memberIds : [];
+          } else {
+            const rawPair = m.threadId.replace(/^dm:/, "").split("__");
+            const uA = userMap.get(rawPair[0]);
+            const uB = userMap.get(rawPair[1]);
+            title = `${uA?.fullName || rawPair[0]} ↔ ${uB?.fullName || rawPair[1]}`;
+            participants = rawPair;
+          }
+          threadsMap[m.threadId] = {
+            threadId: m.threadId,
+            threadType: m.threadType,
+            title,
+            participants,
+            messageCount: 0,
+            mediaCount: 0,
+            lastMessage: m,
+            messages: [],
+          };
+        }
+        threadsMap[m.threadId].messages.push(m);
+        threadsMap[m.threadId].messageCount++;
+        if (m.mediaUrl || m.linkUrl) {
+          threadsMap[m.threadId].mediaCount++;
+        }
+        threadsMap[m.threadId].lastMessage = m;
+      });
+
+      const threads = Object.values(threadsMap).sort((a: any, b: any) => {
+        const tA = new Date(a.lastMessage?.createdAt || 0).getTime();
+        const tB = new Date(b.lastMessage?.createdAt || 0).getTime();
+        return tB - tA;
+      });
+
+      return res.json({
+        success: true,
+        threads,
+        groups: allGroups,
+        friendRequests: allRequests,
+        totalMessages: allMsgs.length,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin Control: Delete any social message
+  app.delete("/api/admin/social-messages/:id", (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
+      const filtered = allMsgs.filter((m) => m.id !== id);
+      saveJsonArray(SOCIAL_MESSAGES_FILE, filtered);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ success: false });
+    }
+  });
+
+  // Admin Control: Delete any social group
+  app.delete("/api/admin/social-groups/:groupId", (req: Request, res: Response) => {
+    try {
+      const { groupId } = req.params;
+      const groups = loadJsonArray(SOCIAL_GROUPS_FILE).filter((g) => g.id !== groupId);
+      saveJsonArray(SOCIAL_GROUPS_FILE, groups);
+      const msgs = loadJsonArray(SOCIAL_MESSAGES_FILE).filter((m) => m.groupId !== groupId);
+      saveJsonArray(SOCIAL_MESSAGES_FILE, msgs);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ success: false });
     }
   });
 

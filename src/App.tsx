@@ -52,7 +52,14 @@ import { DailyRashifalModal } from './components/DailyRashifalModal';
 import { PhotoCompressorModal } from './components/PhotoCompressorModal';
 import { calculateLiveVedicPanchang } from './services/festivalPanchangService';
 import { LockedFooterDock } from './components/LockedFooterDock';
+import { ForcePasswordUpdateModal } from './components/ForcePasswordUpdateModal';
+import { SessionSecurityAlertModal } from './components/SessionSecurityAlertModal';
+import { SponsorAddMemberModal } from './components/SponsorAddMemberModal';
+import { PublicProfileModal } from './components/PublicProfileModal';
+import { IoisChatHelpHub } from './components/IoisChatHelpHub';
 import { getAdminUnreadCount, getUserUnreadCount, markChatMessagesAsRead } from './services/notificationService';
+import { fetchSocialBootstrapAsync, getSocialUnreadCache } from './services/socialChatService';
+import { getProfileFrameById } from './data/profileFramesData';
 import { Plan, UserProfile, PageType } from './types';
 import { 
   getCurrentUser, 
@@ -62,10 +69,12 @@ import {
   findUserById,
   getSponsorUserAsync,
   validateSponsorIdAsync,
+  subscribeToSessionValidity,
+  isAdminLoggedIn,
   OFFICIAL_ROOT_SPONSOR_ID,
   OFFICIAL_ROOT_SPONSOR_USER
 } from './services/userService';
-import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus, Share2 } from 'lucide-react';
+import { Sparkles, ArrowLeft, Home, Crown, FileText, GraduationCap, CreditCard, LayoutDashboard, UserPlus, Share2, MessageSquare, Eye } from 'lucide-react';
 import { scrollAppToTop } from './utils/scrollUtils';
 
 const PageFallbackLoader = () => (
@@ -111,12 +120,18 @@ export default function App() {
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'forgot_user_id' | 'forgot_password'>('login');
   const [authModalPrefill, setAuthModalPrefill] = useState<{ identifier?: string; mobile?: string; userId?: string }>({});
 
-  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card, Services, Referral Promotion)
+  // Dedicated Dialog Box Popups (Registration, Dashboard, ID Card, Services, Referral Promotion, Sponsor Onboarding, Public Profile, Security Alert)
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState<boolean>(false);
+  const [dashboardInitialTab, setDashboardInitialTab] = useState<'referral' | 'idcard' | 'chat' | 'iois_chat' | 'posters' | 'marketing' | 'profile' | 'support'>('referral');
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState<boolean>(false);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState<boolean>(false);
   const [isReferralModalOpen, setIsReferralModalOpen] = useState<boolean>(false);
+  const [isSponsorAddMemberOpen, setIsSponsorAddMemberOpen] = useState<boolean>(false);
+  const [sponsorAddInitialPlanId, setSponsorAddInitialPlanId] = useState<number>(1);
+  const [publicProfileTarget, setPublicProfileTarget] = useState<UserProfile | string | null>(null);
+  const [isPublicProfileOpen, setIsPublicProfileOpen] = useState<boolean>(false);
+  const [securityAlertState, setSecurityAlertState] = useState<{ isOpen: boolean; newDevice?: string; newLoginAt?: string }>({ isOpen: false });
 
   // Daily Vedic Panchang & Festival / Rashifal Popups
   const [dailyPanchang] = useState(() => calculateLiveVedicPanchang());
@@ -124,26 +139,33 @@ export default function App() {
   const [isDailyRashifalOpen, setIsDailyRashifalOpen] = useState<boolean>(false);
   const [isPhotoCompressorOpen, setIsPhotoCompressorOpen] = useState<boolean>(false);
 
-  // Festival welcome modal opens via explicit button clicks (e.g. Panchang, Menu, or Festival card)
-  // Automatic home page popup is controlled strictly by the Admin 7-Photo Popup System as requested
-  // ("agar mai photo upload na karu to koi popup na aaye")
-
-  // 3D Universal Notification System State
+  // 3D Universal Notification System State (Includes IOIS CHAT & HELP unread + pending friend requests)
   const [isAppNotificationModalOpen, setIsAppNotificationModalOpen] = useState<boolean>(false);
   const [appUnreadCount, setAppUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     const updateCount = () => {
       if (currentUser) {
-        setAppUnreadCount(getUserUnreadCount(currentUser.userId));
+        const directUnread = getUserUnreadCount(currentUser.userId);
+        const socialCache = getSocialUnreadCache(currentUser.userId);
+        setAppUnreadCount(directUnread + (socialCache.totalUnreadCount || 0) + (socialCache.pendingFriendRequestsCount || 0));
       } else {
         setAppUnreadCount(getAdminUnreadCount());
       }
     };
+    const refreshSocialBadge = async () => {
+      if (currentUser?.userId) {
+        try {
+          await fetchSocialBootstrapAsync(currentUser.userId);
+        } catch {}
+      }
+      updateCount();
+    };
     updateCount();
+    refreshSocialBadge();
     window.addEventListener('iois_notifications_updated', updateCount);
     window.addEventListener('storage', updateCount);
-    const interval = setInterval(updateCount, 4000);
+    const interval = setInterval(refreshSocialBadge, 8000);
     return () => {
       window.removeEventListener('iois_notifications_updated', updateCount);
       window.removeEventListener('storage', updateCount);
@@ -151,17 +173,44 @@ export default function App() {
     };
   }, [currentUser?.userId]);
 
+  // Single-Device Session Security Enforcement: auto-logout + warning modal on new-device login
+  useEffect(() => {
+    if (!currentUser?.userId) return;
+    const unsubscribe = subscribeToSessionValidity(currentUser.userId, ({ newDevice, newLoginAt }) => {
+      logoutUser();
+      setCurrentUser(null);
+      setIsDashboardModalOpen(false);
+      setIsSponsorAddMemberOpen(false);
+      setPopupPage(null);
+      setIsIdCardModalOpen(false);
+      setIsReferralModalOpen(false);
+      setSecurityAlertState({ isOpen: true, newDevice, newLoginAt });
+    });
+    return () => unsubscribe();
+  }, [currentUser?.userId]);
+
   // Sponsor Referral Visitor State & Modal
   const [sponsorReferralId, setSponsorReferralId] = useState<string>('');
   const [sponsorUser, setSponsorUser] = useState<UserProfile | null>(null);
   const [isSponsorModalOpen, setIsSponsorModalOpen] = useState<boolean>(false);
 
-  // Detect ?ref= or ?sponsor= on mount to show sponsor ID card with strict privacy
+  // Detect ?u= / ?profile= OR ?ref= / ?sponsor= on mount
   useEffect(() => {
     let isMounted = true;
-    const checkUrlSponsor = async () => {
+    const checkUrlParams = async () => {
       try {
         const params = new URLSearchParams(window.location.search);
+        const profileHandle = params.get('u') || params.get('profile');
+        if (profileHandle && profileHandle.trim()) {
+          try {
+            await fetchUsersFromServer();
+          } catch {}
+          if (isMounted) {
+            setPublicProfileTarget(profileHandle.trim().replace(/^@/, ''));
+            setIsPublicProfileOpen(true);
+          }
+        }
+
         const ref = params.get('sponsor') || params.get('ref') || params.get('sponsorId');
         if (!ref) return;
 
@@ -174,7 +223,9 @@ export default function App() {
           // Authentic registered sponsor found
           setSponsorReferralId(realSponsor.userId);
           setSponsorUser(realSponsor);
-          setIsSponsorModalOpen(true);
+          if (!getCurrentUser()) {
+            setIsSponsorModalOpen(true);
+          }
         } else {
           // Strictly reject random/fake IDs: default to official root sponsor without fake cards
           setSponsorReferralId(OFFICIAL_ROOT_SPONSOR_ID);
@@ -185,7 +236,7 @@ export default function App() {
       }
     };
 
-    checkUrlSponsor();
+    checkUrlParams();
     return () => {
       isMounted = false;
     };
@@ -219,17 +270,46 @@ export default function App() {
     };
   }, [currentUser?.userId]);
 
+  const handleOpenSponsorAddMember = (planId?: number) => {
+    if (!currentUser) {
+      handleOpenRegister(planId);
+      return;
+    }
+    setSponsorAddInitialPlanId(planId || 1);
+    setIsSponsorAddMemberOpen(true);
+  };
+
+  const handleOpenPublicProfile = (target: UserProfile | string) => {
+    setPublicProfileTarget(target);
+    setIsPublicProfileOpen(true);
+  };
+
+  const handleOpenSocialChatHub = () => {
+    if (!currentUser) {
+      handleOpenLogin('login');
+      return;
+    }
+    setPopupPage('chat-help');
+  };
+
   const navigateTo = (page: PageType) => {
     if (page === 'home') {
       setCurrentPage('home');
       setPopupPage(null);
       scrollAppToTop();
     } else if (page === 'register') {
-      handleOpenRegister();
+      if (currentUser) {
+        handleOpenSponsorAddMember(1);
+      } else {
+        handleOpenRegister();
+      }
     } else if (page === 'dashboard') {
+      setDashboardInitialTab('referral');
       handleOpenDashboard();
     } else if (page === 'idcard') {
       handleOpenIdCard();
+    } else if (page === 'chat-help') {
+      handleOpenSocialChatHub();
     } else {
       // Instantly open page in modal popup window over current view (0ms delay)
       setPopupPage(page);
@@ -245,17 +325,30 @@ export default function App() {
     mode: 'login' | 'forgot_user_id' | 'forgot_password' = 'login',
     prefill?: { identifier?: string; mobile?: string; userId?: string }
   ) => {
+    if (currentUser && mode === 'login') {
+      setDashboardInitialTab('referral');
+      setIsDashboardModalOpen(true);
+      return;
+    }
     setAuthModalInitialMode(mode);
     setAuthModalPrefill(prefill || {});
     setIsAuthModalOpen(true);
   };
 
   const handleOpenRegister = (planId?: number) => {
+    if (currentUser) {
+      handleOpenSponsorAddMember(planId || 1);
+      return;
+    }
     if (planId) setSelectedPlanForRegister(planId);
     setIsRegisterModalOpen(true);
   };
 
   const handleOpenRegisterWithSponsor = (sponsorId: string) => {
+    if (currentUser) {
+      handleOpenSponsorAddMember(1);
+      return;
+    }
     setSponsorReferralId(sponsorId);
     setSelectedPlanForRegister(1);
     setIsRegisterModalOpen(true);
@@ -277,12 +370,14 @@ export default function App() {
     logoutUser();
     setCurrentUser(null);
     setIsDashboardModalOpen(false);
+    setIsSponsorAddMemberOpen(false);
     navigateTo('home');
   };
 
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     setIsAuthModalOpen(false);
+    setDashboardInitialTab('referral');
     // Open the member dashboard dialog box window directly!
     setIsDashboardModalOpen(true);
   };
@@ -290,11 +385,16 @@ export default function App() {
   const handleRegisterSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     setIsRegisterModalOpen(false);
+    setDashboardInitialTab('referral');
     // Open the member dashboard dialog box window directly!
     setIsDashboardModalOpen(true);
   };
 
   const handleSelectPlanForRegister = (planId: number) => {
+    if (currentUser) {
+      handleOpenSponsorAddMember(planId);
+      return;
+    }
     setSelectedPlanForRegister(planId);
     setIsRegisterModalOpen(true);
   };
@@ -326,6 +426,8 @@ export default function App() {
           onOpenServices={() => setIsServicesModalOpen(true)}
           onOpenLogin={() => handleOpenLogin('login')}
           onOpenRegister={() => handleOpenRegister()}
+          onOpenSponsorAddMember={handleOpenSponsorAddMember}
+          onOpenSocialChatHub={handleOpenSocialChatHub}
           onOpenDashboard={handleOpenDashboard}
           onOpenIdCard={handleOpenIdCard}
           onOpenAdminLogin={() => navigateTo('admin')}
@@ -393,57 +495,79 @@ export default function App() {
         {/* ================= PAGE 1: HOME PAGE (Central Dashboard with all section buttons) ================= */}
         {currentPage === 'home' && (
           <div className="space-y-12">
-            {/* If logged in, show quick dashboard notice */}
-            {currentUser && (
-              <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3 text-center sm:text-left">
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden border border-amber-400 shrink-0">
-                    <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+            {/* If logged in, show quick dashboard notice with 3D animated profile frame */}
+            {currentUser && (() => {
+              const homeFrame = getProfileFrameById(currentUser.profileFrameId || 'iois-spinning-orbit-rainbow');
+              return (
+                <div className="p-3.5 sm:p-5 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 text-center sm:text-left">
+                    <div
+                      onClick={() => handleOpenPublicProfile(currentUser)}
+                      className={`p-1 rounded-full cursor-pointer shrink-0 ${homeFrame.cssClass || homeFrame.effectClass}`}
+                      title="अपनी पब्लिक प्रोफाइल देखें"
+                    >
+                      <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-900 bg-slate-900">
+                        <img src={currentUser.photoUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-amber-400 font-bold">सक्रिय लॉगिन सत्र</span>
+                        {currentUser.username && (
+                          <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full">
+                            @{currentUser.username}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm sm:text-lg font-black text-white truncate">{currentUser.fullName} ({currentUser.userId})</h3>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs text-amber-400 font-bold block">सक्रिय लॉगिन सत्र (Active Member):</span>
-                    <h3 className="text-base sm:text-lg font-black text-white">{currentUser.fullName} ({currentUser.userId})</h3>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
-                  <button
-                    onClick={handleOpenDashboard}
-                    className="btn-3d-rainbow-special px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
-                  >
-                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                      <LayoutDashboard className="w-3 h-3 text-black" />
-                    </div>
-                    <span className="text-black font-black whitespace-nowrap">मेरा डैशबोर्ड</span>
-                  </button>
-                  <button
-                    onClick={() => setIsReferralModalOpen(true)}
-                    className="btn-3d-rainbow-special px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
-                    title="Invite & Earn: 50%-70% इंसेंटिव रेफरल लिंक व पोस्टर स्टूडियो"
-                  >
-                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                      <Share2 className="w-3 h-3 text-black" />
-                    </div>
-                    <span className="text-black font-black whitespace-nowrap">Invite & Earn (70%)</span>
-                  </button>
-                  <button
-                    onClick={handleOpenIdCard}
-                    className="btn-3d-rainbow px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  >
-                    <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                      <CreditCard className="w-3 h-3 text-black" />
-                    </div>
-                    <span className="text-black font-black whitespace-nowrap">ID कार्ड</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => {
+                        setDashboardInitialTab('referral');
+                        handleOpenDashboard();
+                      }}
+                      className="btn-3d-rainbow-special px-3 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 text-black shrink-0" />
+                      <span className="text-black font-black">मेरा डैशबोर्ड</span>
+                    </button>
+                    <button
+                      onClick={handleOpenSocialChatHub}
+                      className="btn-3d-gold px-3 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                      <span className="text-slate-950 font-black">IOIS CHAT & HELP</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenSponsorAddMember(1)}
+                      className="btn-3d-silver px-3 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs cursor-pointer shadow-md flex items-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                      <span className="text-slate-950 font-black">नया सदस्य जोड़ें</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenPublicProfile(currentUser)}
+                      className="btn-3d-platinum px-3 py-2 rounded-xl text-[11px] sm:text-xs cursor-pointer flex items-center gap-1 shrink-0 active:scale-95"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                      <span className="text-slate-950 font-black">मेरी प्रोफाइल</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Central Navigation Hub with Live Dual Clocks, Guided Purpose Welcome & Complete IOIS Overview */}
             <HomePageDashboard
+              currentUser={currentUser}
               onNavigate={navigateTo}
               onOpenLogin={() => handleOpenLogin('login')}
               onOpenRegister={handleOpenRegister}
+              onOpenSponsorAddMember={handleOpenSponsorAddMember}
+              onOpenChatHelp={handleOpenSocialChatHub}
               onOpenDashboard={handleOpenDashboard}
               onOpenIdCard={handleOpenIdCard}
               onOpenAiChat={() => {
@@ -470,28 +594,49 @@ export default function App() {
               subtitle="₹10 से ₹999 तक के सभी आधिकारिक प्लांस, 50% से 70% इंसेंटिव व डिजिटल संसाधन"
             />
             <PlansGrid
+              currentUser={currentUser}
               onAskAI={handleOpenChatWithQuery}
               onSelectPlanForRegister={handleSelectPlanForRegister}
+              onOpenSponsorAddMember={handleOpenSponsorAddMember}
             />
           </div>
         )}
 
-        {/* ================= PAGE 3: REGISTRATION PAGE ================= */}
+        {/* ================= PAGE 3: REGISTRATION PAGE (GUEST ONLY) ================= */}
         {currentPage === 'register' && (
-          <div className="space-y-8">
-            <PageHeader
-              currentPage="register"
-              onNavigate={navigateTo}
-              title="नया सदस्य रजिस्ट्रेशन (Member Registration)"
-              subtitle="3 आसान चरणों में पंजीकरण पूर्ण करें और तुरंत डिजिटल ID कार्ड प्राप्त करें"
-            />
-            <RegistrationPortal
-              onRegisterSuccess={handleRegisterSuccess}
-              onOpenLogin={handleOpenLogin}
-              preSelectedPlanId={selectedPlanForRegister}
-              initialSponsorId={sponsorReferralId}
-            />
-          </div>
+          currentUser ? (
+            <div className="space-y-8">
+              <PageHeader
+                currentPage="dashboard"
+                onNavigate={navigateTo}
+                title="सदस्य डैशबोर्ड व स्पॉन्सर नेटवर्क"
+                subtitle="आप पहले से लॉगिन हैं — नीचे से अपने स्पॉन्सर ID के अंतर्गत नया सदस्य जोड़ें"
+              />
+              <UserDashboard
+                user={currentUser}
+                onUserUpdated={(updated) => setCurrentUser(updated)}
+                onLogout={handleLogout}
+                onScrollToCard={() => handleOpenIdCard()}
+                onOpenSponsorAddMember={handleOpenSponsorAddMember}
+                onOpenPublicProfile={handleOpenPublicProfile}
+              />
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <PageHeader
+                currentPage="register"
+                onNavigate={navigateTo}
+                title="नया सदस्य रजिस्ट्रेशन (Member Registration)"
+                subtitle="3 आसान चरणों में पंजीकरण पूर्ण करें और तुरंत डिजिटल ID कार्ड प्राप्त करें"
+              />
+              <RegistrationPortal
+                onRegisterSuccess={handleRegisterSuccess}
+                onOpenLogin={handleOpenLogin}
+                preSelectedPlanId={selectedPlanForRegister}
+                initialSponsorId={sponsorReferralId}
+              />
+            </div>
+          )
         )}
 
         {/* ================= PAGE 4: DIGITAL ID CARD PAGE ================= */}
@@ -601,8 +746,10 @@ export default function App() {
               subtitle="देश-दुनिया की ताजा खबरें, 6 प्रमुख टीवी लाइव स्ट्रीम व डिजिटल समाचार पत्र"
             />
             <LiveNewsPage
+              currentUser={currentUser}
               onNavigate={navigateTo}
               onOpenRegister={handleOpenRegister}
+              onOpenSponsorAddMember={handleOpenSponsorAddMember}
               onOpenAiChat={() => setIsChatOpen(true)}
             />
           </div>
@@ -673,7 +820,11 @@ export default function App() {
               title="लाइव सरकारी व प्राइवेट नौकरी अलर्ट (Jobs & Careers)"
               subtitle="SSC, रेलवे, बैंक, पुलिस की नई भर्तियां और IOIS में वर्क-फ्रॉम-होम डिजिटल इनकम के अवसर"
             />
-            <JobAlertsPage onOpenRegister={() => handleOpenRegister()} />
+            <JobAlertsPage
+              currentUser={currentUser}
+              onOpenRegister={() => handleOpenRegister()}
+              onOpenSponsorAddMember={() => handleOpenSponsorAddMember(1)}
+            />
           </div>
         )}
 
@@ -733,6 +884,8 @@ export default function App() {
                 onUserUpdated={(updated) => setCurrentUser(updated)}
                 onLogout={handleLogout}
                 onScrollToCard={() => handleOpenIdCard()}
+                onOpenSponsorAddMember={handleOpenSponsorAddMember}
+                onOpenPublicProfile={handleOpenPublicProfile}
               />
             ) : (
               <div className="text-center py-16 bg-slate-900/60 rounded-3xl border border-slate-800 space-y-4">
@@ -756,6 +909,22 @@ export default function App() {
           </div>
         )}
 
+        {/* ================= PAGE 10.5: IOIS CHAT & HELP HUB ================= */}
+        {currentPage === 'chat-help' && (
+          <div className="space-y-6">
+            <PageHeader
+              currentPage="chat-help"
+              onNavigate={navigateTo}
+              title="IOIS CHAT & HELP (सोशल नेटवर्किंग व चैट हब)"
+              subtitle="@username से प्रोफाइल खोजें, मित्र जोड़ें, फोटो/वीडियो/लिंक शेयर करें और ग्रुप चैट चलाएं"
+            />
+            <IoisChatHelpHub
+              currentUser={currentUser}
+              onOpenPublicProfile={handleOpenPublicProfile}
+            />
+          </div>
+        )}
+
         {/* ================= PAGE 11: CONTACT & FAQ PAGE ================= */}
         {currentPage === 'contact' && (
           <div className="space-y-8">
@@ -774,6 +943,8 @@ export default function App() {
           <LegalPolicyPages
             initialTab={currentPage as 'about' | 'privacy-policy' | 'terms' | 'disclaimer'}
             onNavigate={navigateTo}
+            currentUser={currentUser}
+            onOpenSponsorAddMember={handleOpenSponsorAddMember}
           />
         )}
 
@@ -781,6 +952,7 @@ export default function App() {
         {currentPage !== 'home' && (
           <QuickPageShortcuts
             currentPage={currentPage}
+            currentUser={currentUser}
             onNavigate={navigateTo}
             onOpenAiChat={() => {
               setChatInitialQuery('');
@@ -788,6 +960,7 @@ export default function App() {
             }}
             onOpenServicesModal={() => setIsServicesModalOpen(true)}
             onOpenRegister={handleOpenRegister}
+            onOpenSponsorAddMember={() => handleOpenSponsorAddMember(1)}
             onOpenIdCard={handleOpenIdCard}
           />
         )}
@@ -802,6 +975,8 @@ export default function App() {
         sponsorId={sponsorReferralId}
         onOpenLogin={handleOpenLogin}
         onOpenRegister={handleOpenRegister}
+        onOpenSponsorAddMember={handleOpenSponsorAddMember}
+        onOpenChatHelp={handleOpenSocialChatHub}
         onOpenDashboard={handleOpenDashboard}
         onOpenIdCard={handleOpenIdCard}
         onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
@@ -816,6 +991,8 @@ export default function App() {
         onNavigate={navigateTo}
         onOpenLogin={handleOpenLogin}
         onOpenRegister={handleOpenRegister}
+        onOpenSponsorAddMember={handleOpenSponsorAddMember}
+        onOpenChatHelp={handleOpenSocialChatHub}
         onOpenDashboard={handleOpenDashboard}
         onOpenIdCard={handleOpenIdCard}
         onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
@@ -897,14 +1074,14 @@ export default function App() {
         currentUser={currentUser}
       />
 
-      {/* 8. Auth Modal (Login / Forgot ID / Forgot Password) */}
+      {/* 8. Auth Modal (Login / Forgot ID / Forgot Password - Guest or Forgot Password recovery) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccessLogin={handleLoginSuccess}
         onSwitchToRegister={() => {
           setIsAuthModalOpen(false);
-          setIsRegisterModalOpen(true);
+          if (!currentUser) setIsRegisterModalOpen(true);
         }}
         onSelectPlanAndRegister={(planId) => {
           setIsAuthModalOpen(false);
@@ -916,18 +1093,20 @@ export default function App() {
         initialUserId={authModalPrefill.userId}
       />
 
-      {/* 9. Dedicated Registration Pop-Up Dialog Box Modal */}
-      <RegistrationModal
-        isOpen={isRegisterModalOpen}
-        onClose={() => setIsRegisterModalOpen(false)}
-        onRegisterSuccess={handleRegisterSuccess}
-        onOpenLogin={(mode, prefill) => {
-          setIsRegisterModalOpen(false);
-          handleOpenLogin(mode || 'login', prefill);
-        }}
-        initialPlanId={selectedPlanForRegister}
-        initialSponsorId={sponsorReferralId}
-      />
+      {/* 9. Dedicated Registration Pop-Up Dialog Box Modal (Guest Only) */}
+      {!currentUser && (
+        <RegistrationModal
+          isOpen={isRegisterModalOpen}
+          onClose={() => setIsRegisterModalOpen(false)}
+          onRegisterSuccess={handleRegisterSuccess}
+          onOpenLogin={(mode, prefill) => {
+            setIsRegisterModalOpen(false);
+            handleOpenLogin(mode || 'login', prefill);
+          }}
+          initialPlanId={selectedPlanForRegister}
+          initialSponsorId={sponsorReferralId}
+        />
+      )}
 
       {/* 9.5 Dedicated Sponsor Privacy-Protected ID Card Visitor Modal */}
       <SponsorCardModal
@@ -950,6 +1129,9 @@ export default function App() {
           setIsDashboardModalOpen(false);
           handleOpenLogin('login');
         }}
+        onOpenSponsorAddMember={handleOpenSponsorAddMember}
+        onOpenPublicProfile={handleOpenPublicProfile}
+        initialDashboardTab={dashboardInitialTab}
       />
 
       {/* 11. Dedicated Digital ID Card Pop-Up Dialog Box Modal */}
@@ -972,6 +1154,7 @@ export default function App() {
         isOpen={isServicesModalOpen}
         onClose={() => setIsServicesModalOpen(false)}
         currentPage={currentPage}
+        currentUser={currentUser}
         onNavigate={navigateTo}
         onOpenAiChat={() => {
           setIsServicesModalOpen(false);
@@ -1018,6 +1201,11 @@ export default function App() {
             if (sponsorId) setSponsorReferralId(sponsorId);
             handleOpenRegister(planId);
           }}
+          onOpenSponsorAddMember={(planId) => {
+            setPopupPage(null);
+            handleOpenSponsorAddMember(planId);
+          }}
+          onOpenPublicProfile={handleOpenPublicProfile}
           onOpenDashboard={() => {
             setPopupPage(null);
             handleOpenDashboard();
@@ -1040,7 +1228,7 @@ export default function App() {
         />
       )}
 
-      {/* 15. Universal 3D Notification Modal (Direct Chat Reply) */}
+      {/* 15. Universal 3D Notification Modal (Direct Reply & IOIS CHAT & HELP Breakdown) */}
       <NotificationModal
         isOpen={isAppNotificationModalOpen}
         onClose={() => setIsAppNotificationModalOpen(false)}
@@ -1050,9 +1238,19 @@ export default function App() {
         onOpenChat={(targetUserId) => {
           setIsAppNotificationModalOpen(false);
           if (currentUser) {
+            setDashboardInitialTab('chat');
             handleOpenDashboard();
           } else {
             navigateTo('admin');
+          }
+        }}
+        onOpenSocialChat={() => {
+          setIsAppNotificationModalOpen(false);
+          if (currentUser) {
+            setDashboardInitialTab('iois_chat');
+            setIsDashboardModalOpen(true);
+          } else {
+            handleOpenLogin('login');
           }
         }}
       />
@@ -1091,6 +1289,59 @@ export default function App() {
       <PhotoCompressorModal
         isOpen={isPhotoCompressorOpen}
         onClose={() => setIsPhotoCompressorOpen(false)}
+      />
+
+      {/* 19. Sponsor-Assisted New Member Joining Modal (Keeps Sponsor Logged In) */}
+      {currentUser && (
+        <SponsorAddMemberModal
+          isOpen={isSponsorAddMemberOpen}
+          sponsorUser={currentUser}
+          initialPlanId={sponsorAddInitialPlanId}
+          onClose={() => setIsSponsorAddMemberOpen(false)}
+        />
+      )}
+
+      {/* 20. Mandatory First-Login Password Update Modal (Locks Sponsor Out of New Member's Account) */}
+      {currentUser && currentUser.mustChangePassword && !isAdminLoggedIn() && (
+        <ForcePasswordUpdateModal
+          user={currentUser}
+          onUpdated={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            persistCurrentUser(updatedUser);
+          }}
+        />
+      )}
+
+      {/* 21. Multi-Device Security Logout Warning Modal */}
+      <SessionSecurityAlertModal
+        isOpen={securityAlertState.isOpen}
+        newDevice={securityAlertState.newDevice}
+        newLoginAt={securityAlertState.newLoginAt}
+        onClose={() => setSecurityAlertState({ isOpen: false })}
+        onChangePassword={() => {
+          setSecurityAlertState({ isOpen: false });
+          handleOpenLogin('forgot_password');
+        }}
+      />
+
+      {/* 22. Member Public Profile Modal (?u=username / Visitor Counter / Likes / Friend Request / Chat) */}
+      <PublicProfileModal
+        isOpen={isPublicProfileOpen}
+        targetUserOrHandle={publicProfileTarget}
+        currentUser={currentUser}
+        onClose={() => {
+          setIsPublicProfileOpen(false);
+          setPublicProfileTarget(null);
+        }}
+        onStartChat={() => {
+          setIsPublicProfileOpen(false);
+          if (currentUser) {
+            setDashboardInitialTab('iois_chat');
+            setIsDashboardModalOpen(true);
+          } else {
+            handleOpenLogin('login');
+          }
+        }}
       />
     </div>
   );

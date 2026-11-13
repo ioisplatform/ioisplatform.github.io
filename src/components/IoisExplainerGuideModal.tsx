@@ -21,21 +21,26 @@ import {
   Star
 } from 'lucide-react';
 import { PLANS, OFFICIAL_TELEGRAM_URL } from '../data/plansData';
+import { UserProfile } from '../types';
 
 interface IoisExplainerGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentUser?: UserProfile | null;
   onSelectPlanForRegister?: (planId: number) => void;
   onNavigateToPlans?: () => void;
   onOpenRegister?: () => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
 }
 
 export const IoisExplainerGuideModal: React.FC<IoisExplainerGuideModalProps> = ({
   isOpen,
   onClose,
+  currentUser,
   onSelectPlanForRegister,
   onNavigateToPlans,
-  onOpenRegister
+  onOpenRegister,
+  onOpenSponsorAddMember
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'what' | 'how' | 'why' | 'inside' | 'plans' | 'best'>('all');
 
@@ -313,12 +318,13 @@ export const IoisExplainerGuideModal: React.FC<IoisExplainerGuideModalProps> = (
                         type="button"
                         onClick={() => {
                           onClose();
-                          if (onSelectPlanForRegister) onSelectPlanForRegister(plan.id);
+                          if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(plan.id);
+                          else if (onSelectPlanForRegister) onSelectPlanForRegister(plan.id);
                           else if (onOpenRegister) onOpenRegister();
                         }}
                         className="btn-3d-rainbow text-black font-black text-[10px] px-2.5 py-1 rounded-lg cursor-pointer shrink-0"
                       >
-                        प्लान चुनें ➔
+                        {currentUser ? 'स्पॉन्सर से जोड़ें ➔' : 'प्लान चुनें ➔'}
                       </button>
                     </div>
                   </div>
@@ -395,12 +401,13 @@ export const IoisExplainerGuideModal: React.FC<IoisExplainerGuideModalProps> = (
                       type="button"
                       onClick={() => {
                         onClose();
-                        if (onSelectPlanForRegister) onSelectPlanForRegister(7);
+                        if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(7);
+                        else if (onSelectPlanForRegister) onSelectPlanForRegister(7);
                         else if (onOpenRegister) onOpenRegister();
                       }}
                       className="btn-3d-rainbow-special px-4 py-2 rounded-xl text-black font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95"
                     >
-                      <span>Plan 07 (₹999) अभी एक्टिवेट करें</span>
+                      <span>{currentUser ? 'अपने स्पॉन्सर से Plan 07 जोड़ें' : 'Plan 07 (₹999) अभी एक्टिवेट करें'}</span>
                       <ArrowRight className="w-3.5 h-3.5 text-black" />
                     </button>
                   </div>
@@ -442,11 +449,12 @@ export const IoisExplainerGuideModal: React.FC<IoisExplainerGuideModalProps> = (
               type="button"
               onClick={() => {
                 onClose();
-                if (onOpenRegister) onOpenRegister();
+                if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(1);
+                else if (onOpenRegister) onOpenRegister();
               }}
               className="btn-3d-rainbow-special w-full sm:w-auto px-5 py-2 rounded-xl text-xs font-black text-black cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-1.5"
             >
-              <span>रजिस्ट्रेशन / Join Now</span>
+              <span>{currentUser ? 'अपने स्पॉन्सर से सदस्य जोड़ें' : 'रजिस्ट्रेशन / Join Now'}</span>
               <ArrowRight className="w-3.5 h-3.5 text-black" />
             </button>
           </div>

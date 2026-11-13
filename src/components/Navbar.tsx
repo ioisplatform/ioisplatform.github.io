@@ -33,7 +33,8 @@ import {
   Play,
   Pause,
   Image as ImageIcon,
-  CheckCircle2
+  CheckCircle2,
+  MessageCircle
 } from 'lucide-react';
 import { MultiHeaderPopupNav } from './MultiHeaderPopupNav';
 import { scrollAppToTop } from '../utils/scrollUtils';
@@ -43,8 +44,11 @@ interface NavbarProps {
   currentPage: PageType;
   onNavigate: (page: PageType) => void;
   onOpenChat: () => void;
+  onOpenServices?: () => void;
   onOpenLogin: () => void;
   onOpenRegister?: () => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenSocialChatHub?: () => void;
   onOpenDashboard?: () => void;
   onOpenIdCard?: () => void;
   onOpenAdminLogin?: () => void;
@@ -65,9 +69,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   currentPage,
   onNavigate,
-  onOpenChat, 
+  onOpenChat,
+  onOpenServices,
   onOpenLogin,
   onOpenRegister,
+  onOpenSponsorAddMember,
+  onOpenSocialChatHub,
   onOpenDashboard,
   onOpenIdCard,
   onOpenAdminLogin,
@@ -122,6 +129,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Full list of 17+ services inside "More" Popup
   const allServicesList = [
+    {
+      id: 'chat-help' as PageType,
+      label: 'IOIS CHAT & HELP',
+      desc: 'सदस्य चैट, ग्रुप, फोटो-वीडियो व प्रोफाइल',
+      icon: MessageCircle,
+      color: 'text-emerald-400',
+      badge: 'लाइव सोशल',
+      action: () => {
+        setIsMoreMenuOpen(false);
+        if (onOpenSocialChatHub) onOpenSocialChatHub();
+        else handleNavOrPopup('chat-help');
+      }
+    },
     {
       id: 'panchang-rashifal' as PageType,
       label: 'पंचांग व मुहूर्त',
@@ -522,20 +542,36 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* BUTTON 3: JOIN NOW (ज्वाइन करें) */}
-              <button
-                id="header-btn-join"
-                type="button"
-                onClick={() => {
-                  if (onOpenRegister) onOpenRegister();
-                  else onNavigate('register');
-                }}
-                className="btn-3d-rainbow-special h-9 min-h-[36px] px-1.5 sm:px-3 rounded-xl font-black text-[10px] sm:text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-black truncate"
-                title="नया सदस्य रजिस्ट्रेशन करें (Join Now)"
-              >
-                <UserPlus className="w-3.5 h-3.5 text-black shrink-0" />
-                <span className="truncate">Join Now</span>
-              </button>
+              {/* BUTTON 3: JOIN NOW (GUEST ONLY) OR SPONSOR ADD MEMBER (LOGGED IN) */}
+              {currentUser ? (
+                <button
+                  id="header-btn-sponsor-add"
+                  type="button"
+                  onClick={() => {
+                    if (onOpenSponsorAddMember) onOpenSponsorAddMember(1);
+                    else if (onOpenSocialChatHub) onOpenSocialChatHub();
+                  }}
+                  className="btn-3d-rainbow-special h-9 min-h-[36px] px-1.5 sm:px-3 rounded-xl font-black text-[10px] sm:text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-black truncate"
+                  title="अपने स्पॉन्सर ID से नया सदस्य जोड़ें"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-black shrink-0" />
+                  <span className="truncate">सदस्य जोड़ें</span>
+                </button>
+              ) : (
+                <button
+                  id="header-btn-join"
+                  type="button"
+                  onClick={() => {
+                    if (onOpenRegister) onOpenRegister();
+                    else onNavigate('register');
+                  }}
+                  className="btn-3d-rainbow-special h-9 min-h-[36px] px-1.5 sm:px-3 rounded-xl font-black text-[10px] sm:text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-black truncate"
+                  title="नया सदस्य रजिस्ट्रेशन करें (Join Now)"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-black shrink-0" />
+                  <span className="truncate">Join Now</span>
+                </button>
+              )}
 
               {/* BUTTON 4: MORE BUTTON (और देखें / सभी 17+ सेवाएं व पॉपअप) */}
               <button
@@ -623,27 +659,57 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      if (onOpenRegister) onOpenRegister();
-                      else onNavigate('register');
-                    }}
-                    className="btn-3d-rainbow-special px-3 py-1.5 rounded-xl text-xs font-black text-black cursor-pointer shadow-sm active:scale-95"
-                  >
-                    नया रजिस्ट्रेशन
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      onOpenLogin();
-                    }}
-                    className="btn-3d-silver px-3 py-1.5 rounded-xl text-xs font-black text-slate-950 cursor-pointer shadow-sm active:scale-95"
-                  >
-                    सदस्य लॉगिन
-                  </button>
+                  {currentUser ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          if (onOpenSponsorAddMember) onOpenSponsorAddMember(1);
+                        }}
+                        className="btn-3d-rainbow-special px-3 py-1.5 rounded-xl text-xs font-black text-black cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+                      >
+                        <UserPlus className="w-3.5 h-3.5 text-black" />
+                        <span>अपने स्पॉन्सर से जोड़ें</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          if (onOpenSocialChatHub) onOpenSocialChatHub();
+                          else handleNavOrPopup('chat-help');
+                        }}
+                        className="btn-3d-gold px-3 py-1.5 rounded-xl text-xs font-black text-slate-950 cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-slate-950" />
+                        <span>IOIS CHAT & HELP</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          if (onOpenRegister) onOpenRegister();
+                          else onNavigate('register');
+                        }}
+                        className="btn-3d-rainbow-special px-3 py-1.5 rounded-xl text-xs font-black text-black cursor-pointer shadow-sm active:scale-95"
+                      >
+                        नया रजिस्ट्रेशन
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          onOpenLogin();
+                        }}
+                        className="btn-3d-silver px-3 py-1.5 rounded-xl text-xs font-black text-slate-950 cursor-pointer shadow-sm active:scale-95"
+                      >
+                        सदस्य लॉगिन
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -653,7 +719,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="btn-3d-rainbow px-3 py-1.5 rounded-xl text-xs font-black text-black cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
                   >
                     <Sparkles className="w-3 h-3 text-black" />
-                    <span>IOIS हेल्प चैट</span>
+                    <span>IOIS AI चैट</span>
                   </button>
                 </div>
               </div>

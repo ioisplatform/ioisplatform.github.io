@@ -57,7 +57,7 @@ export const IdCardModal: React.FC<IdCardModalProps> = ({
             currentUser={user}
             targetUser={user ? undefined : OFFICIAL_ROOT_SPONSOR_USER}
             isSponsorPreview={!user}
-            onOpenRegister={onOpenRegister}
+            onOpenRegister={user ? undefined : onOpenRegister}
             isModalMode={true}
           />
         </div>

@@ -6,9 +6,11 @@ import {
   getAllUsers 
 } from './userService';
 
+import { getSocialUnreadCache } from './socialChatService';
+
 export interface AppNotificationItem {
   id: string;
-  type: 'private_chat' | 'ticket' | 'approval';
+  type: 'private_chat' | 'ticket' | 'approval' | 'social_chat' | 'friend_request';
   userId: string;
   userName: string;
   title: string;
@@ -17,6 +19,9 @@ export interface AppNotificationItem {
   read: boolean;
   linkAction?: string;
   avatarUrl?: string;
+  threadId?: string;
+  threadType?: 'dm' | 'group';
+  unreadCount?: number;
 }
 
 const STORAGE_TICKETS_KEY = 'iois_helpdesk_tickets_v1';
@@ -88,7 +93,7 @@ export const getAdminUnreadCount = (): number => {
 };
 
 /**
- * Get all unread notifications for a specific logged-in user
+ * Get all unread notifications for a specific logged-in user (Admin Support + IOIS CHAT & HELP + Friend Requests)
  */
 export const getUserNotifications = (userId: string): AppNotificationItem[] => {
   if (!userId) return [];
@@ -96,6 +101,7 @@ export const getUserNotifications = (userId: string): AppNotificationItem[] => {
   const msgs = getLocalPrivateChatMessages(cleanId);
   const notifications: AppNotificationItem[] = [];
 
+  // 1. Admin Direct Support Messages
   msgs.forEach((m) => {
     if (m.sender === 'admin' && !m.read) {
       notifications.push({
@@ -111,16 +117,53 @@ export const getUserNotifications = (userId: string): AppNotificationItem[] => {
     }
   });
 
+  // 2. IOIS CHAT & HELP Unread Messages (grouped per sender or group with exact message count)
+  const socialCache = getSocialUnreadCache(cleanId);
+  (socialCache.unreadSummaries || []).forEach((s) => {
+    notifications.push({
+      id: `social-${s.threadId}`,
+      type: 'social_chat',
+      userId: s.senderId,
+      userName: s.senderName,
+      title: `💬 ${s.groupName ? `${s.groupName} (${s.senderName})` : s.senderName}${s.senderUsername ? ` (@${s.senderUsername})` : ''} — ${s.unreadCount} नया संदेश`,
+      message: s.lastMessage,
+      createdAt: s.lastMessageAt,
+      read: false,
+      avatarUrl: s.senderPhoto,
+      threadId: s.threadId,
+      threadType: s.threadType,
+      unreadCount: s.unreadCount,
+    });
+  });
+
+  // 3. Incoming Pending Friend Requests
+  if (socialCache.pendingFriendRequestsCount > 0) {
+    notifications.push({
+      id: `fr-pending-${cleanId}`,
+      type: 'friend_request',
+      userId: cleanId,
+      userName: 'IOIS CHAT & HELP',
+      title: `🤝 ${socialCache.pendingFriendRequestsCount} नया फ्रेंड रिक्वेस्ट आया है`,
+      message: 'IOIS CHAT & HELP में जाकर फ्रेंड रिक्वेस्ट स्वीकार करें या प्रोफाइल देखें।',
+      createdAt: socialCache.updatedAt || new Date().toISOString(),
+      read: false,
+      unreadCount: socialCache.pendingFriendRequestsCount,
+    });
+  }
+
   notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return notifications;
 };
 
 /**
- * Get unread message count for a specific user
+ * Get unread message count for a specific user (Admin messages + IOIS CHAT & HELP unread count + pending friend requests)
  */
 export const getUserUnreadCount = (userId: string): number => {
   if (!userId) return 0;
-  return getUserNotifications(userId).length;
+  const cleanId = userId.trim().toUpperCase();
+  const adminUnread = getLocalPrivateChatMessages(cleanId).filter((m) => m.sender === 'admin' && !m.read).length;
+  const socialCache = getSocialUnreadCache(cleanId);
+  return adminUnread + (socialCache.totalUnreadCount || 0) + (socialCache.pendingFriendRequestsCount || 0);
 };
 
 /**

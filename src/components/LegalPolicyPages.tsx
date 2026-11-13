@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 import { 
   ShieldCheck, 
   Lock, 
@@ -24,12 +24,16 @@ interface LegalPolicyPagesProps {
   initialTab?: 'privacy-policy' | 'terms' | 'disclaimer' | 'about' | 'services';
   activeTab?: 'privacy-policy' | 'terms' | 'disclaimer' | 'about' | 'services';
   onNavigate?: (page: PageType) => void;
+  currentUser?: UserProfile | null;
+  onOpenSponsorAddMember?: (planId?: number) => void;
 }
 
 export const LegalPolicyPages: React.FC<LegalPolicyPagesProps> = ({
   initialTab = 'privacy-policy',
   activeTab: controlledTab,
   onNavigate = (_page?: PageType) => {},
+  currentUser,
+  onOpenSponsorAddMember,
 }) => {
   const [internalTab, setInternalTab] = useState<'privacy-policy' | 'terms' | 'disclaimer' | 'about' | 'services'>(controlledTab || initialTab);
   const activeTab = controlledTab || internalTab;
@@ -85,13 +89,23 @@ export const LegalPolicyPages: React.FC<LegalPolicyPagesProps> = ({
           >
             संपर्क व FAQ
           </button>
-          <button
-            onClick={() => onNavigate('register')}
-            className="btn-gold-gradient px-4 py-1.5 text-xs font-black rounded-full flex items-center gap-1.5 shadow-md cursor-pointer"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Join Now</span>
-          </button>
+          {currentUser ? (
+            <button
+              onClick={() => onOpenSponsorAddMember?.(1)}
+              className="btn-gold-gradient px-4 py-1.5 text-xs font-black rounded-full flex items-center gap-1.5 shadow-md cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>सदस्य जोड़ें</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onNavigate('register')}
+              className="btn-gold-gradient px-4 py-1.5 text-xs font-black rounded-full flex items-center gap-1.5 shadow-md cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Join Now</span>
+            </button>
+          )}
         </div>
       </div>
 

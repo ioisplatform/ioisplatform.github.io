@@ -5,7 +5,7 @@ import {
   E_NEWSPAPERS_LIST,
   fetchLiveNewsArticles 
 } from '../services/liveUtilityService';
-import { NewsChannel, NewsArticle, PageType, TickerSpeed } from '../types';
+import { NewsChannel, NewsArticle, PageType, TickerSpeed, UserProfile } from '../types';
 import { 
   Tv, 
   Radio as RadioIcon, 
@@ -192,12 +192,16 @@ interface LiveNewsPageProps {
   onNavigate?: (page: PageType) => void;
   onOpenRegister?: (planId?: number) => void;
   onOpenAiChat?: () => void;
+  currentUser?: UserProfile | null;
+  onOpenSponsorAddMember?: (planId?: number) => void;
 }
 
 export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
   onNavigate,
   onOpenRegister,
-  onOpenAiChat
+  onOpenAiChat,
+  currentUser,
+  onOpenSponsorAddMember,
 }) => {
   const [selectedChannel, setSelectedChannel] = useState<NewsChannel>(LIVE_NEWS_CHANNELS[0]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -704,16 +708,21 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
                     </div>
                   </div>
 
-                  {/* Register / Select Button */}
+                  {/* Register / Sponsor Add Member Button */}
                   <div className="pt-2">
                     <button
                       onClick={() => {
-                        if (onOpenRegister) onOpenRegister(p.planId);
-                        else if (onNavigate) onNavigate('plans');
+                        if (currentUser) {
+                          if (onOpenSponsorAddMember) onOpenSponsorAddMember(p.planId);
+                          else if (onNavigate) onNavigate('dashboard');
+                        } else {
+                          if (onOpenRegister) onOpenRegister(p.planId);
+                          else if (onNavigate) onNavigate('plans');
+                        }
                       }}
                       className="w-full btn-3d-gold py-2.5 rounded-xl text-xs font-black cursor-pointer flex items-center justify-center gap-2 shadow-md"
                     >
-                      <span>यह प्लान चुनें ({p.cost})</span>
+                      <span>{currentUser ? `अपने स्पॉन्सर से जोड़ें (${p.cost})` : `यह प्लान चुनें (${p.cost})`}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>

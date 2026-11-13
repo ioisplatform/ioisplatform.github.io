@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
 import { HomePopupPhoto, getStoredHomePopupPhotos } from '../data/homePopupData';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 
 interface AdminHomePhotoPopupProps {
+  currentUser?: UserProfile | null;
   onNavigate: (page: PageType) => void;
   onOpenRegister?: (planId?: number) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
   onOpenIdCard?: () => void;
   forceShowForPreview?: boolean;
 }
 
 export const AdminHomePhotoPopup: React.FC<AdminHomePhotoPopupProps> = ({
+  currentUser,
   onNavigate,
   onOpenRegister,
+  onOpenSponsorAddMember,
   onOpenIdCard,
   forceShowForPreview = false,
 }) => {
@@ -89,8 +93,13 @@ export const AdminHomePhotoPopup: React.FC<AdminHomePhotoPopupProps> = ({
   const handleCtaClick = () => {
     handleClose();
     if (currentPhoto.actionType === 'register') {
-      if (onOpenRegister) onOpenRegister(currentPhoto.actionPlanId || 1);
-      else onNavigate('register');
+      if (currentUser && onOpenSponsorAddMember) {
+        onOpenSponsorAddMember(currentPhoto.actionPlanId || 1);
+      } else if (onOpenRegister) {
+        onOpenRegister(currentPhoto.actionPlanId || 1);
+      } else {
+        onNavigate('register');
+      }
     } else if (currentPhoto.actionType === 'plans') {
       onNavigate('plans');
     } else if (currentPhoto.actionType === 'idcard') {
@@ -246,7 +255,11 @@ export const AdminHomePhotoPopup: React.FC<AdminHomePhotoPopupProps> = ({
                   className="btn-3d-rainbow-special px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black text-black shadow-md flex items-center gap-1.5 active:scale-95 transition cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-black animate-pulse" />
-                  <span>{currentPhoto.actionText || 'अभी देखें'}</span>
+                  <span>
+                    {currentUser && currentPhoto.actionType === 'register'
+                      ? 'अपने स्पॉन्सर से जोड़ें'
+                      : (currentPhoto.actionText || 'अभी देखें')}
+                  </span>
                   <ArrowRight className="w-3.5 h-3.5 text-black" />
                 </button>
               )}

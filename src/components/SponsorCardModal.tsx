@@ -163,18 +163,20 @@ export const SponsorCardModal: React.FC<SponsorCardModalProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onOpenRegisterWithSponsor(sponsorId);
-            }}
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>इस स्पॉन्सर के साथ अभी रजिस्टर करें</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          {!currentUser && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenRegisterWithSponsor(sponsorId);
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] transition cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>इस स्पॉन्सर के साथ अभी रजिस्टर करें</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
       </div>

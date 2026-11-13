@@ -73,6 +73,18 @@ export interface UserProfile {
   registrationFormData?: Record<string, any>;
   privacySettings?: UserPrivacySettings;
   profileFrameId?: string;
+  // Single-device security & sponsor-assisted onboarding
+  mustChangePassword?: boolean;
+  registeredBySponsorId?: string;
+  activeSessionToken?: string;
+  lastLoginDevice?: string;
+  lastLoginAt?: string;
+  // IOIS CHAT & HELP social profile fields
+  bio?: string;
+  coverUrl?: string;
+  profileViews?: number;
+  profileLikes?: string[];
+  friends?: string[];
 }
 
 export interface AdminPrivateMessage {
@@ -148,11 +160,77 @@ export type PageType =
   | 'photo-compressor'
   | 'admin' 
   | 'dashboard' 
+  | 'chat-help'
   | 'contact'
   | 'about'
   | 'privacy-policy'
   | 'terms'
   | 'disclaimer';
+
+export interface SocialChatMessage {
+  id: string;
+  threadType: 'dm' | 'group';
+  threadId: string; // 'dm:UID1__UID2' (sorted uppercase) or 'group:GRP-...'
+  senderId: string;
+  senderName: string;
+  senderUsername?: string;
+  senderPhoto?: string;
+  recipientId?: string;
+  groupId?: string;
+  text: string;
+  mediaType?: 'image' | 'video' | 'link' | 'file';
+  mediaUrl?: string;
+  linkUrl?: string;
+  linkTitle?: string;
+  createdAt: string;
+  readBy: string[];
+}
+
+export interface SocialGroup {
+  id: string;
+  name: string;
+  description?: string;
+  avatarUrl?: string;
+  createdBy: string;
+  adminIds: string[];
+  memberIds: string[];
+  createdAt: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUserName?: string;
+  fromUserUsername?: string;
+  fromUserPhotoUrl?: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ProfileVisitLog {
+  id: string;
+  targetUserId: string;
+  visitorUserId: string;
+  visitorName?: string;
+  visitorUsername?: string;
+  visitorPhotoUrl?: string;
+  visitedAt: string;
+}
+
+export interface SocialSenderUnreadSummary {
+  threadId: string;
+  threadType: 'dm' | 'group';
+  senderId: string;
+  senderName: string;
+  senderUsername?: string;
+  senderPhoto?: string;
+  groupName?: string;
+  unreadCount: number;
+  lastMessage: string;
+  lastMessageAt: string;
+}
 
 export interface CommunityMessage {
   id: string;

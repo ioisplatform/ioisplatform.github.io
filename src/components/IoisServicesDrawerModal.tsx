@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 import { scrollAppToTop } from '../utils/scrollUtils';
 import { 
   X, 
@@ -24,13 +24,15 @@ import {
   Sparkles, 
   ChevronRight, 
   Home,
-  CheckCircle2
+  CheckCircle2,
+  MessageCircle
 } from 'lucide-react';
 
 interface IoisServicesDrawerModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPage: PageType;
+  currentUser?: UserProfile | null;
   onNavigate: (page: PageType) => void;
   onOpenAiChat: () => void;
 }
@@ -39,6 +41,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
   isOpen,
   onClose,
   currentPage,
+  currentUser,
   onNavigate,
   onOpenAiChat,
 }) => {
@@ -111,6 +114,18 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
       keywords: 'plans 7 master plan 70 percent incentive earning income ₹10 ₹999',
     },
     {
+      id: 'chat-help' as PageType,
+      category: 'income',
+      title: 'IOIS CHAT & HELP',
+      subtitle: 'मित्र अनुरोध, 1:1 स्पॉन्सर चैट, ग्रुप चैट, फोटो-वीडियो-लिंक शेयरिंग व प्रोफाइल',
+      badge: 'सोशल नेटवर्क',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      icon: MessageCircle,
+      iconColor: 'text-emerald-400',
+      gradientBg: 'from-emerald-500 to-teal-500',
+      keywords: 'chat help social group friend sponsor photo video profile username',
+    },
+    ...(currentUser ? [] : [{
       id: 'register' as PageType,
       category: 'income',
       title: 'नया सदस्य रजिस्ट्रेशन',
@@ -121,7 +136,7 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
       iconColor: 'text-emerald-400',
       gradientBg: 'from-emerald-500 to-green-600',
       keywords: 'register signup account proof upload payment join',
-    },
+    }]),
     {
       id: 'idcard' as PageType,
       category: 'income',

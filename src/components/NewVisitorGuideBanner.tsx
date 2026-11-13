@@ -19,9 +19,10 @@ import {
   Compass,
   FileText
 } from 'lucide-react';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 
 interface NewVisitorGuideBannerProps {
+  currentUser?: UserProfile | null;
   onNavigate: (page: PageType) => void;
   onOpenRegister?: (planId?: number) => void;
   onOpenLogin: () => void;
@@ -30,6 +31,7 @@ interface NewVisitorGuideBannerProps {
 }
 
 export const NewVisitorGuideBanner: React.FC<NewVisitorGuideBannerProps> = ({
+  currentUser,
   onNavigate,
   onOpenRegister,
   onOpenLogin,
@@ -39,6 +41,8 @@ export const NewVisitorGuideBanner: React.FC<NewVisitorGuideBannerProps> = ({
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [isPhotoGuideModalOpen, setIsPhotoGuideModalOpen] = useState<boolean>(false);
   const [activePhotoStep, setActivePhotoStep] = useState<number>(1);
+
+  if (currentUser) return null;
 
   return (
     <>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LIVE_JOB_ALERTS } from '../services/liveUtilityService';
-import { JobAlert, PageType } from '../types';
+import { JobAlert, PageType, UserProfile } from '../types';
 import { 
   Briefcase, 
   Building2, 
@@ -18,10 +18,16 @@ import {
 } from 'lucide-react';
 
 interface JobAlertsPageProps {
-  onOpenRegister: () => void;
+  currentUser?: UserProfile | null;
+  onOpenRegister?: () => void;
+  onOpenSponsorAddMember?: () => void;
 }
 
-export const JobAlertsPage: React.FC<JobAlertsPageProps> = ({ onOpenRegister }) => {
+export const JobAlertsPage: React.FC<JobAlertsPageProps> = ({
+  currentUser,
+  onOpenRegister,
+  onOpenSponsorAddMember,
+}) => {
   const [filterType, setFilterType] = useState<'all' | 'govt' | 'iois'>('all');
 
   const filteredJobs = LIVE_JOB_ALERTS.filter((j) => {
@@ -101,10 +107,13 @@ export const JobAlertsPage: React.FC<JobAlertsPageProps> = ({ onOpenRegister }) 
         </div>
 
         <button
-          onClick={onOpenRegister}
+          onClick={() => {
+            if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember();
+            else onOpenRegister?.();
+          }}
           className="px-6 py-3.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs sm:text-sm hover:from-amber-300 transition shadow-xl shrink-0 cursor-pointer transform hover:scale-105 active:scale-95"
         >
-          तुरंत रजिस्ट्रेशन करें →
+          {currentUser ? 'अपने स्पॉन्सर से नया सदस्य जोड़ें →' : 'तुरंत रजिस्ट्रेशन करें →'}
         </button>
       </div>
 
@@ -167,10 +176,13 @@ export const JobAlertsPage: React.FC<JobAlertsPageProps> = ({ onOpenRegister }) 
             <div className="pt-2 border-t border-slate-800">
               {job.type === 'iois' ? (
                 <button
-                  onClick={onOpenRegister}
+                  onClick={() => {
+                    if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember();
+                    else onOpenRegister?.();
+                  }}
                   className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
                 >
-                  <span>IOIS इन-ऐप रजिस्ट्रेशन करें</span>
+                  <span>{currentUser ? 'अपने स्पॉन्सर से सदस्य जोड़ें' : 'IOIS इन-ऐप रजिस्ट्रेशन करें'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               ) : (

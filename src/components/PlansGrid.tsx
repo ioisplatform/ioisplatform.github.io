@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PLANS, OFFICIAL_TELEGRAM_URL } from '../data/plansData';
-import { Plan } from '../types';
+import { Plan, UserProfile } from '../types';
 import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
 import { 
   Check, 
@@ -29,11 +29,18 @@ import {
 } from 'lucide-react';
 
 interface PlansGridProps {
+  currentUser?: UserProfile | null;
   onAskAI: (question: string) => void;
   onSelectPlanForRegister?: (planId: number) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
 }
 
-export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRegister }) => {
+export const PlansGrid: React.FC<PlansGridProps> = ({
+  currentUser,
+  onAskAI,
+  onSelectPlanForRegister,
+  onOpenSponsorAddMember,
+}) => {
   const [filter, setFilter] = useState<'all' | 'starter' | 'pro' | 'master'>('all');
   const [isExplainerModalOpen, setIsExplainerModalOpen] = useState<boolean>(false);
   
@@ -242,11 +249,16 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
 
               <button
                 type="button"
-                onClick={() => onSelectPlanForRegister?.(planA.id)}
+                onClick={() => {
+                  if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(planA.id);
+                  else onSelectPlanForRegister?.(planA.id);
+                }}
                 className="w-full py-3 rounded-xl btn-gold-gradient text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-98"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>{planA.code} से जुड़ें (₹{planA.price})</span>
+                <span>
+                  {currentUser ? `अपने स्पॉन्सर से जोड़ें (${planA.code} ₹${planA.price})` : `${planA.code} से जुड़ें (₹${planA.price})`}
+                </span>
               </button>
             </div>
 
@@ -307,11 +319,16 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
 
               <button
                 type="button"
-                onClick={() => onSelectPlanForRegister?.(planB.id)}
+                onClick={() => {
+                  if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(planB.id);
+                  else onSelectPlanForRegister?.(planB.id);
+                }}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-300 text-slate-950 font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-98"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>{planB.code} से जुड़ें (₹{planB.price})</span>
+                <span>
+                  {currentUser ? `अपने स्पॉन्सर से जोड़ें (${planB.code} ₹${planB.price})` : `${planB.code} से जुड़ें (₹${planB.price})`}
+                </span>
               </button>
             </div>
           </div>
@@ -425,11 +442,16 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
               <div className="space-y-2 pt-4 border-t border-slate-800/80 mt-4">
                 <button
                   type="button"
-                  onClick={() => onSelectPlanForRegister?.(plan.id)}
+                  onClick={() => {
+                    if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(plan.id);
+                    else onSelectPlanForRegister?.(plan.id);
+                  }}
                   className="btn-gold-gradient text-xs w-full py-3 tracking-wider justify-center cursor-pointer shadow-md flex items-center gap-1.5 font-black uppercase transition active:scale-98"
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span>सक्रिय करें / Join Now @ ₹{plan.price}</span>
+                  <span>
+                    {currentUser ? `अपने स्पॉन्सर से जोड़ें @ ₹${plan.price}` : `सक्रिय करें / Join Now @ ₹${plan.price}`}
+                  </span>
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
 
@@ -463,9 +485,11 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
       <IoisExplainerGuideModal
         isOpen={isExplainerModalOpen}
         onClose={() => setIsExplainerModalOpen(false)}
+        currentUser={currentUser}
         onSelectPlanForRegister={(planId) => {
           setIsExplainerModalOpen(false);
-          if (onSelectPlanForRegister) onSelectPlanForRegister(planId);
+          if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(planId);
+          else if (onSelectPlanForRegister) onSelectPlanForRegister(planId);
         }}
         onNavigateToPlans={() => {
           setIsExplainerModalOpen(false);
@@ -473,8 +497,10 @@ export const PlansGrid: React.FC<PlansGridProps> = ({ onAskAI, onSelectPlanForRe
         }}
         onOpenRegister={() => {
           setIsExplainerModalOpen(false);
-          if (onSelectPlanForRegister) onSelectPlanForRegister(1);
+          if (currentUser && onOpenSponsorAddMember) onOpenSponsorAddMember(1);
+          else if (onSelectPlanForRegister) onSelectPlanForRegister(1);
         }}
+        onOpenSponsorAddMember={onOpenSponsorAddMember}
       />
     </section>
   );

@@ -812,7 +812,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                 <p className="text-[10px] text-slate-300 leading-relaxed">
                   चूँकि <strong className="text-white font-mono">@{rejectedSponsorInput.toLowerCase()}</strong> वर्तमान में किसी का ID नहीं है, आप इसे अपने खाते का कस्टम यूजरनेम बनाकर अपनी स्पॉन्सर लिंक बना सकते हैं!
                 </p>
-                {onOpenRegister && (
+                {!currentUser && onOpenRegister && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1205,7 +1205,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
               <p className="text-[11px] text-slate-300 leading-relaxed">
                 यह आपके {isSponsorPreview ? 'स्पॉन्सर' : 'सहकर्मी'} का आधिकारिक 256-Bit एन्क्रिप्टेड पहचान पत्र है। IOIS गोपनीयता नियमों के तहत व्यक्तिगत संपर्क मास्क्ड हैं और कार्ड संपादन केवल स्वामी के लिए सुरक्षित है।
               </p>
-              {onOpenRegister && (
+              {!currentUser && onOpenRegister && (
                 <button
                   type="button"
                   onClick={onOpenRegister}

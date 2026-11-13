@@ -855,7 +855,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
               <span>रेफरल प्रमोशन मैसेज (Ready-To-Send Marketing Templates)</span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              अपनी लिंक के साथ तैयार संदेशों को कॉपी करें और WhatsApp, Telegram या Facebook पर एक क्लिक में साझा करें।
+              अपनी लिंक के साथ तैयार संदेशों को कॉपी करें और WhatsApp, Telegram या IOIS CHAT & HELP पर एक क्लिक में साझा करें।
             </p>
           </div>
           <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">

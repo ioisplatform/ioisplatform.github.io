@@ -18,9 +18,11 @@ import { MarketingToolsSection } from './MarketingToolsSection';
 import { IDCardGenerator } from './IDCardGenerator';
 import { PromotionalPosterStudio } from './PromotionalPosterStudio';
 import { PrivateChatMessenger } from './PrivateChatMessenger';
+import { IoisChatHelpHub } from './IoisChatHelpHub';
 import { NotificationModal } from './NotificationModal';
 import { PROFILE_FRAMES, getProfileFrameById, ProfileFrame } from '../data/profileFramesData';
 import { getUserUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
+import { fetchSocialBootstrapAsync, getSocialUnreadCache } from '../services/socialChatService';
 import { 
   User, 
   CreditCard, 
@@ -54,7 +56,10 @@ import {
   Bell,
   Award,
   Edit3,
-  Palette
+  Palette,
+  Eye,
+  Heart,
+  UserPlus
 } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -62,6 +67,9 @@ interface UserDashboardProps {
   onUserUpdated: (updated: UserProfile) => void;
   onLogout: () => void;
   onScrollToCard: () => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenPublicProfile?: (userOrHandle: UserProfile | string) => void;
+  initialDashboardTab?: 'referral' | 'idcard' | 'chat' | 'iois_chat' | 'posters' | 'marketing' | 'profile' | 'support';
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
@@ -69,8 +77,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onUserUpdated,
   onLogout,
   onScrollToCard,
+  onOpenSponsorAddMember,
+  onOpenPublicProfile,
+  initialDashboardTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<'referral' | 'idcard' | 'chat' | 'posters' | 'marketing' | 'profile' | 'support'>('referral');
+  const [activeTab, setActiveTab] = useState<'referral' | 'idcard' | 'chat' | 'iois_chat' | 'posters' | 'marketing' | 'profile' | 'support'>(initialDashboardTab || 'referral');
+
+  useEffect(() => {
+    if (initialDashboardTab) {
+      setActiveTab(initialDashboardTab);
+    }
+  }, [initialDashboardTab]);
+
+  const [socialTargetThreadId, setSocialTargetThreadId] = useState<string>('');
+  const [socialTargetUserId, setSocialTargetUserId] = useState<string>('');
+  const [socialUnreadCache, setSocialUnreadCache] = useState(() => getSocialUnreadCache(user.userId));
+  const [profileViewsLive, setProfileViewsLive] = useState<number>(user.profileViews || 0);
+  const [profileLikesCount, setProfileLikesCount] = useState<number>(user.profileLikes?.length || 0);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [copiedShortLink, setCopiedShortLink] = useState<boolean>(false);
@@ -89,11 +112,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   useEffect(() => {
     const updateUnread = () => {
       setUserUnreadCount(getUserUnreadCount(user.userId));
+      setSocialUnreadCache(getSocialUnreadCache(user.userId));
+    };
+    const refreshSocial = async () => {
+      try {
+        const boot = await fetchSocialBootstrapAsync(user.userId);
+        const me = boot.directory.find((u) => u.userId?.toUpperCase() === user.userId?.toUpperCase());
+        if (me) {
+          setProfileViewsLive(me.profileViews || 0);
+          setProfileLikesCount(me.profileLikes?.length || 0);
+        }
+        updateUnread();
+      } catch {}
     };
     updateUnread();
+    refreshSocial();
     window.addEventListener('iois_notifications_updated', updateUnread);
     window.addEventListener('storage', updateUnread);
-    const interval = setInterval(updateUnread, 4000);
+    const interval = setInterval(refreshSocial, 7000);
     return () => {
       window.removeEventListener('iois_notifications_updated', updateUnread);
       window.removeEventListener('storage', updateUnread);
@@ -515,6 +551,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               )}
             </button>
 
+            {/* Sponsor Add Member Button (Keeps Sponsor Logged In) */}
+            {onOpenSponsorAddMember && (
+              <button
+                type="button"
+                onClick={() => onOpenSponsorAddMember()}
+                className="btn-3d-rainbow-special px-3.5 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-lg active:scale-95 text-black"
+                title="अपने स्पॉन्सर के नीचे नया सदस्य जोड़ें"
+              >
+                <UserPlus className="w-4 h-4 text-black shrink-0" />
+                <span>+ नया सदस्य जोड़ें</span>
+              </button>
+            )}
+
+            {/* My Public Profile Views & Likes Button */}
+            {onOpenPublicProfile && (
+              <button
+                type="button"
+                onClick={() => onOpenPublicProfile(user)}
+                className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-cyan-500/40 text-cyan-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                title="मेरी पब्लिक प्रोफाइल, विज़िट्स व लाइक्स देखें"
+              >
+                <Eye className="w-3.5 h-3.5 text-cyan-300" />
+                <span>{profileViewsLive} विज़िट •</span>
+                <Heart className="w-3.5 h-3.5 text-rose-400" />
+                <span>{profileLikesCount}</span>
+              </button>
+            )}
+
+            {/* IOIS CHAT & HELP Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('iois_chat')}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg active:scale-95 relative"
+            >
+              <MessageCircle className="w-4 h-4 text-white" />
+              <span>IOIS CHAT & HELP</span>
+              {(socialUnreadCache.totalUnreadCount + socialUnreadCache.pendingFriendRequestsCount) > 0 && (
+                <span className="bg-amber-400 text-slate-950 text-[9.5px] font-black rounded-full px-1.5 py-0.2 shadow animate-bounce">
+                  {socialUnreadCache.totalUnreadCount + socialUnreadCache.pendingFriendRequestsCount}
+                </span>
+              )}
+            </button>
+
             {/* Digital ID Card Button */}
             <button
               type="button"
@@ -536,6 +615,41 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Live Unread Chat & Friend Request Notification Strip inside Dashboard */}
+        {(socialUnreadCache.unreadSummaries.length > 0 || socialUnreadCache.pendingFriendRequestsCount > 0) && (
+          <div className="mt-4 p-3 rounded-2xl bg-gradient-to-r from-cyan-950/75 via-slate-900 to-indigo-950/75 border border-cyan-500/40 flex flex-wrap items-center justify-between gap-2 relative z-10">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-black text-amber-300 flex items-center gap-1">
+                <Bell className="w-3.5 h-3.5 animate-bounce" />
+                <span>IOIS CHAT & HELP अलर्ट:</span>
+              </span>
+              {socialUnreadCache.unreadSummaries.map((s) => (
+                <button
+                  key={s.threadId}
+                  type="button"
+                  onClick={() => {
+                    setSocialTargetThreadId(s.threadId);
+                    setSocialTargetUserId(s.senderId);
+                    setActiveTab('iois_chat');
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-rose-600/25 hover:bg-rose-600/40 border border-rose-500/50 text-rose-100 font-bold text-[11px] cursor-pointer transition"
+                >
+                  {s.groupName || s.senderName}: {s.unreadCount} नए संदेश — "{s.lastMessage}"
+                </button>
+              ))}
+              {socialUnreadCache.pendingFriendRequestsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('iois_chat')}
+                  className="px-2.5 py-1 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-100 font-bold text-[11px] cursor-pointer"
+                >
+                  🤝 {socialUnreadCache.pendingFriendRequestsCount} फ्रेंड रिक्वेस्ट
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Telegram-style Inline Username Editor Modal / Drawer */}
         {isEditingUsername && (
@@ -899,7 +1013,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       {/* ========================================================================= */}
       {/* 4. DASHBOARD MODERN NAVIGATION TABS (ENGLISH LABELS & 1-CLICK ACCESS)     */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-1.5 bg-slate-950/95 rounded-2xl border-2 border-slate-800 shadow-2xl">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 p-1.5 bg-slate-950/95 rounded-2xl border-2 border-slate-800 shadow-2xl">
         <button
           type="button"
           onClick={() => setActiveTab('referral')}
@@ -910,7 +1024,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <Share2 className="w-3.5 h-3.5 shrink-0" />
-          <span>Dashboard & Earnings</span>
+          <span className="truncate">Dashboard & Earnings</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('iois_chat')}
+          className={`py-3 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer relative ${
+            activeTab === 'iois_chat'
+              ? 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white font-black shadow-lg scale-[1.02]'
+              : 'text-cyan-300 hover:text-white hover:bg-slate-900 border border-cyan-500/30'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">IOIS CHAT & HELP</span>
+          {(socialUnreadCache.totalUnreadCount + socialUnreadCache.pendingFriendRequestsCount) > 0 && (
+            <span className="bg-rose-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.2 shadow animate-pulse">
+              {socialUnreadCache.totalUnreadCount + socialUnreadCache.pendingFriendRequestsCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -923,7 +1055,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <CreditCard className="w-3.5 h-3.5 shrink-0" />
-          <span>Digital ID Card</span>
+          <span className="truncate">Digital ID Card</span>
         </button>
 
         <button
@@ -940,13 +1072,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           }`}
         >
           <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>Private Chat</span>
-          {userUnreadCount > 0 ? (
+          <span className="truncate">Admin Support</span>
+          {userUnreadCount > 0 && (
             <span className="bg-red-500 text-white text-[9px] font-black rounded-full px-1.5 py-0.2 shadow animate-pulse">
               {userUnreadCount}
             </span>
-          ) : (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute top-1.5 right-1.5"></span>
           )}
         </button>
 
@@ -1027,6 +1157,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
       )}
 
+      {activeTab === 'iois_chat' && (
+        <div className="animate-fadeIn">
+          <IoisChatHelpHub
+            currentUser={user}
+            initialThreadId={socialTargetThreadId || undefined}
+            initialTargetUserId={socialTargetUserId || undefined}
+            onOpenPublicProfile={onOpenPublicProfile}
+            embedded={true}
+          />
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* TAB 3: PRIVATE CHAT MESSENGER (DIRECT 1-ON-1 WITH ADMIN - TELEGRAM STYLE) */}
       {/* ========================================================================= */}
@@ -1075,7 +1217,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </div>
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1">
-                    <span>40+ 3D LIVE HD PROFILE FRAMES</span>
+                    <span>{PROFILE_FRAMES.length}+ 3D LIVE HD PROFILE FRAMES</span>
                   </div>
                   <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
                     <span>👑 3D लाइव प्रोफाइल फ्रेम व अवतार स्टूडियो</span>
@@ -1164,16 +1306,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
                   <Palette className="w-3.5 h-3.5 text-amber-400" />
-                  <span>3D लाइव फ्रेम चुनें (Choose from 40+ HD Frames):</span>
+                  <span>3D लाइव फ्रेम चुनें (Choose from {PROFILE_FRAMES.length}+ HD Frames):</span>
                 </span>
                 <span className="text-[11px] text-slate-400 font-mono">
-                  कुल उपलब्ध: 40 फ्रेम
+                  कुल उपलब्ध: {PROFILE_FRAMES.length} फ्रेम
                 </span>
               </div>
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
                 {[
-                  { id: 'all', label: 'सभी फ्रेम्स (40+)' },
+                  { id: 'all', label: `सभी फ्रेम्स (${PROFILE_FRAMES.length}+)` },
                   { id: 'orbit', label: '🌀 3D चक्र व ऑर्बिट' },
                   { id: 'plan', label: '👑 VIP व 7-प्लान फ्रेम' },
                   { id: 'festive', label: '✨ फेस्टिव (दीवाली, छठ, धनतेरस)' },
@@ -1194,7 +1336,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 ))}
               </div>
 
-              {/* Frames Grid (40+ Live HD Frames) */}
+              {/* Frames Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
                 {PROFILE_FRAMES.filter((f) => {
                   if (frameCategoryFilter === 'all') return true;
@@ -1217,7 +1359,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     >
                       {/* Live Frame Preview with user photo */}
                       <div className="relative p-2 flex items-center justify-center">
-                        <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass}`}>
+                        <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass || frame.effectClass}`}>
                           <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-md">
                             <img
                               src={user.photoUrl}
@@ -1448,6 +1590,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           markChatMessagesAsRead(user.userId, 'user');
           setUserUnreadCount(0);
         }}
+        onOpenSocialChat={(threadId, senderId) => {
+          if (threadId) setSocialTargetThreadId(threadId);
+          if (senderId) setSocialTargetUserId(senderId);
+          setActiveTab('iois_chat');
+        }}
       />
 
       {/* ========================================================================= */}
@@ -1544,7 +1691,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
                     {/* Frame Live Preview Circle */}
                     <div className="pt-2">
-                      <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass}`}>
+                      <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass || frame.effectClass}`}>
                         <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-950 shadow-inner">
                           <img 
                             src={user.photoUrl} 

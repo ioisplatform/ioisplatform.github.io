@@ -1,5 +1,5 @@
 import React from 'react';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 import { scrollAppToTop } from '../utils/scrollUtils';
 import { 
   Home, 
@@ -13,24 +13,29 @@ import {
   Grid,
   ChevronRight,
   Compass,
-  ArrowLeft
+  ArrowLeft,
+  MessageCircle
 } from 'lucide-react';
 
 interface QuickPageShortcutsProps {
   currentPage: PageType;
+  currentUser?: UserProfile | null;
   onNavigate: (page: PageType) => void;
   onOpenAiChat?: () => void;
   onOpenServicesModal?: () => void;
   onOpenRegister?: () => void;
+  onOpenSponsorAddMember?: () => void;
   onOpenIdCard?: () => void;
 }
 
 export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
   currentPage,
+  currentUser,
   onNavigate,
   onOpenAiChat,
   onOpenServicesModal,
   onOpenRegister,
+  onOpenSponsorAddMember,
   onOpenIdCard,
 }) => {
   const scrollToTop = () => {
@@ -176,20 +181,33 @@ export const QuickPageShortcuts: React.FC<QuickPageShortcutsProps> = ({
           <span className="text-xs font-bold truncate">विद्यार्थी पोर्टल</span>
         </button>
 
-        {/* 5. Registration */}
-        <button
-          onClick={() => {
-            if (onOpenRegister) onOpenRegister();
-            else handleNavigate('register');
-          }}
-          className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-left transition flex flex-col justify-between space-y-2 cursor-pointer shadow"
-        >
-          <div className="flex items-center justify-between">
-            <UserPlus className="w-4 h-4 text-emerald-400" />
-            <span className="text-[9px] font-black uppercase bg-emerald-500/20 px-1.5 py-0.5 rounded">इंस्टेंट</span>
-          </div>
-          <span className="text-xs font-bold text-white truncate">ज्वाइन / रजिस्टर</span>
-        </button>
+        {/* 5. Registration (Guests) or Sponsor Add Member (Logged-in) */}
+        {currentUser ? (
+          <button
+            onClick={() => onOpenSponsorAddMember ? onOpenSponsorAddMember() : handleNavigate('chat-help')}
+            className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-left transition flex flex-col justify-between space-y-2 cursor-pointer shadow"
+          >
+            <div className="flex items-center justify-between">
+              <MessageCircle className="w-4 h-4 text-emerald-400" />
+              <span className="text-[9px] font-black uppercase bg-emerald-500/20 px-1.5 py-0.5 rounded">सोशल हब</span>
+            </div>
+            <span className="text-xs font-bold text-white truncate">IOIS CHAT & HELP</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              if (onOpenRegister) onOpenRegister();
+              else handleNavigate('register');
+            }}
+            className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-left transition flex flex-col justify-between space-y-2 cursor-pointer shadow"
+          >
+            <div className="flex items-center justify-between">
+              <UserPlus className="w-4 h-4 text-emerald-400" />
+              <span className="text-[9px] font-black uppercase bg-emerald-500/20 px-1.5 py-0.5 rounded">इंस्टेंट</span>
+            </div>
+            <span className="text-xs font-bold text-white truncate">ज्वाइन / रजिस्टर</span>
+          </button>
+        )}
 
         {/* 6. ID Card */}
         <button

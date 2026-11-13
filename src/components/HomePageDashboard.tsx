@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PageType } from '../types';
+import { PageType, UserProfile } from '../types';
 import { 
   Crown, 
   UserPlus, 
@@ -9,7 +9,9 @@ import {
   ArrowRight, 
   CheckCircle2, 
   LogIn,
-  BookOpen
+  BookOpen,
+  LayoutDashboard,
+  MessageCircle
 } from 'lucide-react';
 import { HomeHeaderWatch } from './HomeHeaderWatch';
 import { PlansGrid } from './PlansGrid';
@@ -17,10 +19,13 @@ import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
 
 interface HomePageDashboardProps {
+  currentUser?: UserProfile | null;
   onNavigate: (page: PageType) => void;
   onOpenLogin: () => void;
   onOpenAiChat: () => void;
   onOpenRegister?: (planId?: number) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenChatHelp?: () => void;
   onOpenDashboard?: () => void;
   onOpenIdCard?: () => void;
   onSelectPlanForRegister?: (planId: number) => void;
@@ -32,10 +37,13 @@ interface HomePageDashboardProps {
 }
 
 export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
+  currentUser,
   onNavigate,
   onOpenLogin,
   onOpenAiChat,
   onOpenRegister,
+  onOpenSponsorAddMember,
+  onOpenChatHelp,
   onOpenDashboard,
   onOpenIdCard,
   onSelectPlanForRegister,
@@ -52,8 +60,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       
       {/* 0. ADMIN 7-PHOTO POPUP SYSTEM: ONLY RENDERS ON HOME PAGE WHEN ADMIN HAS UPLOADED ACTIVE PHOTOS */}
       <AdminHomePhotoPopup
+        currentUser={currentUser}
         onNavigate={onNavigate}
         onOpenRegister={onOpenRegister}
+        onOpenSponsorAddMember={onOpenSponsorAddMember}
         onOpenIdCard={onOpenIdCard}
       />
 
@@ -66,8 +76,10 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       {/* ₹10 to ₹999 with 50% to 70% instant daily incentives and instant selection for registration */}
       <section className="w-full">
         <PlansGrid
+          currentUser={currentUser}
           onAskAI={(q) => onOpenAiChat()}
           onSelectPlanForRegister={onSelectPlanForRegister || onOpenRegister}
+          onOpenSponsorAddMember={onOpenSponsorAddMember}
         />
       </section>
 
@@ -214,26 +226,59 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
           {/* Quick Call to Action Buttons */}
           <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 w-full md:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenRegister) onOpenRegister(1);
-                else onNavigate('register');
-              }}
-              className="btn-3d-rainbow-special px-5 py-2.5 rounded-xl font-black text-xs text-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4 text-black" />
-              <span>नया रजिस्ट्रेशन (Join Now)</span>
-            </button>
+            {currentUser ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenSponsorAddMember?.(1)}
+                  className="btn-3d-rainbow-special px-5 py-2.5 rounded-xl font-black text-xs text-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4 text-black" />
+                  <span>नया सदस्य जोड़ें (My Sponsor)</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={onOpenLogin}
-              className="btn-3d-silver px-5 py-2.5 rounded-xl font-black text-xs text-slate-950 shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
-            >
-              <LogIn className="w-4 h-4 text-slate-950" />
-              <span>सदस्य लॉगिन (Login)</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenChatHelp ? onOpenChatHelp() : onNavigate('chat-help')}
+                  className="btn-3d-gold px-5 py-2.5 rounded-xl font-black text-xs text-slate-950 shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 text-slate-950" />
+                  <span>IOIS CHAT & HELP</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOpenDashboard}
+                  className="btn-3d-silver px-5 py-2.5 rounded-xl font-black text-xs text-slate-950 shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                >
+                  <LayoutDashboard className="w-4 h-4 text-slate-950" />
+                  <span>मेरा डैशबोर्ड</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenRegister) onOpenRegister(1);
+                    else onNavigate('register');
+                  }}
+                  className="btn-3d-rainbow-special px-5 py-2.5 rounded-xl font-black text-xs text-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4 text-black" />
+                  <span>नया रजिस्ट्रेशन (Join Now)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="btn-3d-silver px-5 py-2.5 rounded-xl font-black text-xs text-slate-950 shadow-md flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4 text-slate-950" />
+                  <span>सदस्य लॉगिन (Login)</span>
+                </button>
+              </>
+            )}
 
             <button
               type="button"
@@ -255,9 +300,11 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       <IoisExplainerGuideModal
         isOpen={isExplainerModalOpen}
         onClose={() => setIsExplainerModalOpen(false)}
+        currentUser={currentUser}
         onSelectPlanForRegister={onSelectPlanForRegister}
         onNavigateToPlans={() => onNavigate('plans')}
         onOpenRegister={onOpenRegister}
+        onOpenSponsorAddMember={onOpenSponsorAddMember}
       />
 
     </div>

@@ -17,7 +17,8 @@ import {
   Share2, 
   Crown, 
   HelpCircle,
-  Users
+  Users,
+  MessageCircle
 } from 'lucide-react';
 
 interface FooterProps {
@@ -27,6 +28,8 @@ interface FooterProps {
   currentPage?: PageType;
   onOpenLogin?: (mode?: 'login' | 'forgot_password' | 'forgot_user_id') => void;
   onOpenRegister?: (planId?: number, sponsorId?: string) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenChatHelp?: () => void;
   onOpenDashboard?: () => void;
   onOpenIdCard?: () => void;
   onOpenSponsorCard?: () => void;
@@ -39,6 +42,8 @@ export const Footer: React.FC<FooterProps> = ({
   currentPage,
   onOpenLogin,
   onOpenRegister,
+  onOpenSponsorAddMember,
+  onOpenChatHelp,
   onOpenDashboard,
   onOpenIdCard,
   onOpenSponsorCard,
@@ -108,44 +113,46 @@ export const Footer: React.FC<FooterProps> = ({
               <div className="text-xs text-slate-300">
                 <span>नमस्ते <strong className="text-amber-400">{currentUser.fullName}</strong>! आपके सभी सदस्य विकल्प सक्रिय हैं:</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <button
                   type="button"
                   onClick={onOpenDashboard}
-                  className="btn-3d-rainbow-special px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
+                  className="btn-3d-rainbow-special px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                    <LayoutDashboard className="w-3 h-3 text-black" />
-                  </div>
-                  <span className="text-black font-black">मेरा डैशबोर्ड</span>
+                  <LayoutDashboard className="w-3.5 h-3.5 text-black shrink-0" />
+                  <span className="text-black font-black truncate">मेरा डैशबोर्ड</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenSponsorAddMember?.(1)}
+                  className="btn-3d-gold px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                  <span className="text-slate-950 font-black truncate">सदस्य जोड़ें</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenChatHelp ? onOpenChatHelp() : onNavigate?.('chat-help')}
+                  className="btn-3d-rainbow px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-black shrink-0" />
+                  <span className="text-black font-black truncate">IOIS CHAT & HELP</span>
                 </button>
                 <button
                   type="button"
                   onClick={onOpenIdCard}
-                  className="btn-3d-rainbow px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
+                  className="btn-3d-silver px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                    <CreditCard className="w-3 h-3 text-black" />
-                  </div>
-                  <span className="text-black font-black">डिजिटल ID कार्ड</span>
+                  <CreditCard className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                  <span className="text-slate-950 font-black truncate">डिजिटल ID कार्ड</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigate?.('plans')}
-                  className="btn-3d-rainbow px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95"
+                  className="col-span-2 sm:col-span-1 btn-3d-dark px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95 border-amber-500/50"
                 >
-                  <div className="w-5 h-5 rounded-md logo-3d-box-rainbow flex items-center justify-center shrink-0">
-                    <Crown className="w-3 h-3 text-black" />
-                  </div>
-                  <span className="text-black font-black">7 मास्टर प्लान्स</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('contact')}
-                  className="btn-3d-dark px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-95 border-amber-500/50"
-                >
-                  <HelpCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="text-amber-300 font-black">सपोर्ट टिकट</span>
+                  <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-amber-300 font-black truncate">7 मास्टर प्लान्स</span>
                 </button>
               </div>
             </div>
@@ -245,14 +252,18 @@ export const Footer: React.FC<FooterProps> = ({
           >
             7 मास्टर प्लान
           </button>
-          <span className="text-slate-700 hidden sm:inline">•</span>
-          <button
-            onClick={() => onNavigate?.('register')}
-            className="text-amber-400 hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1 font-black"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-amber-400" />
-            <span>रजिस्ट्रेशन / Join Now</span>
-          </button>
+          {!isLoggedIn && (
+            <>
+              <span className="text-slate-700 hidden sm:inline">•</span>
+              <button
+                onClick={() => onNavigate?.('register')}
+                className="text-amber-400 hover:text-amber-300 transition cursor-pointer px-2 py-1 flex items-center gap-1 font-black"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-amber-400" />
+                <span>रजिस्ट्रेशन / Join Now</span>
+              </button>
+            </>
+          )}
           <span className="text-slate-700 hidden sm:inline">•</span>
           <button
             onClick={() => onNavigate?.('about')}

@@ -79,6 +79,13 @@ import {
   saveAdminPopupPhotos 
 } from '../data/homePopupData';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
+import {
+  fetchAdminSocialMonitorAsync,
+  adminDeleteSocialMessageAsync,
+  adminDeleteSocialGroupAsync,
+  AdminSocialMonitorPayload,
+  AdminMonitorThread,
+} from '../services/socialChatService';
 
 interface AdminPanelProps {
   onUserStatusChange?: () => void;
@@ -89,10 +96,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [adminPin, setAdminPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders'>('approvals');
+  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders' | 'social_monitor'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Silent Admin IOIS CHAT & HELP Surveillance State
+  const [socialMonitorData, setSocialMonitorData] = useState<AdminSocialMonitorPayload | null>(null);
+  const [selectedMonitorThread, setSelectedMonitorThread] = useState<AdminMonitorThread | null>(null);
+  const [monitorLoading, setMonitorLoading] = useState<boolean>(false);
+  const [monitorConfirmDeleteId, setMonitorConfirmDeleteId] = useState<string | null>(null);
 
   // 3D Notification System State
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
@@ -612,8 +625,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         </div>
       </div>
 
-      {/* Admin Stats & Tab Bar (9 Management Tabs) - Compact Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-1.5 sm:gap-2">
+      {/* Admin Stats & Tab Bar (10 Management Tabs) - Compact Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-1.5 sm:gap-2">
         <button
           onClick={() => {
             setActiveTab('approvals');
@@ -785,6 +798,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             <GraduationCap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           </div>
           <div className="text-[11px] font-black text-white mt-0.5">15-सवाल रिपोर्ट</div>
+        </button>
+
+        <button
+          onClick={async () => {
+            setActiveTab('social_monitor');
+            setMonitorLoading(true);
+            const res = await fetchAdminSocialMonitorAsync();
+            setSocialMonitorData(res);
+            if (!selectedMonitorThread && res.threads.length > 0) {
+              setSelectedMonitorThread(res.threads[0]);
+            }
+            setMonitorLoading(false);
+          }}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+            activeTab === 'social_monitor'
+              ? 'bg-cyan-500/25 border-cyan-400 text-white shadow-md ring-1 ring-cyan-400'
+              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9.5px] font-bold text-cyan-300">IOIS CHAT कंट्रोल</span>
+            <Eye className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+          </div>
+          <div className="text-[11px] font-black text-white mt-0.5">गुप्त निगरानी व लॉग</div>
         </button>
       </div>
 
@@ -3231,6 +3268,214 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           )}
         </div>
       </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 10: SILENT IOIS CHAT & HELP ADMIN SURVEILLANCE (INVISIBLE TO USERS)   */}
+      {/* ========================================================================= */}
+      {activeTab === 'social_monitor' && (
+        <div className="glass-card p-4 sm:p-6 rounded-3xl border border-cyan-500/40 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                SILENT ADMIN SURVEILLANCE • USERS DO NOT KNOW
+              </span>
+              <h3 className="text-base sm:text-xl font-black text-white mt-1">
+                IOIS CHAT & HELP — लाइव चैट, ग्रुप, फोटो, वीडियो व लिंक कंट्रोल
+              </h3>
+              <p className="text-xs text-slate-400">
+                यहाँ से सभी सदस्यों के बीच होने वाली 1:1 चैट, ग्रुप संदेश, साझा की गई फोटो/वीडियो/लिंक और मित्र अनुरोधों की गोपनीय निगरानी व नियंत्रण करें।
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setMonitorLoading(true);
+                const res = await fetchAdminSocialMonitorAsync();
+                setSocialMonitorData(res);
+                setMonitorLoading(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${monitorLoading ? 'animate-spin' : ''}`} />
+              <span>डेटा रिफ्रेश करें</span>
+            </button>
+          </div>
+
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold">कुल थ्रेड्स (DM/Group)</span>
+              <div className="text-lg font-black text-cyan-300">{socialMonitorData?.threads.length || 0}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold">कुल चैट संदेश</span>
+              <div className="text-lg font-black text-white">{socialMonitorData?.totalMessages || 0}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold">कुल सक्रिय ग्रुप्स</span>
+              <div className="text-lg font-black text-amber-300">{socialMonitorData?.groups.length || 0}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold">मित्र अनुरोध लॉग्स</span>
+              <div className="text-lg font-black text-emerald-300">{socialMonitorData?.friendRequests.length || 0}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Left: All Conversations List */}
+            <div className="rounded-2xl bg-slate-950 border border-slate-800 p-3 space-y-2 max-h-[500px] overflow-y-auto">
+              <h4 className="text-xs font-black text-cyan-300 pb-1 border-b border-slate-800">
+                सभी बातचीत (1:1 चैट व ग्रुप्स)
+              </h4>
+              {(!socialMonitorData || socialMonitorData.threads.length === 0) ? (
+                <p className="text-xs text-slate-500 py-6 text-center">अभी कोई चैट गतिविधि दर्ज नहीं है।</p>
+              ) : (
+                socialMonitorData.threads.map((th) => (
+                  <button
+                    key={th.threadId}
+                    type="button"
+                    onClick={() => setSelectedMonitorThread(th)}
+                    className={`w-full p-2.5 rounded-xl border text-left space-y-1 transition cursor-pointer ${
+                      selectedMonitorThread?.threadId === th.threadId
+                        ? 'bg-cyan-500/20 border-cyan-400'
+                        : 'bg-slate-900/80 border-slate-800 hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-black text-white truncate">{th.title}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-amber-300 font-bold shrink-0">
+                        {th.messageCount} msgs
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate">
+                      {th.lastMessage?.senderName}: {th.lastMessage?.text || 'मीडिया/लिंक'}
+                    </p>
+                    <div className="flex items-center justify-between text-[9px] text-slate-500">
+                      <span>मीडिया/लिंक: {th.mediaCount}</span>
+                      <span>{th.threadType === 'group' ? 'GROUP' : '1:1 DM'}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+
+              {/* Groups Management Strip */}
+              {socialMonitorData && socialMonitorData.groups.length > 0 && (
+                <div className="pt-3 border-t border-slate-800 space-y-1.5">
+                  <h4 className="text-xs font-black text-amber-300">सभी ग्रुप्स नियंत्रण</h4>
+                  {socialMonitorData.groups.map((grp) => (
+                    <div
+                      key={grp.id}
+                      className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-white truncate">{grp.name}</p>
+                        <p className="text-[10px] text-slate-400">{grp.memberIds.length} सदस्य</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (monitorConfirmDeleteId === grp.id) {
+                            await adminDeleteSocialGroupAsync(grp.id);
+                            const fresh = await fetchAdminSocialMonitorAsync();
+                            setSocialMonitorData(fresh);
+                            setMonitorConfirmDeleteId(null);
+                            if (selectedMonitorThread?.threadId === `group:${grp.id}`) {
+                              setSelectedMonitorThread(null);
+                            }
+                          } else {
+                            setMonitorConfirmDeleteId(grp.id);
+                          }
+                        }}
+                        className="px-2 py-1 rounded-lg bg-rose-950 hover:bg-rose-700 border border-rose-500/40 text-rose-200 text-[10px] font-bold shrink-0 cursor-pointer"
+                      >
+                        {monitorConfirmDeleteId === grp.id ? 'पक्का हटाएं?' : 'ग्रुप हटाएं'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Selected Conversation Full Transcript + Media Preview + Message Deletion */}
+            <div className="lg:col-span-2 rounded-2xl bg-slate-950 border border-slate-800 p-3 sm:p-4 flex flex-col max-h-[500px]">
+              {!selectedMonitorThread ? (
+                <div className="flex-1 flex items-center justify-center text-xs text-slate-500 py-12">
+                  पूरी चैट, फोटो, वीडियो व लिंक देखने के लिए बाएँ पैनल से किसी बातचीत को चुनें।
+                </div>
+              ) : (
+                <>
+                  <div className="pb-2.5 mb-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-black text-white">{selectedMonitorThread.title}</h4>
+                      <p className="text-[10px] text-slate-400">
+                        प्रतिभागी: {selectedMonitorThread.participants.join(', ')}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Silent Admin Audit Active
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                    {selectedMonitorThread.messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black text-cyan-300">
+                            {m.senderName} ({m.senderId})
+                            {m.senderUsername ? ` • @${m.senderUsername}` : ''}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-slate-500">
+                              {new Date(m.createdAt).toLocaleString('hi-IN')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await adminDeleteSocialMessageAsync(m.id);
+                                const fresh = await fetchAdminSocialMonitorAsync();
+                                setSocialMonitorData(fresh);
+                                const updatedTh = fresh.threads.find(
+                                  (t) => t.threadId === selectedMonitorThread.threadId
+                                );
+                                setSelectedMonitorThread(updatedTh || null);
+                              }}
+                              className="p-1 rounded bg-rose-950 hover:bg-rose-700 text-rose-300 hover:text-white cursor-pointer"
+                              title="यह संदेश डिलीट करें"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {m.text && <p className="text-slate-200 break-words">{m.text}</p>}
+                        {m.mediaType === 'image' && m.mediaUrl && (
+                          <img
+                            src={m.mediaUrl}
+                            alt="Shared attachment"
+                            className="max-h-40 rounded-lg border border-slate-700 object-cover"
+                          />
+                        )}
+                        {m.mediaType === 'video' && m.mediaUrl && (
+                          <div className="text-[11px] text-amber-300 break-all">
+                            🎬 वीडियो साझा किया: {m.mediaUrl.startsWith('data:') ? '[Embedded Video Clip]' : m.mediaUrl}
+                          </div>
+                        )}
+                        {m.linkUrl && (
+                          <div className="text-[11px] text-sky-300 break-all">
+                            🔗 लिंक: {m.linkTitle ? `${m.linkTitle} — ` : ''}{m.linkUrl}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========================================================================= */}

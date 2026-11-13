@@ -51,6 +51,7 @@ interface AIChatBotProps {
 // System pages metadata for smart navigator
 const ALL_SYSTEM_PAGES: { id: PageType; title: string; category: string; description: string; iconName: string }[] = [
   { id: 'register', title: 'नया रजिस्ट्रेशन (Registration)', category: 'सदस्य सेवाएं', description: '5 मिनट में सदस्य बनें व प्लान सक्रिय करें', iconName: 'UserPlus' },
+  { id: 'chat-help', title: 'IOIS CHAT & HELP (सोशल व ग्रुप चैट)', category: 'सदस्य सेवाएं', description: '@username से प्रोफाइल, फोटो/वीडियो शेयरिंग व ग्रुप चैट', iconName: 'MessageSquare' },
   { id: 'plans', title: '7 मास्टर प्लांस (Plan 01 - 07)', category: 'आय व प्लान', description: '₹10 से ₹999 में लाइफटाइम एक्सेस व 70% पेआउट', iconName: 'Award' },
   { id: 'assessment', title: '15-सवाल कौशल साक्षात्कार', category: 'शिक्षा व करियर', description: 'कौशल असेसमेंट दें व सर्वोत्तम प्लान चुनें', iconName: 'Compass' },
   { id: 'idcard', title: 'स्मार्ट डिजिटल ID कार्ड', category: 'सदस्य सेवाएं', description: '256-बिट सुरक्षित ID कार्ड HD डाउनलोड करें', iconName: 'CreditCard' },
@@ -184,13 +185,17 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       actions: [
         { id: 'act-balvikas', label: '📖 बाल विकास (Plan 01 ₹10)', type: 'select_plan', planId: 1 },
-        { id: 'act-reg', label: '📝 नया सदस्य रजिस्ट्रेशन', type: 'navigate', target: 'register' },
+        ...(!currentUser
+          ? [{ id: 'act-reg', label: '📝 नया सदस्य रजिस्ट्रेशन', type: 'navigate', target: 'register' } as ChatAction]
+          : [{ id: 'act-chat-help', label: '💬 IOIS CHAT & HELP', type: 'navigate', target: 'chat-help' } as ChatAction]),
         { id: 'act-plans', label: '💎 7 मास्टर प्लांस (₹10 - ₹999)', type: 'navigate', target: 'plans' },
         { id: 'act-id', label: '🪪 डिजिटल ID कार्ड', type: 'navigate', target: 'idcard' },
         { id: 'act-study', label: '📚 NCERT नोट्स व क्विज़', type: 'navigate', target: 'student-study' },
         { id: 'act-rtps', label: '🏛️ RTPS (जाति/आय/निवास)', type: 'navigate', target: 'rtps-services' },
         { id: 'act-calc', label: '💰 पेआउट कैलकुलेटर', type: 'navigate', target: 'calculator' },
-        { id: 'act-login', label: '🔐 सदस्य लॉगिन', type: 'open_login', loginMode: 'login' }
+        ...(!currentUser
+          ? [{ id: 'act-login', label: '🔐 सदस्य लॉगिन', type: 'open_login', loginMode: 'login' } as ChatAction]
+          : [{ id: 'act-dash', label: '🏠 मेरा डैशबोर्ड', type: 'navigate', target: 'dashboard' } as ChatAction])
       ]
     }
   ]);
@@ -446,7 +451,11 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
       }
     }
 
-    return { cleanContent: cleanBotText(cleanContent), actions };
+    const filteredActions = currentUser
+      ? actions.filter((act) => act.type !== 'open_login' && !(act.type === 'navigate' && act.target === 'register'))
+      : actions;
+
+    return { cleanContent: cleanBotText(cleanContent), actions: filteredActions };
   };
 
   const handleExecuteAction = (action: ChatAction) => {
@@ -711,7 +720,9 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
         content: `नमस्ते! चैट रीसेट हो गई है। आप IOIS के किसी भी सिस्टम, सेवा, 7 प्लांस या शैक्षणिक विषय पर नया प्रश्न पूछ सकते हैं।`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         actions: [
-          { id: 'act-reg', label: '📝 नया सदस्य रजिस्ट्रेशन', type: 'navigate', target: 'register' },
+          ...(!currentUser
+            ? [{ id: 'act-reg', label: '📝 नया सदस्य रजिस्ट्रेशन', type: 'navigate', target: 'register' } as ChatAction]
+            : [{ id: 'act-chat-help', label: '💬 IOIS CHAT & HELP', type: 'navigate', target: 'chat-help' } as ChatAction]),
           { id: 'act-plans', label: '💎 7 मास्टर प्लांस', type: 'navigate', target: 'plans' },
           { id: 'act-quiz', label: '🎯 15-सवाल कौशल साक्षात्कार', type: 'navigate', target: 'assessment' },
           { id: 'act-id', label: '🪪 डिजिटल ID कार्ड', type: 'navigate', target: 'idcard' }
@@ -847,7 +858,7 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
               </p>
 
               <div className="grid grid-cols-1 gap-2">
-                {ALL_SYSTEM_PAGES.map((sys) => (
+                {ALL_SYSTEM_PAGES.filter((sys) => !currentUser || sys.id !== 'register').map((sys) => (
                   <button
                     key={sys.id}
                     onClick={() => {
@@ -872,39 +883,41 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
                 ))}
               </div>
 
-              {/* Quick Auth Actions in Navigator */}
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-                <span className="text-[11px] font-black text-amber-300 block">🔐 सदस्य खाता नियंत्रण:</span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    onClick={() => {
-                      if (onOpenLogin) onOpenLogin('login');
-                      setShowNavigator(false);
-                    }}
-                    className="py-1.5 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black text-center transition cursor-pointer"
-                  >
-                    लॉगिन
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onOpenLogin) onOpenLogin('forgot_password');
-                      setShowNavigator(false);
-                    }}
-                    className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold text-center border border-amber-500/30 transition cursor-pointer"
-                  >
-                    पासवर्ड रीसेट
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onOpenLogin) onOpenLogin('forgot_user_id');
-                      setShowNavigator(false);
-                    }}
-                    className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 text-[10px] font-bold text-center border border-blue-500/30 transition cursor-pointer"
-                  >
-                    User ID खोजें
-                  </button>
+              {/* Quick Auth Actions in Navigator (Guest Only) */}
+              {!currentUser && (
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                  <span className="text-[11px] font-black text-amber-300 block">🔐 सदस्य खाता नियंत्रण:</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      onClick={() => {
+                        if (onOpenLogin) onOpenLogin('login');
+                        setShowNavigator(false);
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black text-center transition cursor-pointer"
+                    >
+                      लॉगिन
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (onOpenLogin) onOpenLogin('forgot_password');
+                        setShowNavigator(false);
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold text-center border border-amber-500/30 transition cursor-pointer"
+                    >
+                      पासवर्ड रीसेट
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (onOpenLogin) onOpenLogin('forgot_user_id');
+                        setShowNavigator(false);
+                      }}
+                      className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 text-[10px] font-bold text-center border border-blue-500/30 transition cursor-pointer"
+                    >
+                      User ID खोजें
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : showFaq ? (
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3 scrollbar-thin scrollbar-thumb-slate-800 bg-slate-950">
@@ -1012,14 +1025,16 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
                       </div>
 
                       {/* Interactive Navigation CTA Actions inside Assistant Bubble */}
-                      {isAssistant && msg.actions && msg.actions.length > 0 && (
+                      {isAssistant && msg.actions && msg.actions.filter((a) => !currentUser || (a.type !== 'open_login' && !(a.type === 'navigate' && a.target === 'register'))).length > 0 && (
                         <div className="pt-2.5 mt-2 border-t border-slate-800/80 space-y-1.5">
                           <span className="text-[10px] font-black text-amber-400/90 uppercase tracking-wider flex items-center gap-1">
                             <Compass className="w-3 h-3" />
                             <span>त्वरित इन-ऐप नेविगेशन (Click to Open):</span>
                           </span>
                           <div className="flex flex-wrap gap-1.5">
-                            {msg.actions.map((act) => (
+                            {msg.actions
+                              .filter((act) => !currentUser || (act.type !== 'open_login' && !(act.type === 'navigate' && act.target === 'register')))
+                              .map((act) => (
                               <button
                                 key={act.id}
                                 onClick={() => handleExecuteAction(act)}

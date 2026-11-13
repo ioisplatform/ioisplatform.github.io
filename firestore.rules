@@ -41,6 +41,26 @@ service cloud.firestore {
     match /playlists/{playlistId} {
       allow read, write: if true;
     }
+
+    // IOIS CHAT & HELP Private & Group Messages
+    match /social_messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // IOIS CHAT & HELP Groups
+    match /social_groups/{groupId} {
+      allow read, write: if true;
+    }
+
+    // IOIS CHAT & HELP Friend Requests
+    match /friend_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // IOIS CHAT & HELP Profile Visits
+    match /profile_visits/{visitId} {
+      allow read, write: if true;
+    }
   }
 }
 

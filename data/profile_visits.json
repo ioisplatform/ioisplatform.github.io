@@ -1,0 +1,16 @@
+[
+  {
+    "id": "VIS-1794545150319-442v",
+    "targetUserId": "IOIS10SU02",
+    "visitorUserId": "IOISADMIN01",
+    "visitorName": "Root",
+    "visitedAt": "2026-11-13T04:45:50.319Z"
+  },
+  {
+    "id": "VIS-1794545132617-n3tn",
+    "targetUserId": "IOIS10SU02",
+    "visitorUserId": "GUEST",
+    "visitorName": "विज़िटर",
+    "visitedAt": "2026-11-13T04:45:32.617Z"
+  }
+]

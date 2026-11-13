@@ -26,6 +26,7 @@ export interface NotificationModalProps {
   currentUserName?: string;
   notifications?: AppNotificationItem[];
   onOpenChat?: (targetUserId?: string, targetUserName?: string) => void;
+  onOpenSocialChat?: (threadId?: string, senderId?: string) => void;
   onOpenDirectReply?: (userId: string, userName: string) => void;
   onMarkAllRead?: () => void;
 }
@@ -39,6 +40,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   currentUserName,
   notifications,
   onOpenChat,
+  onOpenSocialChat,
   onOpenDirectReply,
   onMarkAllRead
 }) => {
@@ -75,10 +77,16 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   const activeList = Array.isArray(notifications) ? notifications : (internalList || []);
   const displayName = currentUserName || userName || (role === 'admin' ? 'एडमिन' : 'सदस्य');
 
-  const handleReplyClick = (targetId: string, targetName: string) => {
+  const handleReplyClick = (item: AppNotificationItem) => {
     onClose();
-    if (onOpenChat) onOpenChat(targetId, targetName);
-    if (onOpenDirectReply) onOpenDirectReply(targetId, targetName);
+    if (item.type === 'social_chat' || item.type === 'friend_request') {
+      if (onOpenSocialChat) {
+        onOpenSocialChat(item.threadId, item.userId);
+        return;
+      }
+    }
+    if (onOpenChat) onOpenChat(item.userId, item.userName);
+    if (onOpenDirectReply) onOpenDirectReply(item.userId, item.userName);
   };
 
   const handleMarkAll = () => {
@@ -172,12 +180,20 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 hover:border-amber-400 transition space-y-2 shadow-md"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
-                      {n.type === 'ticket' ? <HelpCircle className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-                    </div>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-black text-white">{n.title}</h4>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {n.avatarUrl ? (
+                      <img
+                        src={n.avatarUrl}
+                        alt={n.userName}
+                        className="w-9 h-9 rounded-xl object-cover border border-amber-400/50 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
+                        {n.type === 'ticket' ? <HelpCircle className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-black text-white leading-snug">{n.title}</h4>
                       <span className="text-[10px] text-slate-400 flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-500" />
                         <span>{new Date(n.createdAt).toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -186,11 +202,11 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                   </div>
 
                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 shrink-0">
-                    NEW UNREAD
+                    {n.unreadCount ? `${n.unreadCount} NEW` : 'NEW UNREAD'}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 leading-relaxed">
+                <p className="text-xs text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 leading-relaxed break-words">
                   {n.message}
                 </p>
 
@@ -198,10 +214,16 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 <div className="flex items-center justify-end pt-1">
                   <button
                     type="button"
-                    onClick={() => handleReplyClick(n.userId, n.userName)}
+                    onClick={() => handleReplyClick(n)}
                     className="btn-3d-rainbow-special px-3.5 py-1.5 rounded-xl text-black font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
                   >
-                    <span>{role === 'admin' ? 'सीधे प्राइवेट चैट में रिप्लाई करें' : 'प्राइवेट चैट खोलें व जवाब दें'}</span>
+                    <span>
+                      {n.type === 'social_chat' || n.type === 'friend_request'
+                        ? 'IOIS CHAT & HELP में खोलें'
+                        : role === 'admin'
+                        ? 'सीधे प्राइवेट चैट में रिप्लाई करें'
+                        : 'प्राइवेट चैट खोलें व जवाब दें'}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5 text-black" />
                   </button>
                 </div>

@@ -474,6 +474,162 @@ export const PROFILE_FRAMES: ProfileFrameDefinition[] = [
     badgeLabel: 'IOIS MEMBER',
     badgeIcon: '⭐',
     description: 'सरल, सुरुचिपूर्ण और प्रीमियम 3D गोल्ड रिंग।'
+  },
+
+  // 8. Ultra-Premium 3D Sovereign & Futuristic Collection (New Exclusive Frames)
+  {
+    id: 'holo-nebula-ring',
+    name: 'Holo Nebula Dual Orbit',
+    nameHi: 'होलो नेबुला डबल ऑर्बिट',
+    tier: 'diamond',
+    effectClass: 'frame-holo-nebula-ring',
+    glowColor: '#a855f7',
+    badgeLabel: 'NEBULA PRO',
+    badgeIcon: '🪐',
+    description: 'चमकते तारे और गहरे नीहारिका रंगों की दोहरी 3D परिक्रमा।'
+  },
+  {
+    id: 'sovereign-tri-crown',
+    name: 'Sovereign 24K Tri-Crown',
+    nameHi: 'सॉवरेन 24K राजमुकुट गोल्ड',
+    tier: 'vip',
+    effectClass: 'frame-sovereign-tri-crown',
+    glowColor: '#f59e0b',
+    badgeLabel: 'SOVEREIGN VIP',
+    badgeIcon: '👑',
+    description: 'शाही सम्राटों जैसा तिहरा घूमता हुआ स्वर्ण और हीरा वलय।'
+  },
+  {
+    id: 'electric-plasma-arc',
+    name: 'Electric Plasma Arc',
+    nameHi: 'इलेक्ट्रिक प्लाज़्मा आर्क',
+    tier: 'vip',
+    effectClass: 'frame-electric-plasma-arc',
+    glowColor: '#06b6d4',
+    badgeLabel: 'PLASMA MAX',
+    badgeIcon: '⚡',
+    description: 'हाई-वोल्टेज नीला व बैंगनी प्लाज़्मा एनर्जी शॉकवेव।'
+  },
+  {
+    id: 'diamond-angel-halo',
+    name: 'Diamond Angel Halo',
+    nameHi: 'डायमंड एंजल लाइट हेलो',
+    tier: 'diamond',
+    effectClass: 'frame-diamond-angel-halo',
+    glowColor: '#e0f2fe',
+    badgeLabel: 'ANGEL HALO',
+    badgeIcon: '👼',
+    description: 'शुद्ध श्वेत हीरों का दिव्य चमकदार आभामंडल।'
+  },
+  {
+    id: 'golden-wings-aura',
+    name: 'Royal Golden Wings Aura',
+    nameHi: 'शाही गोल्डन विंग्स ऑरा',
+    tier: 'gold',
+    effectClass: 'frame-golden-wings-aura',
+    glowColor: '#fbbf24',
+    badgeLabel: 'GOLD WINGS',
+    badgeIcon: '🪽',
+    description: 'स्वर्ण पंखों के तेज और उभरते हुए सुनहरे प्रकाश की आभा।'
+  },
+  {
+    id: 'ashok-chakra-shine',
+    name: 'Tiranga Chakra Heritage',
+    nameHi: 'तिरंगा अशोक चक्र गौरव',
+    tier: 'vip',
+    effectClass: 'frame-ashok-chakra-shine',
+    glowColor: '#ff9933',
+    badgeLabel: 'PRIDE OF INDIA',
+    badgeIcon: '🇮🇳',
+    description: 'केसरिया, श्वेत और हरे रंग में धर्म चक्र के साथ देशभक्ति चमक।'
+  },
+  {
+    id: 'vaporwave-orbit',
+    name: 'Vaporwave Neon Orbit',
+    nameHi: 'वेपरवेव नियॉन ऑर्बिट',
+    tier: 'vip',
+    effectClass: 'frame-vaporwave-orbit',
+    glowColor: '#ec4899',
+    badgeLabel: 'VAPORWAVE',
+    badgeIcon: '🌆',
+    description: 'गुलाबी, मैजेंटा और स्यान रेट्रो-फ्यूचरिस्टिक लेज़र रिंग।'
+  },
+  {
+    id: 'velvet-rose-gold',
+    name: 'Velvet Rose Gold Couture',
+    nameHi: 'वेलवेट रोज़ गोल्ड प्रीमियम',
+    tier: 'ruby',
+    effectClass: 'frame-velvet-rose-gold',
+    glowColor: '#fb7185',
+    badgeLabel: 'ROSE GOLD',
+    badgeIcon: '🌹',
+    description: 'मखमली गुलाबी और रोज़-गोल्ड की नाज़ुक शाही बॉर्डर।'
+  },
+  {
+    id: 'celestial-starlight',
+    name: 'Celestial Starlight Aura',
+    nameHi: 'नक्षत्र स्टारलाइट ऑरा',
+    tier: 'sapphire',
+    effectClass: 'frame-celestial-starlight',
+    glowColor: '#60a5fa',
+    badgeLabel: 'STARLIGHT',
+    badgeIcon: '🌠',
+    description: 'रात्रि आकाश के टिमटिमाते नक्षत्रों का शांत व गहरा नीला प्रकाश।'
+  },
+  {
+    id: 'titanium-matrix',
+    name: 'Titanium Cyber Matrix',
+    nameHi: 'टाइटेनियम साइबर मैट्रिक्स',
+    tier: 'emerald',
+    effectClass: 'frame-titanium-matrix',
+    glowColor: '#10b981',
+    badgeLabel: 'TITANIUM',
+    badgeIcon: '🛡️',
+    description: 'बुलेटप्रूफ टाइटेनियम और डिजिटल हरे कोड की दोहरी सुरक्षा रिंग।'
+  },
+  {
+    id: 'obsidian-inferno',
+    name: 'Obsidian Fire Inferno',
+    nameHi: 'ओब्सीडियन फायर इन्फर्नो',
+    tier: 'ruby',
+    effectClass: 'frame-obsidian-inferno',
+    glowColor: '#ef4444',
+    badgeLabel: 'INFERNO 🔥',
+    badgeIcon: '🌋',
+    description: 'गहरे काले ओब्सीडियन के भीतर दहकती हुई सुनहरी-लाल ज्वाला।'
+  },
+  {
+    id: 'aurora-borealis-wave',
+    name: 'Aurora Borealis Wave',
+    nameHi: 'ऑरोरा बोरेलिस लाइट वेव',
+    tier: 'emerald',
+    effectClass: 'frame-aurora-borealis-wave',
+    glowColor: '#34d399',
+    badgeLabel: 'AURORA 3D',
+    badgeIcon: '🌌',
+    description: 'ध्रुवीय आकाश की हरे, नीले और बैंगनी प्रकाश तरंगों की लहर।'
+  },
+  {
+    id: 'kohinoor-platinum-crown',
+    name: 'Kohinoor Platinum Crown',
+    nameHi: 'कोहिनूर प्लैटिनम क्राउन',
+    tier: 'diamond',
+    effectClass: 'frame-kohinoor-platinum-crown',
+    glowColor: '#f8fafc',
+    badgeLabel: 'KOHINOOR',
+    badgeIcon: '💠',
+    description: 'प्लेटिनम और अनमोल कोहिनूर हीरे की शाही चमकदार परिधि।'
+  },
+  {
+    id: 'crimson-phoenix-burst',
+    name: 'Crimson Phoenix Starburst',
+    nameHi: 'क्रिमसन फीनिक्स स्टारबर्स्ट',
+    tier: 'vip',
+    effectClass: 'frame-crimson-phoenix-burst',
+    glowColor: '#f97316',
+    badgeLabel: 'STARBURST',
+    badgeIcon: '✨',
+    description: 'चमकते सिंदूरी व सुनहरे रंगों का गतिशील सुपरनोवा विस्फोट।'
   }
 ];
 

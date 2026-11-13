@@ -1547,10 +1547,212 @@ html.light .tiranga-text {
   z-index: 2;
 }
 
-/* Generic Fallback Frame for other IDs */
+/* 15. Holo Nebula Dual Orbit */
+.frame-holo-nebula-ring { position: relative; }
+.frame-holo-nebula-ring::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #a855f7, #ec4899, #06b6d4, #6366f1, #a855f7);
+  animation: ioisSpinOrbit 2.6s linear infinite; z-index: 1;
+  filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.85));
+}
+.frame-holo-nebula-ring::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 16. Sovereign 24K Tri-Crown */
+.frame-sovereign-tri-crown { position: relative; }
+.frame-sovereign-tri-crown::before {
+  content: ''; position: absolute; inset: -8px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #fef08a, #f59e0b, #78350f, #fde047, #b45309, #fef08a);
+  animation: ioisSpinOrbit 3.2s linear infinite; z-index: 1;
+  box-shadow: 0 0 22px rgba(245, 158, 11, 0.9), inset 0 0 8px #ffffff;
+}
+.frame-sovereign-tri-crown::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 17. Electric Plasma Arc */
+.frame-electric-plasma-arc { position: relative; }
+.frame-electric-plasma-arc::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #00f0ff, #0284c7, #a855f7, #00f0ff, #ffffff, #00f0ff);
+  animation: ioisSpinOrbit 1.9s linear infinite; z-index: 1;
+  filter: drop-shadow(0 0 15px rgba(6, 182, 212, 0.95));
+}
+.frame-electric-plasma-arc::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 18. Diamond Angel Halo */
+.frame-diamond-angel-halo { position: relative; }
+.frame-diamond-angel-halo::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ffffff, #bae6fd, #e0f2fe, #7dd3fc, #ffffff);
+  animation: ioisSpinOrbit 3.8s linear infinite; z-index: 1;
+  box-shadow: 0 0 22px rgba(224, 242, 254, 0.95);
+}
+.frame-diamond-angel-halo::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 19. Golden Wings Aura */
+.frame-golden-wings-aura { position: relative; }
+.frame-golden-wings-aura::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 45deg, #fbbf24, #f59e0b, #fffbeb, #d97706, #fbbf24);
+  animation: ioisSpinOrbitRev 3.4s linear infinite; z-index: 1;
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.9);
+}
+.frame-golden-wings-aura::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 20. Ashok Chakra Heritage */
+.frame-ashok-chakra-shine { position: relative; }
+.frame-ashok-chakra-shine::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ff9933 0deg 110deg, #ffffff 110deg 170deg, #1d4ed8 170deg 200deg, #ffffff 200deg 250deg, #138808 250deg 360deg);
+  animation: ioisSpinOrbit 3.5s linear infinite; z-index: 1;
+  box-shadow: 0 0 16px rgba(255, 153, 51, 0.75);
+}
+.frame-ashok-chakra-shine::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 21. Vaporwave Neon Orbit */
+.frame-vaporwave-orbit { position: relative; }
+.frame-vaporwave-orbit::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #ff0080, #7928ca, #00dfd8, #ff0080);
+  animation: ioisSpinOrbit 2.4s linear infinite; z-index: 1;
+  filter: drop-shadow(0 0 14px rgba(236, 72, 153, 0.9));
+}
+.frame-vaporwave-orbit::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 22. Velvet Rose Gold */
+.frame-velvet-rose-gold { position: relative; }
+.frame-velvet-rose-gold::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #fda4af, #f43f5e, #fef2f2, #e11d48, #fbbf24, #fda4af);
+  animation: ioisSpinOrbit 4s linear infinite; z-index: 1;
+  box-shadow: 0 0 16px rgba(251, 113, 133, 0.85);
+}
+.frame-velvet-rose-gold::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 23. Celestial Starlight */
+.frame-celestial-starlight { position: relative; }
+.frame-celestial-starlight::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #1e3a8a, #60a5fa, #e0f2fe, #3b82f6, #1e3a8a);
+  animation: ioisSpinOrbitRev 4.2s linear infinite; z-index: 1;
+  box-shadow: 0 0 16px rgba(96, 165, 250, 0.85);
+}
+.frame-celestial-starlight::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 24. Titanium Cyber Matrix */
+.frame-titanium-matrix { position: relative; }
+.frame-titanium-matrix::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #10b981, #94a3b8, #34d399, #475569, #10b981);
+  animation: ioisSpinOrbit 3s linear infinite; z-index: 1;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.8);
+}
+.frame-titanium-matrix::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 25. Obsidian Fire Inferno */
+.frame-obsidian-inferno { position: relative; }
+.frame-obsidian-inferno::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #dc2626, #f97316, #facc15, #18181b, #ef4444, #dc2626);
+  animation: ioisSpinOrbit 2.3s linear infinite; z-index: 1;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.9);
+}
+.frame-obsidian-inferno::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 26. Aurora Borealis Wave */
+.frame-aurora-borealis-wave { position: relative; }
+.frame-aurora-borealis-wave::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #34d399, #06b6d4, #818cf8, #c084fc, #34d399);
+  animation: ioisSpinOrbit 3.2s linear infinite; z-index: 1;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.85);
+}
+.frame-aurora-borealis-wave::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 27. Kohinoor Platinum Crown */
+.frame-kohinoor-platinum-crown { position: relative; }
+.frame-kohinoor-platinum-crown::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f8fafc, #94a3b8, #38bdf8, #ffffff, #cbd5e1, #f8fafc);
+  animation: ioisSpinOrbit 3.6s linear infinite; z-index: 1;
+  box-shadow: 0 0 22px rgba(248, 250, 252, 0.9);
+}
+.frame-kohinoor-platinum-crown::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* 28. Crimson Phoenix Starburst */
+.frame-crimson-phoenix-burst { position: relative; }
+.frame-crimson-phoenix-burst::before {
+  content: ''; position: absolute; inset: -7px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f97316, #e11d48, #fde047, #f43f5e, #fb923c, #f97316);
+  animation: ioisSpinOrbitRev 2.5s linear infinite; z-index: 1;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.9);
+}
+.frame-crimson-phoenix-burst::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
+
+/* Animated Fallback Frame for all remaining Frame IDs so every single frame glows and orbits */
 [class^="frame-"] {
   position: relative;
 }
+.frame-ruby-imperial-diamond::before,
+.frame-sapphire-ocean-wave::before,
+.frame-emerald-royal-filigree::before,
+.frame-amethyst-purple-crystal::before,
+.frame-cyberpunk-neon-matrix::before,
+.frame-electric-storm-thunder::before,
+.frame-matrix-data-stream::before,
+.frame-holographic-laser-prism::before,
+.frame-lion-national-emblem::before,
+.frame-dharma-chakra-spin::before,
+.frame-flame-solar-flare::before,
+.frame-cosmic-galaxy-nebula::before,
+.frame-super-star-champion::before,
+.frame-phoenix-golden-wings::before,
+.frame-pearl-opalescent-halo::before,
+.frame-obsidian-gold-filigree::before,
+.frame-emerald-lotus-bloom::before,
+.frame-rainbow-vortex-infinity::before,
+.frame-diamond-prism-corona::before,
+.frame-cyber-green-radar::before,
+.frame-golden-wreath-laurel::before,
+.frame-classic-minimalist-gold::before {
+  content: ''; position: absolute; inset: -5px; border-radius: 9999px;
+  background: conic-gradient(from 0deg, #fbbf24, #38bdf8, #a855f7, #10b981, #fbbf24);
+  animation: ioisSpinOrbit 4s linear infinite; z-index: 1;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.65);
+}
+.frame-ruby-imperial-diamond::after,
+.frame-sapphire-ocean-wave::after,
+.frame-emerald-royal-filigree::after,
+.frame-amethyst-purple-crystal::after,
+.frame-cyberpunk-neon-matrix::after,
+.frame-electric-storm-thunder::after,
+.frame-matrix-data-stream::after,
+.frame-holographic-laser-prism::after,
+.frame-lion-national-emblem::after,
+.frame-dharma-chakra-spin::after,
+.frame-flame-solar-flare::after,
+.frame-cosmic-galaxy-nebula::after,
+.frame-super-star-champion::after,
+.frame-phoenix-golden-wings::after,
+.frame-pearl-opalescent-halo::after,
+.frame-obsidian-gold-filigree::after,
+.frame-emerald-lotus-bloom::after,
+.frame-rainbow-vortex-infinity::after,
+.frame-diamond-prism-corona::after,
+.frame-cyber-green-radar::after,
+.frame-golden-wreath-laurel::after,
+.frame-classic-minimalist-gold::after {
+  content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2;
+}
+.frame-ruby-imperial-diamond::before { background: conic-gradient(from 0deg, #e11d48, #fb7185, #fff1f2, #be123c, #e11d48); }
+.frame-sapphire-ocean-wave::before { background: conic-gradient(from 0deg, #0284c7, #38bdf8, #e0f2fe, #1d4ed8, #0284c7); }
+.frame-emerald-royal-filigree::before { background: conic-gradient(from 0deg, #059669, #34d399, #fbbf24, #047857, #059669); }
+.frame-amethyst-purple-crystal::before { background: conic-gradient(from 0deg, #9333ea, #d8b4fe, #ec4899, #6b21a8, #9333ea); }
+.frame-cyberpunk-neon-matrix::before { background: conic-gradient(from 0deg, #00e5ff, #ff0099, #00e5ff); animation-duration: 2s; }
+.frame-electric-storm-thunder::before { background: conic-gradient(from 0deg, #3b82f6, #ffffff, #1d4ed8, #60a5fa, #3b82f6); animation-duration: 1.8s; }
+.frame-matrix-data-stream::before { background: conic-gradient(from 0deg, #22c55e, #052e16, #86efac, #16a34a, #22c55e); }
+.frame-holographic-laser-prism::before { background: conic-gradient(from 0deg, #f43f5e, #f59e0b, #10b981, #06b6d4, #8b5cf6, #f43f5e); animation-duration: 2.2s; }
+.frame-obsidian-gold-filigree::before { background: conic-gradient(from 0deg, #0f172a, #fbbf24, #1e293b, #f59e0b, #0f172a); }
+.frame-golden-wreath-laurel::before { background: conic-gradient(from 0deg, #facc15, #eab308, #fef08a, #ca8a04, #facc15); }
+.frame-classic-minimalist-gold::before { background: conic-gradient(from 0deg, #eab308, #fef08a, #d97706, #eab308); }
 
 /* ========================================================================= */
 /* 3D RUBY VIP BUTTON (FOR ADMIN CONTROL PANEL IN HEADER)                   */
@@ -1644,5 +1846,35 @@ html.light .tiranga-text {
   line-height: 1.25 !important;
   vertical-align: middle !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
 }
+
+/* Global Mobile Auto-Adjust & Zero Overflow Protection (320px+) */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  button, a {
+    max-width: 100%;
+  }
+
+  .btn-3d-ruby,
+  .btn-3d-silver,
+  .btn-3d-rainbow,
+  .btn-3d-rainbow-special,
+  .btn-3d-gold,
+  .btn-3d-platinum,
+  .btn-gold-gradient {
+    font-size: clamp(10.5px, 2.9vw, 12.5px);
+  }
+}
+

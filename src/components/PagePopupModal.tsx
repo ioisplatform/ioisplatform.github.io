@@ -20,7 +20,8 @@ import {
   Calculator,
   UserPlus,
   Maximize2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MessageCircle
 } from 'lucide-react';
 
 import { RtpsJaminServicesPage } from './RtpsJaminServicesPage';
@@ -43,6 +44,7 @@ import { AssessmentPortal } from './AssessmentPortal';
 import { LegalPolicyPages } from './LegalPolicyPages';
 import { ContactFaq } from './ContactFaq';
 import { PhotoCompressorTool } from './PhotoCompressorModal';
+import { IoisChatHelpHub } from './IoisChatHelpHub';
 
 interface PagePopupModalProps {
   page: PageType;
@@ -50,6 +52,8 @@ interface PagePopupModalProps {
   currentUser: UserProfile | null;
   onOpenLogin: (mode?: 'login' | 'forgot_password' | 'forgot_user_id') => void;
   onOpenRegister: (planId?: number, sponsorId?: string) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenPublicProfile?: (userOrHandle: UserProfile | string) => void;
   onOpenDashboard: () => void;
   onOpenIdCard: () => void;
   onOpenAiChat: () => void;
@@ -64,6 +68,8 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
   currentUser,
   onOpenLogin,
   onOpenRegister,
+  onOpenSponsorAddMember,
+  onOpenPublicProfile,
   onOpenDashboard,
   onOpenIdCard,
   onOpenAiChat,
@@ -135,6 +141,8 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         return { title: 'नया सदस्य रजिस्ट्रेशन (Member Registration)', subtitle: '3 आसान चरणों में पंजीकरण पूर्ण करें और तुरंत डिजिटल ID कार्ड प्राप्त करें', icon: UserPlus, color: 'text-amber-400' };
       case 'photo-compressor':
         return { title: 'फोटो कंप्रेसर व रिसाइज़र (Smart Photo Resizer)', subtitle: 'सरकारी फॉर्म, RTPS व SSC हेतु 20KB, 50KB व 100KB में फोटो व सिग्नेचर कंप्रेस करें', icon: ImageIcon, color: 'text-pink-400' };
+      case 'chat-help':
+        return { title: 'IOIS CHAT & HELP', subtitle: '1:1 चैट, ग्रुप चैट, फोटो-वीडियो-लिंक शेयरिंग, फ्रेंड रिक्वेस्ट व @username प्रोफाइल नेटवर्क', icon: MessageCircle, color: 'text-emerald-400' };
       default:
         return { title: 'IOIS डिजिटल सेवा', subtitle: 'आधिकारिक डिजिटल सेवा पोर्टल', icon: Sparkles, color: 'text-amber-400' };
     }
@@ -187,16 +195,30 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Quick Register / Action Button inside popup header */}
+            {/* Quick Register / Sponsor Add Member Action Button inside popup header */}
             {page !== 'register' && (
-              <button
-                type="button"
-                onClick={() => onOpenRegister(1)}
-                className="hidden md:flex btn-3d-gold px-3 py-1.5 rounded-xl text-xs font-black items-center gap-1.5 shadow cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>ज्वाइन करें</span>
-              </button>
+              currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSponsorAddMember?.(1);
+                  }}
+                  className="hidden md:flex btn-3d-gold px-3 py-1.5 rounded-xl text-xs font-black items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>नया सदस्य जोड़ें</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onOpenRegister(1)}
+                  className="hidden md:flex btn-3d-gold px-3 py-1.5 rounded-xl text-xs font-black items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>ज्वाइन करें</span>
+                </button>
+              )
             )}
 
             {/* Instant 3D Close Button */}
@@ -216,10 +238,15 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         <div className="p-3 sm:p-6 overflow-y-auto flex-1 space-y-6">
           {page === 'plans' && (
             <PlansGrid
+              currentUser={currentUser}
               onAskAI={onOpenAiChat}
               onSelectPlanForRegister={(planId) => {
                 onClose();
                 onSelectPlanForRegister(planId);
+              }}
+              onOpenSponsorAddMember={(planId) => {
+                onClose();
+                onOpenSponsorAddMember?.(planId);
               }}
             />
           )}
@@ -235,7 +262,7 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
           {page === 'idcard' && (
             <IDCardGenerator
               currentUser={currentUser}
-              onOpenRegister={() => {
+              onOpenRegister={currentUser ? undefined : () => {
                 onClose();
                 onOpenRegister();
               }}
@@ -252,12 +279,17 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
 
           {page === 'news' && (
             <LiveNewsPage
+              currentUser={currentUser}
               onNavigate={(targetPage) => {
                 // Stay inside popup modal or route
               }}
               onOpenRegister={(planId) => {
                 onClose();
                 onOpenRegister(planId);
+              }}
+              onOpenSponsorAddMember={(planId) => {
+                onClose();
+                onOpenSponsorAddMember?.(planId);
               }}
               onOpenAiChat={onOpenAiChat}
             />
@@ -289,7 +321,17 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
           )}
 
           {page === 'jobs' && (
-            <JobAlertsPage />
+            <JobAlertsPage
+              currentUser={currentUser}
+              onOpenRegister={() => {
+                onClose();
+                onOpenRegister();
+              }}
+              onOpenSponsorAddMember={() => {
+                onClose();
+                onOpenSponsorAddMember?.(1);
+              }}
+            />
           )}
 
           {page === 'parents' && (
@@ -312,22 +354,88 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
             <PhotoCompressorTool />
           )}
 
+          {page === 'chat-help' && (
+            currentUser ? (
+              <IoisChatHelpHub
+                currentUser={currentUser}
+                onOpenPublicProfile={onOpenPublicProfile}
+              />
+            ) : (
+              <div className="p-6 text-center space-y-4 bg-slate-900/70 rounded-2xl border border-slate-800">
+                <MessageCircle className="w-10 h-10 text-emerald-400 mx-auto" />
+                <h4 className="text-base font-black text-white">IOIS CHAT & HELP सदस्य चैट हब</h4>
+                <p className="text-xs text-slate-300 max-w-md mx-auto">
+                  मित्र जोड़ने, स्पॉन्सर से चैट करने, फोटो/वीडियो/लिंक साझा करने और ग्रुप बनाने के लिए कृपया पहले लॉगिन करें।
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenLogin('login');
+                    }}
+                    className="btn-3d-gold px-4 py-2 rounded-xl text-xs font-black text-slate-950 cursor-pointer"
+                  >
+                    सदस्य लॉगिन करें
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenRegister(1);
+                    }}
+                    className="btn-3d-rainbow px-4 py-2 rounded-xl text-xs font-black text-black cursor-pointer"
+                  >
+                    नया रजिस्ट्रेशन
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+
           {(page === 'privacy-policy' || page === 'terms' || page === 'disclaimer' || page === 'about') && (
-            <LegalPolicyPages activeTab={page as 'about' | 'privacy-policy' | 'terms' | 'disclaimer'} />
+            <LegalPolicyPages
+              activeTab={page as 'about' | 'privacy-policy' | 'terms' | 'disclaimer'}
+              currentUser={currentUser}
+              onOpenSponsorAddMember={(planId) => {
+                onClose();
+                onOpenSponsorAddMember?.(planId);
+              }}
+            />
           )}
 
           {page === 'register' && (
-            <RegistrationPortal
-              onRegisterSuccess={(user) => {
-                onClose();
-                onRegisterSuccess(user);
-              }}
-              onOpenLogin={() => {
-                onClose();
-                onOpenLogin('login');
-              }}
-              initialSponsorId={sponsorReferralId}
-            />
+            currentUser ? (
+              <div className="p-6 text-center space-y-4 bg-slate-900/80 rounded-2xl border border-amber-500/40">
+                <UserPlus className="w-10 h-10 text-amber-400 mx-auto" />
+                <h4 className="text-base font-black text-white">आप पहले से लॉगिन हैं ({currentUser.userId})</h4>
+                <p className="text-xs text-slate-300 max-w-md mx-auto">
+                  यदि आप किसी नए व्यक्ति को अपने स्पॉन्सर ID के नीचे जोड़ना चाहते हैं, तो नीचे दिए बटन से स्पॉन्सर ऑनबोर्डिंग फॉर्म खोलें।
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSponsorAddMember?.(1);
+                  }}
+                  className="btn-3d-rainbow-special px-5 py-2.5 rounded-xl text-xs font-black text-black cursor-pointer"
+                >
+                  अपने स्पॉन्सर ID से नया सदस्य जोड़ें →
+                </button>
+              </div>
+            ) : (
+              <RegistrationPortal
+                onRegisterSuccess={(user) => {
+                  onClose();
+                  onRegisterSuccess(user);
+                }}
+                onOpenLogin={() => {
+                  onClose();
+                  onOpenLogin('login');
+                }}
+                initialSponsorId={sponsorReferralId}
+              />
+            )
           )}
         </div>
 
