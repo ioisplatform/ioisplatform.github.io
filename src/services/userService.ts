@@ -24,6 +24,9 @@ import {
 } from 'firebase/firestore';
 
 const STORAGE_USERS_KEY = 'iois_database_users_v2';
+const STORAGE_USERS_VAULT_KEY = 'iois_database_users_vault_v1';
+const STORAGE_ARCHIVE_VAULT_KEY = 'iois_archived_users_vault_v1';
+const STORAGE_FIRESTORE_QUOTA_KEY = 'iois_firestore_quota_until';
 const STORAGE_CURRENT_USER_KEY = 'iois_current_session_user';
 const STORAGE_ADMIN_SESSION_KEY = 'iois_admin_session_active';
 const STORAGE_TICKETS_KEY = 'iois_help_tickets_v2';
@@ -33,17 +36,47 @@ const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
 const STORAGE_DEVICE_SESSION_TOKEN_KEY = 'iois_device_session_token';
 
+// NEVER include member database keys in evict list so user data is never wiped on quota pressure
 const BULKY_EVICT_KEYS = [
-  STORAGE_USERS_KEY,
   STORAGE_INTERVIEWS_KEY,
   STORAGE_UNANSWERED_KEY,
   'iois_social_messages_local_v1',
 ];
 
 let memoryUsers: UserProfile[] | null = null;
+let memoryArchivedUsers: UserProfile[] = [];
 let memoryCurrentUser: UserProfile | null | undefined = undefined;
 let memoryTickets: HelpTicket[] | null = null;
 let idbHydrationPromise: Promise<void> | null = null;
+let lastClientFirestoreFetchAt = 0;
+
+export const isFirestoreInQuotaCooldown = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = safeLocalStorageGet(STORAGE_FIRESTORE_QUOTA_KEY);
+    if (!raw) return false;
+    const until = Number(raw);
+    return Number.isFinite(until) && Date.now() < until;
+  } catch {
+    return false;
+  }
+};
+
+export const markFirestoreQuotaExhausted = (err?: any): boolean => {
+  const msg = String(err?.message || err?.code || err || '').toLowerCase();
+  if (
+    msg.includes('resource-exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('exceeded') ||
+    msg.includes('429')
+  ) {
+    if (typeof window !== 'undefined') {
+      safeLocalStorageSet(STORAGE_FIRESTORE_QUOTA_KEY, String(Date.now() + 10 * 60 * 1000));
+    }
+    return true;
+  }
+  return false;
+};
 
 export const getDeviceSessionToken = (): string => {
   if (typeof window === 'undefined') return '';
@@ -270,32 +303,84 @@ const sanitizeForFirestore = (obj: any): any => {
   return clean;
 };
 
-// Merge multiple user lists without losing any existing users or pending/approved records
+// Prepare a user record so Firestore 1MB document limit NEVER drops a member record
+const prepareUserForFirestore = (user: UserProfile): any => {
+  const clean = sanitizeForFirestore(user);
+  try {
+    const serialized = JSON.stringify(clean);
+    if (serialized.length <= 850_000) return clean;
+    const trimmed = { ...clean };
+    if (
+      typeof trimmed.paymentScreenshotUrl === 'string' &&
+      trimmed.paymentScreenshotUrl.startsWith('data:') &&
+      trimmed.paymentScreenshotUrl.length > 250_000
+    ) {
+      trimmed.paymentScreenshotUrl = '';
+    }
+    if (
+      typeof trimmed.photoUrl === 'string' &&
+      trimmed.photoUrl.startsWith('data:') &&
+      trimmed.photoUrl.length > 250_000
+    ) {
+      trimmed.photoUrl = '';
+    }
+    return trimmed;
+  } catch {
+    return clean;
+  }
+};
+
+// Merge multiple user lists non-destructively (never erase non-empty fields or lose existing members)
 export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): UserProfile[] => {
   const map = new Map<string, UserProfile>();
 
   for (const list of lists) {
     if (!list || !Array.isArray(list)) continue;
     for (const u of list) {
-      if (!u || !u.userId) continue;
+      if (!u || !u.userId || u.isArchived) continue;
       const key = u.userId.trim().toUpperCase();
       const existing = map.get(key);
 
       if (!existing) {
-        map.set(key, { ...u });
+        map.set(key, { ...u, userId: key });
       } else {
-        // Keep approved status and newest fields
+        const merged: any = { ...existing };
+        for (const [k, val] of Object.entries(u)) {
+          if (val !== undefined && val !== null && val !== '') {
+            merged[k] = val;
+          }
+        }
+
         const isApproved = existing.paymentStatus === 'approved' || u.paymentStatus === 'approved';
-        const merged: UserProfile = {
-          ...existing,
-          ...u,
-          paymentStatus: isApproved ? 'approved' : (u.paymentStatus || existing.paymentStatus),
-          photoUrl: u.photoUrl || existing.photoUrl,
-          paymentScreenshotUrl: u.paymentScreenshotUrl || existing.paymentScreenshotUrl,
-          verifiedAt: u.verifiedAt || existing.verifiedAt,
-          rejectionReason: u.rejectionReason || existing.rejectionReason,
-        };
-        map.set(key, merged);
+        merged.userId = existing.userId || key;
+        merged.paymentStatus = isApproved ? 'approved' : (u.paymentStatus || existing.paymentStatus);
+        merged.photoUrl = u.photoUrl || existing.photoUrl;
+        merged.paymentScreenshotUrl = u.paymentScreenshotUrl || existing.paymentScreenshotUrl;
+        merged.password = (u.password && u.password.trim()) ? u.password : existing.password;
+        merged.verifiedAt = u.verifiedAt || existing.verifiedAt;
+        merged.rejectionReason = u.rejectionReason || existing.rejectionReason;
+        merged.registrationFormData =
+          existing.registrationFormData || u.registrationFormData
+            ? { ...(existing.registrationFormData || {}), ...(u.registrationFormData || {}) }
+            : undefined;
+        merged.friends = Array.from(new Set([...(existing.friends || []), ...(u.friends || [])]));
+        merged.profileLikes = Array.from(new Set([...(existing.profileLikes || []), ...(u.profileLikes || [])]));
+        merged.profileViews = Math.max(Number(existing.profileViews || 0), Number(u.profileViews || 0));
+
+        if (Array.isArray(existing.editHistory) || Array.isArray(u.editHistory)) {
+          const hist = [...(u.editHistory || []), ...(existing.editHistory || [])];
+          const seen = new Set<string>();
+          merged.editHistory = hist
+            .filter((item) => {
+              const sig = `${item.field}|${item.timestamp}|${item.newValue}`;
+              if (seen.has(sig)) return false;
+              seen.add(sig);
+              return true;
+            })
+            .slice(0, 100);
+        }
+
+        map.set(key, merged as UserProfile);
       }
     }
   }
@@ -308,43 +393,51 @@ export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): 
  */
 export const syncUserToFirestore = async (user: UserProfile): Promise<void> => {
   try {
-    if (!db || !user.userId) return;
+    if (!db || !user.userId || isFirestoreInQuotaCooldown()) return;
     const userRef = doc(db, 'users', user.userId.trim().toUpperCase());
-    const cleanData = sanitizeForFirestore(user);
+    const cleanData = prepareUserForFirestore(user);
     await setDoc(userRef, cleanData, { merge: true });
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Firestore syncUser warning:', e);
   }
 };
 
 export const deleteUserFromFirestore = async (userId: string): Promise<void> => {
   try {
-    if (!db || !userId) return;
-    await deleteDoc(doc(db, 'users', userId.trim().toUpperCase()));
+    if (!db || !userId || isFirestoreInQuotaCooldown()) return;
+    // Soft-archive in Firestore so member record is NEVER permanently wiped
+    await setDoc(
+      doc(db, 'users', userId.trim().toUpperCase()),
+      { isArchived: true, archivedAt: new Date().toISOString() },
+      { merge: true }
+    );
   } catch (e) {
-    console.warn('Firestore deleteUser warning:', e);
+    markFirestoreQuotaExhausted(e);
+    console.warn('Firestore archiveUser warning:', e);
   }
 };
 
 export const subscribeToFirestoreUsers = (onUpdate: (users: UserProfile[]) => void) => {
   try {
-    if (!db) return () => {};
+    if (!db || isFirestoreInQuotaCooldown()) return () => {};
     const usersCol = collection(db, 'users');
     return onSnapshot(usersCol, (snapshot) => {
       const liveUsers: UserProfile[] = [];
       snapshot.forEach((docSnap) => {
         const u = docSnap.data() as UserProfile;
-        if (u && u.userId) {
+        if (u && u.userId && !u.isArchived) {
           liveUsers.push(u);
         }
       });
       if (liveUsers.length > 0) {
         const currentLocal = getAllUsers();
-        const merged = mergeUserLists(liveUsers, currentLocal, INITIAL_DEMO_USERS);
+        const merged = mergeUserLists(currentLocal, liveUsers, INITIAL_DEMO_USERS);
         saveUsers(merged);
         onUpdate(merged);
       }
     }, (error) => {
+      markFirestoreQuotaExhausted(error);
       console.warn('Firestore users snapshot error:', error);
     });
   } catch (e) {
@@ -355,18 +448,19 @@ export const subscribeToFirestoreUsers = (onUpdate: (users: UserProfile[]) => vo
 
 export const syncTicketToFirestore = async (ticket: HelpTicket): Promise<void> => {
   try {
-    if (!db || !ticket.id) return;
+    if (!db || !ticket.id || isFirestoreInQuotaCooldown()) return;
     const ticketRef = doc(db, 'tickets', ticket.id);
     const cleanData = sanitizeForFirestore(ticket);
     await setDoc(ticketRef, cleanData, { merge: true });
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Firestore syncTicket warning:', e);
   }
 };
 
 export const subscribeToFirestoreTickets = (onUpdate: (tickets: HelpTicket[]) => void) => {
   try {
-    if (!db) return () => {};
+    if (!db || isFirestoreInQuotaCooldown()) return () => {};
     const col = collection(db, 'tickets');
     return onSnapshot(col, (snapshot) => {
       const liveTickets: HelpTicket[] = [];
@@ -379,6 +473,7 @@ export const subscribeToFirestoreTickets = (onUpdate: (tickets: HelpTicket[]) =>
         onUpdate(liveTickets);
       }
     }, (error) => {
+      markFirestoreQuotaExhausted(error);
       console.warn('Firestore tickets snapshot error:', error);
     });
   } catch (e) {
@@ -392,26 +487,28 @@ export const subscribeToFirestoreTickets = (onUpdate: (tickets: HelpTicket[]) =>
  */
 export const syncKnowledgeToFirestore = async (item: KnowledgeItem): Promise<void> => {
   try {
-    if (!db || !item.id) return;
+    if (!db || !item.id || isFirestoreInQuotaCooldown()) return;
     const ref = doc(db, 'ai_knowledge', item.id);
     await setDoc(ref, sanitizeForFirestore(item), { merge: true });
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Firestore syncKnowledge warning:', e);
   }
 };
 
 export const deleteKnowledgeFromFirestore = async (id: string): Promise<void> => {
   try {
-    if (!db || !id) return;
+    if (!db || !id || isFirestoreInQuotaCooldown()) return;
     await deleteDoc(doc(db, 'ai_knowledge', id));
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Firestore deleteKnowledge warning:', e);
   }
 };
 
 export const subscribeToFirestoreKnowledge = (onUpdate: (items: KnowledgeItem[]) => void) => {
   try {
-    if (!db) return () => {};
+    if (!db || isFirestoreInQuotaCooldown()) return () => {};
     const col = collection(db, 'ai_knowledge');
     return onSnapshot(col, (snapshot) => {
       const liveItems: KnowledgeItem[] = [];
@@ -424,12 +521,12 @@ export const subscribeToFirestoreKnowledge = (onUpdate: (items: KnowledgeItem[])
           void idbSet(STORAGE_KNOWLEDGE_KEY, liveItems);
           safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(liveItems), {
             maxBytes: 600_000,
-            evictKeysOnQuota: [STORAGE_USERS_KEY],
           });
         }
         onUpdate(liveItems);
       }
     }, (error) => {
+      markFirestoreQuotaExhausted(error);
       console.warn('Firestore knowledge snapshot error:', error);
     });
   } catch (e) {
@@ -439,8 +536,26 @@ export const subscribeToFirestoreKnowledge = (onUpdate: (items: KnowledgeItem[])
 };
 
 export const fetchKnowledgeFromFirestore = async (): Promise<KnowledgeItem[]> => {
+  // 1. Prefer server API FIRST so visitors never burn Firestore read quota
   try {
-    if (db) {
+    const res = await fetch('/api/ai/knowledge');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.knowledge) && data.knowledge.length > 0) {
+        if (typeof window !== 'undefined') {
+          void idbSet(STORAGE_KNOWLEDGE_KEY, data.knowledge);
+          safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(data.knowledge), {
+            maxBytes: 600_000,
+          });
+        }
+        return data.knowledge;
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to Firestore only if server failed and quota is not in cooldown
+  try {
+    if (db && !isFirestoreInQuotaCooldown()) {
       const col = collection(db, 'ai_knowledge');
       const snap = await getDocs(col);
       const items: KnowledgeItem[] = [];
@@ -453,27 +568,14 @@ export const fetchKnowledgeFromFirestore = async (): Promise<KnowledgeItem[]> =>
           void idbSet(STORAGE_KNOWLEDGE_KEY, items);
           safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(items), {
             maxBytes: 600_000,
-            evictKeysOnQuota: [STORAGE_USERS_KEY],
           });
         }
         return items;
       }
     }
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Direct firestore knowledge read warning:', e);
-  }
-
-  // Fallback to server or local
-  try {
-    const res = await fetch('/api/ai/knowledge');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.knowledge) && data.knowledge.length > 0) {
-        return data.knowledge;
-      }
-    }
-  } catch (e) {
-    // ignore
   }
 
   if (typeof window !== 'undefined') {
@@ -624,18 +726,35 @@ const hydrateUsersFromIdb = (): Promise<void> => {
 
   idbHydrationPromise = (async () => {
     try {
-      const [idbUsers, idbCur, idbTix] = await Promise.all([
+      const [idbUsers, vaultUsers, archivedUsers, idbCur, idbTix] = await Promise.all([
         idbGet<UserProfile[]>(STORAGE_USERS_KEY),
+        idbGet<UserProfile[]>(STORAGE_USERS_VAULT_KEY),
+        idbGet<UserProfile[]>(STORAGE_ARCHIVE_VAULT_KEY),
         idbGet<UserProfile>(STORAGE_CURRENT_USER_KEY),
         idbGet<HelpTicket[]>(STORAGE_TICKETS_KEY),
       ]);
 
-      if (Array.isArray(idbUsers) && idbUsers.length > 0) {
-        const cleanIdb = idbUsers.filter(
-          (u: UserProfile) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
-        );
-        // Merge with memoryUsers (IDB first so any LS-stripped photos are restored, memoryUsers second so newer fields win)
-        memoryUsers = mergeUserLists(cleanIdb, memoryUsers || [], INITIAL_DEMO_USERS);
+      if (Array.isArray(archivedUsers) && archivedUsers.length > 0) {
+        memoryArchivedUsers = archivedUsers;
+      }
+      const archivedIds = new Set(
+        memoryArchivedUsers.map((u) => u?.userId?.trim().toUpperCase()).filter(Boolean)
+      );
+
+      const combinedIdb = mergeUserLists(
+        Array.isArray(vaultUsers) ? vaultUsers : [],
+        Array.isArray(idbUsers) ? idbUsers : []
+      ).filter(
+        (u: UserProfile) =>
+          u &&
+          u.userId &&
+          !u.isArchived &&
+          !archivedIds.has(u.userId.trim().toUpperCase()) &&
+          !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
+      );
+
+      if (combinedIdb.length > 0) {
+        memoryUsers = mergeUserLists(combinedIdb, memoryUsers || [], INITIAL_DEMO_USERS);
       }
 
       if (idbCur && idbCur.userId) {
@@ -763,13 +882,15 @@ export const getSponsorUserAsync = async (sponsorId?: string | null): Promise<Us
   const localMatch = findUserById(cleanId);
   if (localMatch) return localMatch;
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const snap = await getDoc(doc(db, 'users', cleanId));
       if (snap.exists()) {
         return snap.data() as UserProfile;
       }
-    } catch {}
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
   }
 
   try {
@@ -795,37 +916,79 @@ export const getSponsorUserAsync = async (sponsorId?: string | null): Promise<Us
   return null;
 };
 
-export const saveUsers = (users: UserProfile[]): void => {
+export const saveUsers = (users: UserProfile[], options?: { allowShrink?: boolean }): void => {
   if (typeof window === 'undefined') return;
 
-  const cleanUsers = Array.isArray(users)
-    ? users.filter((u) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase()))
+  const archivedIds = new Set(
+    memoryArchivedUsers.map((u) => u?.userId?.trim().toUpperCase()).filter(Boolean)
+  );
+
+  const incomingClean = Array.isArray(users)
+    ? users.filter(
+        (u) =>
+          u &&
+          u.userId &&
+          !u.isArchived &&
+          !archivedIds.has(u.userId.trim().toUpperCase()) &&
+          !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
+      )
     : [];
 
-  // 1. Always preserve full user records (including photos & screenshots) in memory + IndexedDB
+  // ANTI-WIPE GUARD: Never drop existing members in memory unless explicitly requested via allowShrink
+  const cleanUsers =
+    !options?.allowShrink && memoryUsers && memoryUsers.length > 0
+      ? mergeUserLists(memoryUsers, incomingClean).filter(
+          (u) => !u.isArchived && !archivedIds.has(u.userId.trim().toUpperCase())
+        )
+      : incomingClean;
+
+  // 1. Always preserve full user records (including photos & screenshots) in memory + dual IndexedDB vaults
   memoryUsers = cleanUsers;
   void idbSet(STORAGE_USERS_KEY, cleanUsers);
+  void idbSet(STORAGE_USERS_VAULT_KEY, cleanUsers);
 
-  // 2. Write a quota-safe snapshot to localStorage (never exhaust browser ~5MB limit or throw QuotaExceededError)
+  // 2. Write a quota-safe snapshot to localStorage (never wipe member list on overflow)
   try {
     const fullSerialized = JSON.stringify(cleanUsers);
     if (fullSerialized.length <= 900_000) {
-      const saved = safeLocalStorageSet(STORAGE_USERS_KEY, fullSerialized);
-      if (saved) return;
+      if (safeLocalStorageSet(STORAGE_USERS_KEY, fullSerialized, { evictKeysOnQuota: BULKY_EVICT_KEYS })) {
+        return;
+      }
     }
 
-    // Fallback: strip large base64 data URLs in the localStorage copy ONLY (memoryUsers & IndexedDB retain full photos)
+    // Fallback 1: strip large inline data URLs in localStorage ONLY (memoryUsers & IndexedDB retain full photos)
     const compactUsers = cleanUsers.map((u) => stripOversizedDataUrls(u, 4096));
     const compactSerialized = JSON.stringify(compactUsers);
     if (compactSerialized.length <= 900_000) {
-      const savedCompact = safeLocalStorageSet(STORAGE_USERS_KEY, compactSerialized);
-      if (savedCompact) return;
+      if (safeLocalStorageSet(STORAGE_USERS_KEY, compactSerialized, { evictKeysOnQuota: BULKY_EVICT_KEYS })) {
+        return;
+      }
     }
 
-    // If localStorage is still tight due to other app keys, remove redundant user list cache cleanly
-    safeLocalStorageRemove(STORAGE_USERS_KEY);
+    // Fallback 2: keep full member metadata in localStorage (all core member fields, zero photos)
+    const metaUsers = cleanUsers.map((u) => ({
+      userId: u.userId,
+      username: u.username,
+      fullName: u.fullName,
+      mobileNumber: u.mobileNumber,
+      email: u.email,
+      sponsorId: u.sponsorId,
+      selectedPlanId: u.selectedPlanId,
+      paymentUtr: u.paymentUtr,
+      payoutUpi: u.payoutUpi,
+      paymentStatus: u.paymentStatus,
+      createdAt: u.createdAt,
+      verifiedAt: u.verifiedAt,
+      role: u.role,
+      address: u.address,
+      state: u.state,
+      district: u.district,
+    }));
+    safeLocalStorageSet(STORAGE_USERS_KEY, JSON.stringify(metaUsers), {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
   } catch {
-    safeLocalStorageRemove(STORAGE_USERS_KEY);
+    // Non-fatal: IndexedDB vault still holds 100% complete user records
   }
 };
 
@@ -1180,11 +1343,11 @@ export const checkUserAlreadyExists = async (
     // ignore network err
   }
 
-  // 3. Fast Targeted Firestore query (0-latency limit(1) instead of unbounded collection download)
-  if (db && (mobileDigits.length >= 10 || cleanEmail.length > 3)) {
+  // 3. Fast Targeted Firestore query (only when not in quota cooldown)
+  if (db && !isFirestoreInQuotaCooldown() && (mobileDigits.length >= 10 || cleanEmail.length > 3)) {
     try {
       const col = collection(db, 'users');
-      const timeoutPromise = new Promise<DuplicateCheckResult>((resolve) => setTimeout(() => resolve({ exists: false }), 1200));
+      const timeoutPromise = new Promise<DuplicateCheckResult>((resolve) => setTimeout(() => resolve({ exists: false }), 1800));
       const queryPromise = (async (): Promise<DuplicateCheckResult> => {
         if (mobileDigits.length >= 10) {
           const q = query(col, where('mobileNumber', '==', mobileDigits.slice(-10)), limit(1));
@@ -1204,8 +1367,8 @@ export const checkUserAlreadyExists = async (
 
       const fastResult = await Promise.race([queryPromise, timeoutPromise]);
       if (fastResult.exists) return fastResult;
-    } catch {
-      // non-blocking fallback
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
     }
   }
 
@@ -1429,18 +1592,45 @@ export const secureRecoverUserIdAsync = async (
 };
 
 /**
- * Fetch all users from Firestore + server + local cache and merge without data loss
+ * Helper to detect if any merged user has richer non-empty details or missing IDs vs server copy
  */
-export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
+const serverNeedsSelfHealSync = (merged: UserProfile[], serverUsers: UserProfile[]): boolean => {
+  if (merged.length > serverUsers.length) return true;
+  const serverMap = new Map<string, UserProfile>();
+  for (const su of serverUsers) {
+    if (su?.userId) serverMap.set(su.userId.trim().toUpperCase(), su);
+  }
+  for (const m of merged) {
+    const key = m.userId?.trim().toUpperCase();
+    if (!key) continue;
+    const s = serverMap.get(key);
+    if (!s) return true;
+    if (!s.mobileNumber && m.mobileNumber) return true;
+    if (!s.paymentUtr && m.paymentUtr) return true;
+    if (!s.payoutUpi && m.payoutUpi) return true;
+    if (!s.registrationFormData && m.registrationFormData) return true;
+    if (m.paymentStatus === 'approved' && s.paymentStatus !== 'approved') return true;
+  }
+  return false;
+};
+
+/**
+ * Fetch all users from Server + Firestore (quota-aware) + IndexedDB Vault and merge without data loss
+ * Includes bidirectional auto-heal sync so neither live server nor browser loses member records.
+ */
+export const fetchUsersFromServer = async (
+  options?: { skipFirestore?: boolean; forceCloud?: boolean }
+): Promise<UserProfile[]> => {
   await hydrateUsersFromIdb();
   const localUsers = getAllUsers();
   const firestoreUsers: UserProfile[] = [];
   let serverUsers: UserProfile[] = [];
+  let firestoreSucceededCleanly = false;
 
-  // 1. FAST PATH: Fetch from backend server with 1500ms timeout (immediate response from disk)
+  // 1. FAST PATH: Fetch from backend server with 5000ms timeout
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     const res = await fetch('/api/users', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
@@ -1453,27 +1643,85 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
     console.warn('Server users fetch note, falling back to local/cloud cache:', err);
   }
 
-  // 2. Non-blocking Firestore sync with 1500ms timeout
-  if (db) {
+  // 2. Quota-protected Firestore read (skipped during polling or 3-min cache window unless forced/sparse server)
+  const shouldQueryFirestore =
+    Boolean(db) &&
+    !options?.skipFirestore &&
+    !isFirestoreInQuotaCooldown() &&
+    (options?.forceCloud ||
+      serverUsers.length <= 1 ||
+      Date.now() - lastClientFirestoreFetchAt > 180_000);
+
+  if (shouldQueryFirestore && db) {
     try {
       const col = collection(db, 'users');
-      const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      let timedOut = false;
+      const timeoutPromise = new Promise<void>((resolve) =>
+        setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, 6000)
+      );
       const fetchPromise = (async () => {
         const snap = await getDocs(col);
         snap.forEach((d) => {
           const u = d.data() as UserProfile;
           if (u && u.userId) firestoreUsers.push(u);
         });
+        lastClientFirestoreFetchAt = Date.now();
+        firestoreSucceededCleanly = true;
       })();
       await Promise.race([fetchPromise, timeoutPromise]);
+      if (timedOut) {
+        console.warn('Firestore fetch timeout after 6000ms');
+      }
     } catch (e) {
+      markFirestoreQuotaExhausted(e);
       console.warn('Firestore background users sync note:', e);
     }
   }
 
-  // Merge all data sources so old users and new users are all preserved
-  const allMerged = mergeUserLists(firestoreUsers, serverUsers, localUsers, INITIAL_DEMO_USERS);
+  // Respect explicit archive markers if any came back from Firestore
+  const firestoreArchived = firestoreUsers.filter((u) => u.isArchived);
+  if (firestoreArchived.length > 0) {
+    const nextArchMap = new Map<string, UserProfile>();
+    for (const a of [...memoryArchivedUsers, ...firestoreArchived]) {
+      if (a?.userId) nextArchMap.set(a.userId.trim().toUpperCase(), a);
+    }
+    memoryArchivedUsers = Array.from(nextArchMap.values());
+    void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
+  }
+  const archivedIds = new Set(
+    memoryArchivedUsers.map((u) => u?.userId?.trim().toUpperCase()).filter(Boolean)
+  );
+
+  // Merge non-destructively (local -> server -> firestore so non-empty fields accumulate)
+  const allMerged = mergeUserLists(
+    localUsers,
+    serverUsers,
+    firestoreUsers.filter((u) => !u.isArchived),
+    INITIAL_DEMO_USERS
+  ).filter((u) => !archivedIds.has(u.userId.trim().toUpperCase()));
+
   saveUsers(allMerged);
+
+  // 3. Bidirectional Auto-Heal: Push client/cloud records back up to server disk if server was missing anything
+  if (allMerged.length > 0 && serverNeedsSelfHealSync(allMerged, serverUsers)) {
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: allMerged }),
+    }).catch(() => {});
+  }
+
+  // 4. Backfill any server/local users missing in Firestore (only if Firestore read succeeded cleanly)
+  if (firestoreSucceededCleanly && !isFirestoreInQuotaCooldown()) {
+    const fsIds = new Set(firestoreUsers.map((u) => u.userId?.trim().toUpperCase()));
+    const missingInCloud = allMerged.filter((u) => !fsIds.has(u.userId?.trim().toUpperCase()));
+    for (const m of missingInCloud.slice(0, 15)) {
+      void syncUserToFirestore(m);
+    }
+  }
 
   return allMerged;
 };
@@ -1481,6 +1729,8 @@ export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
 export const registerNewUserAsync = async (
   data: Omit<UserProfile, 'userId' | 'paymentStatus' | 'createdAt'>
 ): Promise<UserProfile> => {
+  await hydrateUsersFromIdb();
+
   // 1. Strict Full Name Validation (No random characters or numbers)
   const nameCheck = validateFullName(data.fullName);
   if (!nameCheck.isValid) {
@@ -1537,10 +1787,10 @@ export const registerNewUserAsync = async (
     createdAt: new Date().toISOString(),
   };
 
-  // 3. Contact backend server with 2000ms timeout
+  // 3. Contact backend server with 4000ms timeout
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
     const serverRes = await fetch('/api/users/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1563,13 +1813,16 @@ export const registerNewUserAsync = async (
     console.warn('Server registration endpoint note:', err);
   }
 
-  // 4. Save immediately to local device cache & active session (instant UI responsiveness)
-  const updatedList = mergeUserLists([newUser], currentUsers, INITIAL_DEMO_USERS);
+  // 4. Save immediately to local device vault & active session
+  const updatedList = mergeUserLists(currentUsers, [newUser], INITIAL_DEMO_USERS);
   saveUsers(updatedList);
   setCurrentUser(newUser);
 
-  // 5. Cloud Firestore persistence
-  syncUserToFirestore(newUser).catch(() => {});
+  // 5. Cloud Firestore persistence (await up to 2500ms so registration does not drop on fast tab close)
+  await Promise.race([
+    syncUserToFirestore(newUser),
+    new Promise<void>((resolve) => setTimeout(resolve, 2500)),
+  ]).catch(() => {});
 
   return newUser;
 };
@@ -1971,10 +2224,10 @@ export const loginUserAsync = async (
     // Fallback to Firestore / local cache if server endpoint unreachable
   }
 
-  // 2. Targeted Firestore query fallback
-  if (!matchedUser && db) {
+  // 2. Targeted Firestore query fallback (only when not in quota cooldown)
+  if (!matchedUser && db && !isFirestoreInQuotaCooldown()) {
     try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
       const firestorePromise = (async (): Promise<UserProfile | null> => {
         if (cleanId.length >= 4 && !cleanId.startsWith('@')) {
           const docRef = doc(db, 'users', cleanUpper);
@@ -1995,8 +2248,8 @@ export const loginUserAsync = async (
       })();
 
       matchedUser = await Promise.race([firestorePromise, timeoutPromise]);
-    } catch {
-      // ignore
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
     }
   }
 
@@ -2198,7 +2451,7 @@ export const checkActiveSessionAsync = async (userId: string): Promise<SessionVa
     // Fallback to Firestore
   }
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const snap = await getDoc(doc(db, 'users', cleanId));
       if (snap.exists()) {
@@ -2211,8 +2464,8 @@ export const checkActiveSessionAsync = async (userId: string): Promise<SessionVa
           };
         }
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
     }
   }
 
@@ -2234,7 +2487,7 @@ export const subscribeToSessionValidity = (
     onKickedOut(info);
   };
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       unsubscribeSnap = onSnapshot(
         doc(db, 'users', cleanId),
@@ -2249,18 +2502,35 @@ export const subscribeToSessionValidity = (
             });
           }
         },
-        () => {}
+        (err) => {
+          markFirestoreQuotaExhausted(err);
+        }
       );
     } catch {}
   }
 
+  // Poll server session-check every 15s (zero Firestore reads; skip when tab hidden)
   const interval = setInterval(async () => {
-    if (kicked) return;
-    const res = await checkActiveSessionAsync(cleanId);
-    if (!res.valid) {
-      triggerKick({ newDevice: res.newDevice, newLoginAt: res.newLoginAt });
-    }
-  }, 5000);
+    if (kicked || (typeof document !== 'undefined' && document.hidden)) return;
+    const localToken = getDeviceSessionToken();
+    if (!localToken) return;
+    try {
+      const res = await fetch('/api/users/session-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: cleanId, sessionToken: localToken }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.valid === false) {
+          triggerKick({
+            newDevice: data.newDevice || 'अन्य नया डिवाइस',
+            newLoginAt: data.newLoginAt,
+          });
+        }
+      }
+    } catch {}
+  }, 15000);
 
   return () => {
     unsubscribeSnap();
@@ -2295,6 +2565,7 @@ export interface SponsorAddMemberPayload {
 export const registerMemberBySponsorAsync = async (
   payload: SponsorAddMemberPayload
 ): Promise<UserProfile> => {
+  await hydrateUsersFromIdb();
   const nameCheck = validateFullName(payload.fullName);
   if (!nameCheck.isValid) {
     throw new Error(nameCheck.error || 'कृपया नया सदस्य का सही पूरा नाम दर्ज करें।');
@@ -2528,14 +2799,35 @@ export const setPaymentStatus = (
 };
 
 export const deleteUserAccount = async (userId: string): Promise<boolean> => {
-  try {
-    await deleteUserFromFirestore(userId);
-    await fetch(`/api/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('Delete user note:', e);
+  await hydrateUsersFromIdb();
+  const cleanId = userId.trim().toUpperCase();
+  const users = getAllUsers();
+  const target = users.find((u) => u.userId?.toUpperCase() === cleanId);
+
+  if (target) {
+    const archivedEntry: UserProfile = {
+      ...target,
+      isArchived: true,
+      archivedAt: new Date().toISOString(),
+      archivedReason: 'Admin archive vault',
+    };
+    const nextArchMap = new Map<string, UserProfile>();
+    for (const a of [...memoryArchivedUsers, archivedEntry]) {
+      if (a?.userId) nextArchMap.set(a.userId.trim().toUpperCase(), a);
+    }
+    memoryArchivedUsers = Array.from(nextArchMap.values());
+    void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
+    void syncUserToFirestore(archivedEntry);
   }
-  const users = getAllUsers().filter((u) => u.userId.toUpperCase() !== userId.toUpperCase());
-  saveUsers(users);
+
+  try {
+    await fetch(`/api/users/${encodeURIComponent(cleanId)}`, { method: 'DELETE' });
+  } catch (e) {
+    console.warn('Archive user note:', e);
+  }
+
+  const remaining = users.filter((u) => u.userId.toUpperCase() !== cleanId);
+  saveUsers(remaining, { allowShrink: true });
   return true;
 };
 
@@ -2580,11 +2872,25 @@ export const getHelpTickets = (): HelpTicket[] => {
   }
 };
 
-export const fetchTicketsFromServer = async (): Promise<HelpTicket[]> => {
+export const fetchTicketsFromServer = async (options?: { skipFirestore?: boolean }): Promise<HelpTicket[]> => {
   await hydrateUsersFromIdb();
-  // Check Firestore first
+  // Prefer server disk first so polling doesn't burn Firestore read quota
   try {
-    if (db) {
+    const res = await fetch('/api/tickets');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.tickets)) {
+        saveTicketsLocally(data.tickets);
+        return data.tickets;
+      }
+    }
+  } catch (e) {
+    console.warn('Tickets fetch note:', e);
+  }
+
+  // Fallback to Firestore if server empty/unreachable and quota cooldown not active
+  try {
+    if (db && !options?.skipFirestore && !isFirestoreInQuotaCooldown()) {
       const col = collection(db, 'tickets');
       const snap = await getDocs(col);
       const firestoreTickets: HelpTicket[] = [];
@@ -2598,21 +2904,10 @@ export const fetchTicketsFromServer = async (): Promise<HelpTicket[]> => {
       }
     }
   } catch (e) {
+    markFirestoreQuotaExhausted(e);
     console.warn('Firestore tickets query note:', e);
   }
 
-  try {
-    const res = await fetch('/api/tickets');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.tickets)) {
-        saveTicketsLocally(data.tickets);
-        return data.tickets;
-      }
-    }
-  } catch (e) {
-    console.warn('Tickets fetch note:', e);
-  }
   return getHelpTickets();
 };
 
@@ -2876,6 +3171,7 @@ export const adminUpdateUserProfileAsync = async (
   userId: string,
   updates: Partial<UserProfile>
 ): Promise<UserProfile> => {
+  await hydrateUsersFromIdb();
   const cleanId = userId.trim().toUpperCase();
   const users = getAllUsers();
   const index = users.findIndex((u) => u.userId?.toUpperCase() === cleanId);
@@ -2927,12 +3223,8 @@ export const adminUpdateUserProfileAsync = async (
   users[index] = updatedUser;
   saveUsers(users);
 
-  // Firestore sync
-  if (db) {
-    try {
-      await setDoc(doc(db, 'users', cleanId), updatedUser, { merge: true });
-    } catch {}
-  }
+  // Sanitized + quota-protected Firestore sync
+  void syncUserToFirestore(updatedUser);
 
   // Server API sync
   fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
@@ -2942,4 +3234,188 @@ export const adminUpdateUserProfileAsync = async (
   }).catch(() => {});
 
   return updatedUser;
+};
+
+// =========================================================================
+// 4. Admin Full Records, Archive Vault & Non-Destructive Backup Recovery APIs
+// =========================================================================
+
+export interface AdminBackupInfo {
+  lastBackupAt?: string;
+  activeCount: number;
+  archivedCount: number;
+  firestoreQuotaCooldown: boolean;
+}
+
+export const fetchAdminFullUsersAsync = async (
+  adminPin = 'IOISSYSTEM'
+): Promise<{ users: UserProfile[]; archivedUsers: UserProfile[]; backupInfo?: AdminBackupInfo }> => {
+  await hydrateUsersFromIdb();
+  const localUsers = getAllUsers();
+  let serverFull: UserProfile[] = [];
+  let serverArchived: UserProfile[] = [];
+  let backupInfo: AdminBackupInfo | undefined;
+
+  try {
+    const res = await fetch('/api/admin/users-full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminPin }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success) {
+        serverFull = Array.isArray(data.users) ? data.users : [];
+        serverArchived = Array.isArray(data.archivedUsers) ? data.archivedUsers : [];
+        backupInfo = data.backupInfo;
+      }
+    }
+  } catch {}
+
+  const archivedMap = new Map<string, UserProfile>();
+  for (const a of [...memoryArchivedUsers, ...serverArchived]) {
+    if (a?.userId) archivedMap.set(a.userId.trim().toUpperCase(), a);
+  }
+  memoryArchivedUsers = Array.from(archivedMap.values());
+  void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
+
+  const archivedIds = new Set(memoryArchivedUsers.map((u) => u.userId.trim().toUpperCase()));
+  const merged = mergeUserLists(localUsers, serverFull).filter(
+    (u) => !archivedIds.has(u.userId.trim().toUpperCase())
+  );
+
+  saveUsers(merged);
+  if (merged.length > serverFull.length) {
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: merged }),
+    }).catch(() => {});
+  }
+
+  return { users: merged, archivedUsers: memoryArchivedUsers, backupInfo };
+};
+
+export const fetchArchivedUsersAsync = async (): Promise<UserProfile[]> => {
+  await hydrateUsersFromIdb();
+  try {
+    const res = await fetch('/api/users/archive');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.archivedUsers)) {
+        const archivedMap = new Map<string, UserProfile>();
+        for (const a of [...memoryArchivedUsers, ...data.archivedUsers]) {
+          if (a?.userId) archivedMap.set(a.userId.trim().toUpperCase(), a);
+        }
+        memoryArchivedUsers = Array.from(archivedMap.values());
+        void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
+      }
+    }
+  } catch {}
+  return memoryArchivedUsers;
+};
+
+export const restoreArchivedUserAsync = async (userId: string): Promise<UserProfile | null> => {
+  await hydrateUsersFromIdb();
+  const cleanId = userId.trim().toUpperCase();
+  let restored: UserProfile | null = null;
+
+  try {
+    const res = await fetch(`/api/users/restore/${encodeURIComponent(cleanId)}`, {
+      method: 'POST',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data.user) {
+        restored = data.user;
+      }
+    }
+  } catch {}
+
+  if (!restored) {
+    const target = memoryArchivedUsers.find((u) => u.userId?.toUpperCase() === cleanId);
+    if (target) {
+      restored = {
+        ...target,
+        isArchived: false,
+        archivedAt: undefined,
+        archivedReason: undefined,
+      };
+    }
+  }
+
+  if (restored) {
+    memoryArchivedUsers = memoryArchivedUsers.filter((u) => u.userId?.toUpperCase() !== cleanId);
+    void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
+    const current = getAllUsers();
+    const merged = mergeUserLists(current, [restored]);
+    saveUsers(merged);
+    void syncUserToFirestore(restored);
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: merged }),
+    }).catch(() => {});
+  }
+
+  return restored;
+};
+
+export const triggerAdminCloudSyncAsync = async (
+  adminPin = 'IOISSYSTEM'
+): Promise<{ users: UserProfile[]; cloudError?: string }> => {
+  await hydrateUsersFromIdb();
+  let cloudError: string | undefined;
+  try {
+    const res = await fetch('/api/admin/cloud-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminPin }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      cloudError = data?.cloudError;
+    }
+  } catch {}
+
+  const users = await fetchUsersFromServer({ forceCloud: true });
+  return { users, cloudError };
+};
+
+export const importUsersBackupAsync = async (
+  importedUsers: UserProfile[]
+): Promise<{ totalMerged: number; importedCount: number }> => {
+  await hydrateUsersFromIdb();
+  const validIncoming = (Array.isArray(importedUsers) ? importedUsers : []).filter(
+    (u) =>
+      u &&
+      typeof u === 'object' &&
+      typeof u.userId === 'string' &&
+      u.userId.trim().length >= 3 &&
+      typeof u.fullName === 'string' &&
+      u.fullName.trim().length >= 2 &&
+      !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
+  ).map((u) => ({
+    ...u,
+    userId: u.userId.trim().toUpperCase(),
+    isArchived: false,
+  }));
+
+  const current = getAllUsers();
+  const merged = mergeUserLists(current, validIncoming);
+  saveUsers(merged);
+
+  try {
+    await fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: merged }),
+    });
+  } catch {}
+
+  for (const u of validIncoming.slice(0, 25)) {
+    void syncUserToFirestore(u);
+  }
+
+  return { totalMerged: merged.length, importedCount: validIncoming.length };
 };

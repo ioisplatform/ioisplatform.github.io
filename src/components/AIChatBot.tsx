@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, KnowledgeItem, ChatAction, PageType, UserProfile } from '../types';
 import { 
   fetchKnowledgeFromFirestore,
-  subscribeToFirestoreKnowledge,
   syncUnansweredToFirestore,
   INITIAL_KNOWLEDGE
 } from '../services/userService';
@@ -279,18 +278,10 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
     }
   }, [messages, isOpen, showNavigator]);
 
-  // Load custom knowledge from Firestore (realtime subscription with graceful fallback)
+  // Load custom knowledge from server API (with Firestore fallback only if server fails)
   useEffect(() => {
     let isMounted = true;
 
-    // Realtime subscription will push current documents immediately
-    const unsub = subscribeToFirestoreKnowledge((items) => {
-      if (isMounted && items && items.length > 0) {
-        setKnowledgeList(items);
-      }
-    });
-
-    // Fallback if offline or firestore takes a moment
     fetchKnowledgeFromFirestore()
       .then((items) => {
         if (isMounted && items && items.length > 0) {
@@ -303,9 +294,6 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
 
     return () => {
       isMounted = false;
-      if (typeof unsub === 'function') {
-        unsub();
-      }
     };
   }, []);
 

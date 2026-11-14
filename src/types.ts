@@ -85,6 +85,10 @@ export interface UserProfile {
   profileViews?: number;
   profileLikes?: string[];
   friends?: string[];
+  // Zero-data-loss soft archive protection
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedReason?: string;
 }
 
 export interface AdminPrivateMessage {

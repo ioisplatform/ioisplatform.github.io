@@ -191,6 +191,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setSocialUnreadCache(getSocialUnreadCache(user.userId));
     };
     const refreshSocial = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const boot = await fetchSocialBootstrapAsync(user.userId);
         const me = boot.directory.find((u) => u.userId?.toUpperCase() === user.userId?.toUpperCase());
@@ -205,7 +206,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     refreshSocial();
     window.addEventListener('iois_notifications_updated', updateUnread);
     window.addEventListener('storage', updateUnread);
-    const interval = setInterval(refreshSocial, 7000);
+    const interval = setInterval(refreshSocial, 20000);
     return () => {
       window.removeEventListener('iois_notifications_updated', updateUnread);
       window.removeEventListener('storage', updateUnread);

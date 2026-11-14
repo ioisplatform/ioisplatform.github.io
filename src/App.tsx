@@ -155,6 +155,7 @@ export default function App() {
       }
     };
     const refreshSocialBadge = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       if (currentUser?.userId) {
         try {
           await fetchSocialBootstrapAsync(currentUser.userId);
@@ -166,7 +167,7 @@ export default function App() {
     refreshSocialBadge();
     window.addEventListener('iois_notifications_updated', updateCount);
     window.addEventListener('storage', updateCount);
-    const interval = setInterval(refreshSocialBadge, 8000);
+    const interval = setInterval(refreshSocialBadge, 20000);
     return () => {
       window.removeEventListener('iois_notifications_updated', updateCount);
       window.removeEventListener('storage', updateCount);
@@ -243,12 +244,13 @@ export default function App() {
     };
   }, []);
 
-  // Fast Non-Blocking Deferred Sync with backend (Prioritizes 0-delay instant initial page paint)
+  // Fast Non-Blocking Deferred Sync with backend (Zero Firestore polling storm)
   useEffect(() => {
     let isMounted = true;
-    const sync = async () => {
+    const sync = async (skipFirestore = false) => {
+      if (skipFirestore && typeof document !== 'undefined' && document.hidden) return;
       try {
-        const freshUsers = await fetchUsersFromServer();
+        const freshUsers = await fetchUsersFromServer({ skipFirestore });
         if (isMounted && currentUser) {
           const found = freshUsers.find((u) => u.userId.toUpperCase() === currentUser.userId.toUpperCase());
           if (found) {
@@ -261,9 +263,9 @@ export default function App() {
       }
     };
     
-    // First sync after 1.2s so initial load happens instantly without any network wait
-    const initialTimer = setTimeout(sync, 1200);
-    const interval = setInterval(sync, 25000);
+    // First sync after 1.2s; background polling uses server endpoint only (0 Firestore reads)
+    const initialTimer = setTimeout(() => void sync(false), 1200);
+    const interval = setInterval(() => void sync(true), 45000);
     return () => {
       isMounted = false;
       clearTimeout(initialTimer);

@@ -27,7 +27,7 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { getAllUsers, saveUsers, mergeUserLists } from './userService';
+import { getAllUsers, isFirestoreInQuotaCooldown, markFirestoreQuotaExhausted } from './userService';
 
 const STORAGE_SOCIAL_CACHE_PREFIX = 'iois_social_unread_cache_v1_';
 const STORAGE_SOCIAL_MESSAGES_LOCAL = 'iois_social_messages_local_v1';
@@ -237,9 +237,6 @@ export const fetchSocialBootstrapAsync = async (userId: string): Promise<SocialB
       const data = await res.json();
       if (data && data.success) {
         const directory: UserProfile[] = data.directory || [];
-        if (directory.length > 0) {
-          saveUsers(mergeUserLists(directory, getAllUsers()));
-        }
         const groups: SocialGroup[] = data.groups || [];
         const friendRequests: FriendRequest[] = data.friendRequests || [];
         const visitLogs: ProfileVisitLog[] = data.visitLogs || [];
@@ -279,7 +276,7 @@ export const fetchSocialBootstrapAsync = async (userId: string): Promise<SocialB
   const visitLogs = getLocalArray<ProfileVisitLog>(STORAGE_PROFILE_VISITS_LOCAL);
   const allMsgs = getLocalArray<SocialChatMessage>(STORAGE_SOCIAL_MESSAGES_LOCAL);
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const [grpSnap, frSnap] = await Promise.all([
         getDocs(collection(db, 'social_groups')),
@@ -297,7 +294,9 @@ export const fetchSocialBootstrapAsync = async (userId: string): Promise<SocialB
         friendRequests = fsFr;
         saveLocalArray(STORAGE_FRIEND_REQUESTS_LOCAL, friendRequests);
       }
-    } catch {}
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
   }
 
   const { unreadSummaries, totalUnreadCount } = computeLocalSummaries(
@@ -554,7 +553,7 @@ export const fetchSocialMessagesAsync = async (threadId: string): Promise<Social
     }
   } catch {}
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const q = query(
         collection(db, 'social_messages'),
@@ -566,7 +565,9 @@ export const fetchSocialMessagesAsync = async (threadId: string): Promise<Social
       const msgs: SocialChatMessage[] = [];
       snap.forEach((d) => msgs.push(d.data() as SocialChatMessage));
       if (msgs.length > 0) return msgs;
-    } catch {}
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
   }
 
   return getLocalArray<SocialChatMessage>(STORAGE_SOCIAL_MESSAGES_LOCAL)

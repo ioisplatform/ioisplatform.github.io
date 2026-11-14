@@ -18,7 +18,13 @@ import {
   getDirectDownlines,
   getDownlineStats,
   maskMobile,
-  adminUpdateUserProfileAsync
+  adminUpdateUserProfileAsync,
+  fetchAdminFullUsersAsync,
+  fetchArchivedUsersAsync,
+  restoreArchivedUserAsync,
+  triggerAdminCloudSyncAsync,
+  importUsersBackupAsync,
+  isFirestoreInQuotaCooldown
 } from '../services/userService';
 import { AiKnowledgeManager } from './AiKnowledgeManager';
 import { InterviewListManager } from './InterviewListManager';
@@ -70,7 +76,11 @@ import {
   Printer,
   CalendarDays,
   PartyPopper,
-  Upload
+  Upload,
+  Download,
+  RotateCcw,
+  Archive,
+  ShieldCheck
 } from 'lucide-react';
 import { RegistrationModal } from './RegistrationModal';
 import { NotificationModal } from './NotificationModal';
@@ -111,8 +121,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
   const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders' | 'social_monitor'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
+  const [archivedUsers, setArchivedUsers] = useState<UserProfile[]>([]);
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState<boolean>(false);
+  const [vaultNotice, setVaultNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+  const restoreFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Silent Admin IOIS CHAT & HELP Surveillance State
   const [socialMonitorData, setSocialMonitorData] = useState<AdminSocialMonitorPayload | null>(null);
@@ -260,12 +275,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     }
   };
 
-  const reloadData = async () => {
+  const showVaultNotice = (type: 'success' | 'info' | 'error', text: string) => {
+    setVaultNotice({ type, text });
+    setTimeout(() => setVaultNotice(null), 5000);
+  };
+
+  const reloadData = async (withCloud = false) => {
     setIsRefreshing(true);
     try {
-      const liveUsers = await fetchUsersFromServer();
-      setUsersList(liveUsers);
-      const liveTickets = await fetchTicketsFromServer();
+      await fetchUsersFromServer({ skipFirestore: !withCloud, forceCloud: withCloud });
+      const adminFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
+      setUsersList(adminFull.users);
+      setArchivedUsers(adminFull.archivedUsers);
+      const liveTickets = await fetchTicketsFromServer({ skipFirestore: !withCloud });
       setTicketsList(liveTickets);
     } catch (e) {
       console.warn('Reload data failed', e);
@@ -275,27 +297,126 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   };
 
   useEffect(() => {
-    reloadData();
-    // Realtime Firestore subscription for Users & Tickets
-    const unsubscribeFirestoreUsers = subscribeToFirestoreUsers((liveUsers) => {
-      if (liveUsers && liveUsers.length > 0) {
-        setUsersList(liveUsers);
-      }
-    });
+    if (!isAdminAuth) return;
 
-    const unsubscribeFirestoreTickets = subscribeToFirestoreTickets((liveTickets) => {
-      if (liveTickets && liveTickets.length > 0) {
-        setTicketsList(liveTickets);
-      }
-    });
+    void reloadData(true);
 
-    const interval = setInterval(reloadData, 10000); // 10s live polling fallback
+    // Attach realtime Firestore listeners ONLY for authenticated Admin when not in quota cooldown
+    const unsubscribeFirestoreUsers = !isFirestoreInQuotaCooldown()
+      ? subscribeToFirestoreUsers((liveUsers) => {
+          if (liveUsers && liveUsers.length > 0) {
+            setUsersList(liveUsers);
+          }
+        })
+      : () => {};
+
+    const unsubscribeFirestoreTickets = !isFirestoreInQuotaCooldown()
+      ? subscribeToFirestoreTickets((liveTickets) => {
+          if (liveTickets && liveTickets.length > 0) {
+            setTicketsList(liveTickets);
+          }
+        })
+      : () => {};
+
+    // Background server refresh every 20s (0 Firestore reads)
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void reloadData(false);
+    }, 20000);
+
     return () => {
       unsubscribeFirestoreUsers();
       unsubscribeFirestoreTickets();
       clearInterval(interval);
     };
   }, [isAdminAuth]);
+
+  const handleManualCloudSync = async () => {
+    setIsCloudSyncing(true);
+    try {
+      const res = await triggerAdminCloudSyncAsync('IOISSYSTEM');
+      const full = await fetchAdminFullUsersAsync('IOISSYSTEM');
+      setUsersList(full.users);
+      setArchivedUsers(full.archivedUsers);
+      if (res.cloudError && res.cloudError.includes('resource-exhausted')) {
+        showVaultNotice(
+          'info',
+          `स्थानीय व सर्वर वॉल्ट से ${full.users.length} सदस्य लोड किए गए। क्लाउड कोटा रीसेट होते ही ऑटो-सिंक पूरा हो जाएगा; आप नीचे JSON बैकअप से भी सदस्य तुरंत रिस्टोर कर सकते हैं।`
+        );
+      } else {
+        showVaultNotice('success', `✅ क्लाउड व सर्वर सिंक पूर्ण! कुल ${full.users.length} सक्रिय सदस्य सुरक्षित हैं।`);
+      }
+      if (onUserStatusChange) onUserStatusChange();
+    } catch (e: any) {
+      showVaultNotice('error', e?.message || 'सिंक करने में त्रुटि आई।');
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const handleDownloadJsonBackup = () => {
+    try {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        platform: 'IOIS Platform',
+        activeCount: usersList.length,
+        archivedCount: archivedUsers.length,
+        users: usersList,
+        archivedUsers,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `iois-members-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showVaultNotice('success', `✅ ${usersList.length} सदस्यों का पूरा JSON बैकअप डाउनलोड हो गया!`);
+    } catch {
+      showVaultNotice('error', 'बैकअप फ़ाइल तैयार करने में त्रुटि आई।');
+    }
+  };
+
+  const handleImportBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const rawUsers = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.users)
+        ? parsed.users
+        : [];
+      if (rawUsers.length === 0) {
+        showVaultNotice('error', 'चयनित फ़ाइल में कोई वैध सदस्य रिकॉर्ड नहीं मिला।');
+        return;
+      }
+      const res = await importUsersBackupAsync(rawUsers);
+      await reloadData(false);
+      if (onUserStatusChange) onUserStatusChange();
+      showVaultNotice(
+        'success',
+        `✅ बैकअप से ${res.importedCount} रिकॉर्ड सफलतापूर्वक मर्ज किए गए! कुल सुरक्षित सदस्य: ${res.totalMerged}`
+      );
+    } catch {
+      showVaultNotice('error', 'अमान्य JSON फ़ाइल! कृपया सही IOIS बैकअप फ़ाइल चुनें।');
+    }
+  };
+
+  const handleRestoreArchivedMember = async (userId: string) => {
+    const restored = await restoreArchivedUserAsync(userId);
+    if (restored) {
+      const nextArch = await fetchArchivedUsersAsync();
+      setArchivedUsers(nextArch);
+      await reloadData(false);
+      if (onUserStatusChange) onUserStatusChange();
+      showVaultNotice('success', `✅ सदस्य ${restored.fullName} (${restored.userId}) को सफलतापूर्वक रिस्टोर कर दिया गया!`);
+    }
+  };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,7 +426,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       setAdminSession(true);
       setIsAdminAuth(true);
       setPinError('');
-      await reloadData();
+      await reloadData(true);
     } else {
       setPinError('गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।');
     }
@@ -318,7 +439,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
   const handleApprove = async (userId: string) => {
     setPaymentStatus(userId, 'approved');
-    await reloadData();
+    await reloadData(false);
     if (previewUser && previewUser.userId === userId) {
       setPreviewUser((prev) => prev ? { ...prev, paymentStatus: 'approved', verifiedAt: new Date().toISOString() } : null);
     }
@@ -334,7 +455,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const handleReject = async (userId: string, customReason?: string) => {
     const reason = customReason || rejectReasonInput || 'अमान्य पेमेंट स्क्रीनशॉट / UTR';
     setPaymentStatus(userId, 'rejected', reason);
-    await reloadData();
+    await reloadData(false);
     setRejectReasonInput('');
     if (previewUser && previewUser.userId === userId) {
       setPreviewUser((prev) => prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null);
@@ -349,9 +470,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
-    if (window.confirm(`क्या आप यूजर "${name}" (${userId}) को सिस्टम से हमेशा के लिए हटाना चाहते हैं?`)) {
+    if (window.confirm(`क्या आप यूजर "${name}" (${userId}) को सक्रिय सूची से हटाकर आर्काइव बैकअप वॉल्ट में सुरक्षित करना चाहते हैं? (जरूरत पड़ने पर आप इन्हें कभी भी रिस्टोर कर सकते हैं)`)) {
       await deleteUserAccount(userId);
-      await reloadData();
+      await reloadData(false);
       if (previewUser && previewUser.userId === userId) {
         setPreviewUser(null);
       }
@@ -361,6 +482,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       if (selectedFormUser && selectedFormUser.userId === userId) {
         setSelectedFormUser(null);
       }
+      showVaultNotice('info', `🗄️ सदस्य ${name} (${userId}) को सुरक्षित आर्काइव वॉल्ट में ले जाया गया।`);
       if (onUserStatusChange) onUserStatusChange();
     }
   };
@@ -636,7 +758,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           </button>
 
           <button
-            onClick={reloadData}
+            onClick={() => void reloadData(true)}
             disabled={isRefreshing}
             className="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
           >
@@ -856,6 +978,94 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {/* TAB 1 & 2: USER VERIFICATIONS & DATABASE */}
       {(activeTab === 'approvals' || activeTab === 'all_users') && (
         <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-5">
+
+          {/* Compact Permanent Data Safety, Backup & Recovery Vault Bar */}
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-white flex items-center gap-2 flex-wrap">
+                  <span>डेटा सुरक्षा, बैकअप और रिकवरी वॉल्ट</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {usersList.length} सक्रिय • {archivedUsers.length} आर्काइव्ड
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-400">
+                  ऑटो-वॉल्ट बैकअप सक्रिय है — कोई भी सदस्य विवरण डिलीट या गायब नहीं होता।
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={restoreFileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleImportBackupFile}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={handleManualCloudSync}
+                disabled={isCloudSyncing}
+                className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+                <span>{isCloudSyncing ? 'सिंक जारी...' : 'Cloud Sync'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadJsonBackup}
+                className="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>JSON बैकअप</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => restoreFileInputRef.current?.click()}
+                className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>बैकअप रिस्टोर</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const list = await fetchArchivedUsersAsync();
+                  setArchivedUsers(list);
+                  setIsArchiveModalOpen(true);
+                }}
+                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Archive className="w-3.5 h-3.5 text-amber-400" />
+                <span>आर्काइव वॉल्ट ({archivedUsers.length})</span>
+              </button>
+            </div>
+          </div>
+
+          {vaultNotice && (
+            <div
+              className={`p-3 rounded-xl text-xs font-bold border flex items-center justify-between gap-2 ${
+                vaultNotice.type === 'success'
+                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                  : vaultNotice.type === 'error'
+                  ? 'bg-red-950/70 border-red-500/40 text-red-300'
+                  : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
+              }`}
+            >
+              <span>{vaultNotice.text}</span>
+              <button type="button" onClick={() => setVaultNotice(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           
           {/* Search, Date Filter, Sort & Join Action Bar */}
           <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
@@ -4598,6 +4808,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ARCHIVE VAULT MODAL (1-CLICK RECOVERY FOR SOFT-DELETED MEMBERS)           */}
+      {/* ========================================================================= */}
+      {isArchiveModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+          <div className="bg-slate-950 border-2 border-amber-500/50 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col p-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <Archive className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="text-base font-black text-white">सदस्य आर्काइव रिकवरी वॉल्ट</h3>
+                  <p className="text-[11px] text-slate-400">यहाँ हटाए गए सदस्य सुरक्षित रहते हैं और 1-क्लिक में वापस सक्रिय किए जा सकते हैं।</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 py-4 space-y-2.5">
+              {archivedUsers.length === 0 ? (
+                <div className="text-center py-10 text-xs text-slate-400 bg-slate-900/40 rounded-2xl border border-slate-800">
+                  आर्काइव वॉल्ट वर्तमान में खाली है। कोई भी हटाया गया सदस्य उपलब्ध नहीं है।
+                </div>
+              ) : (
+                archivedUsers.map((au) => (
+                  <div
+                    key={au.userId}
+                    className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white text-sm">{au.fullName}</span>
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {au.userId}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        📱 {au.mobileNumber || 'N/A'} • 📧 {au.email || 'N/A'}
+                        {au.archivedAt ? ` • आर्काइव: ${new Date(au.archivedAt).toLocaleString('hi-IN')}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleRestoreArchivedMember(au.userId)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shrink-0 shadow"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>रिस्टोर करें</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}

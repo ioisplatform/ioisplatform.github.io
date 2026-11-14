@@ -4,12 +4,25 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  initializeFirestore,
+  getFirestore,
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  Firestore,
+} from "firebase/firestore";
 
 dotenv.config();
 
 // File persistence paths
 const DATA_DIR = path.join(process.cwd(), "data");
+const BACKUPS_DIR = path.join(DATA_DIR, "backups");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
+const USERS_BACKUP_FILE = path.join(DATA_DIR, "users-backup.json");
+const DELETED_USERS_FILE = path.join(DATA_DIR, "deleted-users-archive.json");
 const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
 const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, "telegram-config.json");
 const KNOWLEDGE_FILE = path.join(DATA_DIR, "ai-knowledge.json");
@@ -24,15 +37,25 @@ const PROFILE_LIKES_FILE = path.join(DATA_DIR, "social_likes.json");
 const HOME_POPUPS_FILE = path.join(DATA_DIR, "home-popups.json");
 const HOME_SLIDERS_FILE = path.join(DATA_DIR, "home-sliders.json");
 
-// Ensure data directory exists
+// Ensure data & backup directories exist
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(BACKUPS_DIR)) {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+}
+
+function writeJsonAtomic(filePath: string, data: any): void {
+  const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  const jsonStr = JSON.stringify(data, null, 2);
+  fs.writeFileSync(tmpPath, jsonStr, "utf-8");
+  fs.renameSync(tmpPath, filePath);
 }
 
 function loadJsonArray(filePath: string): any[] {
   try {
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify([], null, 2), "utf-8");
+      writeJsonAtomic(filePath, []);
       return [];
     }
     const raw = fs.readFileSync(filePath, "utf-8");
@@ -46,7 +69,7 @@ function loadJsonArray(filePath: string): any[] {
 
 function saveJsonArray(filePath: string, items: any[]): void {
   try {
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), "utf-8");
+    writeJsonAtomic(filePath, items);
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);
   }
@@ -250,32 +273,410 @@ ${user.googleDrivePaymentLink ? `🔗 <b>पेमेंट स्लिप ल�
 const INITIAL_DEMO_USERS: any[] = [];
 const DEMO_USER_PREFIXES = ["IOIS999RK", "IOIS49PS", "IOIS10AM", "IOIS99KV", "IOIS999VK"];
 
-function loadUsersFromDisk(): any[] {
+let cachedUsersMemory: any[] | null = null;
+let lastSnapshotTimestamp = 0;
+let lastBackupAtIso = "";
+
+// =========================================================================
+// Server-Side Firestore Bridge + Quota Protection (Zero Data Loss)
+// =========================================================================
+let serverFirestoreDb: Firestore | null = null;
+let firestoreQuotaBlockedUntil = 0;
+let lastFirestoreHydrationAt = 0;
+let firestoreHydrationPromise: Promise<{ synced: number; error?: string }> | null = null;
+
+function getServerFirestore(): Firestore | null {
+  if (serverFirestoreDb) return serverFirestoreDb;
   try {
-    if (!fs.existsSync(USERS_FILE)) {
-      fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), "utf-8");
-      return [];
+    const cfgPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (!fs.existsSync(cfgPath)) return null;
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
+    const app = getApps().length > 0 ? getApp() : initializeApp(cfg);
+    const databaseId =
+      cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)"
+        ? cfg.firestoreDatabaseId
+        : undefined;
+    try {
+      serverFirestoreDb = initializeFirestore(
+        app,
+        { experimentalForceLongPolling: true },
+        databaseId
+      );
+    } catch {
+      serverFirestoreDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
     }
-    const raw = fs.readFileSync(USERS_FILE, "utf-8");
-    const data = JSON.parse(raw);
-    const users = Array.isArray(data) ? data : [];
-    return users.filter((u: any) => {
+    return serverFirestoreDb;
+  } catch (err) {
+    console.warn("[Server Firestore Init Note]:", err);
+    return null;
+  }
+}
+
+function isQuotaOrResourceExhaustedError(err: any): boolean {
+  const msg = String(err?.message || err?.code || err || "").toLowerCase();
+  return msg.includes("resource-exhausted") || msg.includes("quota");
+}
+
+function sanitizeDocForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeDocForFirestore);
+  const clean: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      clean[k] = sanitizeDocForFirestore(v);
+    }
+  }
+  return clean;
+}
+
+function prepareUserForFirestore(user: any): any {
+  const clean = sanitizeDocForFirestore(user);
+  if (!clean) return clean;
+  try {
+    const size = Buffer.byteLength(JSON.stringify(clean), "utf-8");
+    if (size <= 850_000) return clean;
+    // Keep all member details, only trim massive >300KB raw data URIs so Firestore 1MB limit never rejects write
+    const trimmed: Record<string, any> = { ...clean, hasServerMedia: true };
+    if (
+      typeof trimmed.paymentScreenshotUrl === "string" &&
+      trimmed.paymentScreenshotUrl.startsWith("data:") &&
+      trimmed.paymentScreenshotUrl.length > 250_000
+    ) {
+      trimmed.paymentScreenshotUrl = "";
+    }
+    if (
+      typeof trimmed.photoUrl === "string" &&
+      trimmed.photoUrl.startsWith("data:") &&
+      trimmed.photoUrl.length > 250_000
+    ) {
+      trimmed.photoUrl = "";
+    }
+    if (
+      trimmed.registrationFormData &&
+      typeof trimmed.registrationFormData === "object" &&
+      typeof trimmed.registrationFormData.paymentScreenshotUrl === "string" &&
+      trimmed.registrationFormData.paymentScreenshotUrl.startsWith("data:") &&
+      trimmed.registrationFormData.paymentScreenshotUrl.length > 250_000
+    ) {
+      trimmed.registrationFormData = {
+        ...trimmed.registrationFormData,
+        paymentScreenshotUrl: "",
+      };
+    }
+    return trimmed;
+  } catch {
+    return clean;
+  }
+}
+
+async function syncSingleUserToFirestore(user: any): Promise<boolean> {
+  if (!user || !user.userId) return false;
+  if (Date.now() < firestoreQuotaBlockedUntil) return false;
+  const fsDb = getServerFirestore();
+  if (!fsDb) return false;
+  try {
+    const cleanId = String(user.userId).trim().toUpperCase();
+    const payload = prepareUserForFirestore(user);
+    await setDoc(doc(fsDb, "users", cleanId), payload, { merge: true });
+    return true;
+  } catch (err: any) {
+    if (isQuotaOrResourceExhaustedError(err)) {
+      firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+      console.warn("[Server Firestore] Daily quota exhausted — pausing Firestore sync for 10m (server disk/backups remain active).");
+    } else {
+      console.warn("[Server Firestore Write Note]:", err?.message || err);
+    }
+    return false;
+  }
+}
+
+function mergeUsersNonDestructive(...lists: any[][]): any[] {
+  const map = new Map<string, any>();
+
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const u of list) {
+      if (!u || !u.userId) continue;
+      const idUpper = String(u.userId).trim().toUpperCase();
+      if (DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix))) continue;
+
+      const existing = map.get(idUpper);
+      if (!existing) {
+        map.set(idUpper, { ...u, userId: idUpper });
+        continue;
+      }
+
+      const merged: Record<string, any> = { ...existing };
+      for (const [k, val] of Object.entries(u)) {
+        if (val !== undefined && val !== null && val !== "") {
+          merged[k] = val;
+        }
+      }
+
+      // Preserve approved status unless explicitly rejected
+      const isApproved = existing.paymentStatus === "approved" || u.paymentStatus === "approved";
+      merged.paymentStatus = isApproved
+        ? "approved"
+        : u.paymentStatus || existing.paymentStatus || "pending";
+
+      // Preserve media URLs & credentials across partial payloads
+      merged.photoUrl =
+        u.photoUrl && String(u.photoUrl).trim()
+          ? u.photoUrl
+          : existing.photoUrl;
+      merged.paymentScreenshotUrl =
+        u.paymentScreenshotUrl && String(u.paymentScreenshotUrl).trim()
+          ? u.paymentScreenshotUrl
+          : existing.paymentScreenshotUrl;
+      merged.password =
+        u.password && String(u.password).trim()
+          ? u.password
+          : existing.password;
+      merged.registrationFormData =
+        u.registrationFormData && typeof u.registrationFormData === "object"
+          ? { ...(existing.registrationFormData || {}), ...u.registrationFormData }
+          : existing.registrationFormData;
+
+      // Union array fields cleanly
+      if (Array.isArray(existing.friends) || Array.isArray(u.friends)) {
+        merged.friends = Array.from(
+          new Set([...(existing.friends || []), ...(u.friends || [])])
+        );
+      }
+      if (Array.isArray(existing.profileLikes) || Array.isArray(u.profileLikes)) {
+        merged.profileLikes = Array.from(
+          new Set([...(existing.profileLikes || []), ...(u.profileLikes || [])])
+        );
+      }
+      if (Array.isArray(existing.editHistory) || Array.isArray(u.editHistory)) {
+        const seenLogs = new Set<string>();
+        const combinedLogs: any[] = [];
+        for (const item of [...(u.editHistory || []), ...(existing.editHistory || [])]) {
+          if (!item) continue;
+          const sig = `${item.field}|${item.timestamp}|${item.newValue}`;
+          if (!seenLogs.has(sig)) {
+            seenLogs.add(sig);
+            combinedLogs.push(item);
+          }
+        }
+        merged.editHistory = combinedLogs.slice(0, 100);
+      }
+
+      merged.userId = existing.userId || idUpper;
+      map.set(idUpper, merged);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function readCleanUsersFile(filePath: string): any[] | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((u: any) => {
       if (!u || !u.userId) return false;
-      const idUpper = u.userId.toUpperCase();
+      const idUpper = String(u.userId).toUpperCase();
       return !DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix));
     });
+  } catch (err) {
+    console.warn(`[Users Read Recovery Note] Could not parse ${filePath}:`, err);
+    return null;
+  }
+}
+
+function loadArchivedUsersFromDisk(): any[] {
+  return readCleanUsersFile(DELETED_USERS_FILE) || [];
+}
+
+function saveArchivedUsersToDisk(archived: any[]): void {
+  try {
+    writeJsonAtomic(DELETED_USERS_FILE, archived);
+  } catch (err) {
+    console.error("Error writing deleted-users-archive.json:", err);
+  }
+}
+
+function loadUsersFromDisk(): any[] {
+  if (cachedUsersMemory !== null) {
+    return cachedUsersMemory;
+  }
+
+  try {
+    const primary = readCleanUsersFile(USERS_FILE);
+    const backup = readCleanUsersFile(USERS_BACKUP_FILE);
+
+    let archivedIds = new Set(
+      loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase())
+    );
+
+    let resolved: any[] = [];
+    if (primary !== null && primary.length > 0) {
+      resolved = mergeUsersNonDestructive(backup || [], primary);
+    } else if (backup !== null && backup.length > 0) {
+      console.warn("[Users Recovery] Primary users.json empty/corrupt — recovering from users-backup.json!");
+      resolved = backup;
+      writeJsonAtomic(USERS_FILE, resolved);
+    } else if (primary !== null) {
+      resolved = primary;
+    } else {
+      // Check timestamped backups if both primary & backup missing
+      try {
+        const files = fs
+          .readdirSync(BACKUPS_DIR)
+          .filter((f) => f.startsWith("users-") && f.endsWith(".json"))
+          .sort()
+          .reverse();
+        for (const f of files) {
+          const snap = readCleanUsersFile(path.join(BACKUPS_DIR, f));
+          if (snap && snap.length > 0) {
+            console.warn(`[Users Recovery] Restoring from snapshot ${f} (${snap.length} users)`);
+            resolved = snap;
+            writeJsonAtomic(USERS_FILE, resolved);
+            writeJsonAtomic(USERS_BACKUP_FILE, resolved);
+            break;
+          }
+        }
+      } catch {}
+    }
+
+    // Also include active snapshot merged safely, excluding archived records
+    resolved = resolved.filter(
+      (u: any) => u && !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
+    );
+    cachedUsersMemory = resolved;
+    return resolved;
   } catch (err) {
     console.error("Error reading users from disk:", err);
     return [];
   }
 }
 
-function saveUsersToDisk(users: any[]): void {
+function saveUsersToDisk(users: any[], options: { allowShrink?: boolean } = {}): void {
   try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+    const cleanIncoming = Array.isArray(users)
+      ? users.filter((u: any) => {
+          if (!u || !u.userId || u.isArchived) return false;
+          const idUpper = String(u.userId).toUpperCase();
+          return !DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix));
+        })
+      : [];
+
+    const existing = cachedUsersMemory !== null ? cachedUsersMemory : loadUsersFromDisk();
+    const archivedIds = new Set(
+      loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase())
+    );
+
+    // ANTI-WIPE GUARD: Never drop existing members unless explicitly archiving via allowShrink
+    const nextList = options.allowShrink
+      ? cleanIncoming
+      : mergeUsersNonDestructive(existing, cleanIncoming).filter(
+          (u: any) => !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
+        );
+
+    // Protect existing non-empty list into backup BEFORE overwriting primary
+    if (existing.length > 0) {
+      writeJsonAtomic(USERS_BACKUP_FILE, existing);
+    }
+
+    cachedUsersMemory = nextList;
+    writeJsonAtomic(USERS_FILE, nextList);
+
+    if (nextList.length > 0) {
+      writeJsonAtomic(USERS_BACKUP_FILE, nextList);
+      lastBackupAtIso = new Date().toISOString();
+
+      // Write rolling timestamped snapshot every 10 mins or when user count grows
+      const now = Date.now();
+      if (now - lastSnapshotTimestamp > 10 * 60 * 1000 || nextList.length > existing.length) {
+        lastSnapshotTimestamp = now;
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        writeJsonAtomic(path.join(BACKUPS_DIR, `users-${stamp}.json`), nextList);
+        // Keep last 12 rolling snapshots
+        try {
+          const snaps = fs
+            .readdirSync(BACKUPS_DIR)
+            .filter((f) => f.startsWith("users-") && f.endsWith(".json"))
+            .sort()
+            .reverse();
+          for (const old of snaps.slice(12)) {
+            fs.unlinkSync(path.join(BACKUPS_DIR, old));
+          }
+        } catch {}
+      }
+    }
   } catch (err) {
     console.error("Error writing users to disk:", err);
   }
+}
+
+async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: number; error?: string }> {
+  if (!force && Date.now() < firestoreQuotaBlockedUntil) {
+    return { synced: 0, error: "Firestore cooldown active (quota limit protection)" };
+  }
+  if (!force && Date.now() - lastFirestoreHydrationAt < 120_000 && lastFirestoreHydrationAt > 0) {
+    return { synced: loadUsersFromDisk().length };
+  }
+  if (firestoreHydrationPromise && !force) return firestoreHydrationPromise;
+
+  firestoreHydrationPromise = (async () => {
+    const fsDb = getServerFirestore();
+    if (!fsDb) return { synced: 0, error: "Firestore unavailable" };
+    try {
+      const snap = await Promise.race([
+        getDocs(collection(fsDb, "users")),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore timeout")), 8000)),
+      ]);
+      lastFirestoreHydrationAt = Date.now();
+      const cloudActive: any[] = [];
+      const cloudArchived: any[] = [];
+      snap.forEach((d) => {
+        const u = d.data();
+        if (!u || !u.userId) return;
+        if (u.isArchived) {
+          cloudArchived.push(u);
+        } else {
+          cloudActive.push(u);
+        }
+      });
+
+      if (cloudArchived.length > 0) {
+        const curArch = loadArchivedUsersFromDisk();
+        saveArchivedUsersToDisk(mergeUsersNonDestructive(curArch, cloudArchived));
+      }
+
+      const localDisk = loadUsersFromDisk();
+      const merged = mergeUsersNonDestructive(cloudActive, localDisk);
+      if (merged.length > 0) {
+        saveUsersToDisk(merged);
+      }
+
+      // Backfill any server-only users back to Firestore cleanly
+      const cloudIds = new Set(cloudActive.map((u) => String(u.userId).toUpperCase()));
+      const missingInCloud = localDisk.filter((u) => u?.userId && !cloudIds.has(String(u.userId).toUpperCase()));
+      for (const m of missingInCloud.slice(0, 25)) {
+        await syncSingleUserToFirestore(m);
+      }
+
+      console.log(`[Server Firestore Hydration] Loaded ${cloudActive.length} cloud users, total merged: ${merged.length}`);
+      return { synced: merged.length };
+    } catch (err: any) {
+      if (isQuotaOrResourceExhaustedError(err)) {
+        firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+        console.warn("[Server Firestore Hydration] Daily quota exhausted — using local disk & client backfill until quota resets.");
+        return { synced: loadUsersFromDisk().length, error: "resource-exhausted" };
+      }
+      console.warn("[Server Firestore Hydration Note]:", err?.message || err);
+      return { synced: loadUsersFromDisk().length, error: err?.message || "sync failed" };
+    } finally {
+      firestoreHydrationPromise = null;
+    }
+  })();
+
+  return firestoreHydrationPromise;
 }
 
 function maskMobile(mob?: string): string {
@@ -1034,7 +1435,7 @@ async function startServer() {
     }
   });
 
-  // API Route: Get All Users (Passwords stripped for privacy and security)
+  // API Route: Get All Users (Passwords stripped for public privacy; all member details preserved)
   app.get("/api/users", (_req: Request, res: Response) => {
     const users = loadUsersFromDisk();
     const sanitized = users.map((u) => {
@@ -1044,7 +1445,55 @@ async function startServer() {
     res.json({ success: true, count: sanitized.length, users: sanitized });
   });
 
-  // API Route: Bulk User Sync
+  // API Route: Admin Full Users List + Deleted Archive Vault (Includes passwords & form data for Admin console)
+  app.post("/api/admin/users-full", (req: Request, res: Response) => {
+    try {
+      const { adminPin } = req.body || {};
+      const cleanPin = String(adminPin || "").trim().toUpperCase();
+      if (cleanPin !== "IOISSYSTEM") {
+        return res.status(403).json({ success: false, error: "Unauthorized Admin Access" });
+      }
+      const users = loadUsersFromDisk();
+      const archivedUsers = loadArchivedUsersFromDisk();
+      return res.json({
+        success: true,
+        count: users.length,
+        users,
+        archivedUsers,
+        backupInfo: {
+          lastBackupAt: lastBackupAtIso || new Date().toISOString(),
+          activeCount: users.length,
+          archivedCount: archivedUsers.length,
+          firestoreQuotaCooldown: Date.now() < firestoreQuotaBlockedUntil,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to load admin records" });
+    }
+  });
+
+  // API Route: Admin On-Demand Cloud Sync
+  app.post("/api/admin/cloud-sync", async (req: Request, res: Response) => {
+    try {
+      const { adminPin } = req.body || {};
+      const cleanPin = String(adminPin || "").trim().toUpperCase();
+      if (cleanPin !== "IOISSYSTEM") {
+        return res.status(403).json({ success: false, error: "Unauthorized" });
+      }
+      const result = await hydrateServerFromFirestoreOnce(true);
+      const users = loadUsersFromDisk();
+      return res.json({
+        success: true,
+        count: users.length,
+        users,
+        cloudError: result.error,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Cloud sync failed" });
+    }
+  });
+
+  // API Route: Bulk User Sync (Non-Destructive Merge + Auto-Archive Awareness)
   app.post("/api/users/sync", (req: Request, res: Response) => {
     try {
       const incomingUsers = req.body.users;
@@ -1053,30 +1502,26 @@ async function startServer() {
       }
 
       const existingUsers = loadUsersFromDisk();
-      const userMap = new Map<string, any>();
+      const archivedIds = new Set(
+        loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase())
+      );
 
-      for (const u of existingUsers) {
-        if (u && u.userId) userMap.set(u.userId.toUpperCase(), u);
-      }
+      // Ignore already archived accounts unless explicitly restored via /api/users/restore/:userId
+      const activeIncoming = incomingUsers.filter(
+        (u: any) => u && u.userId && !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
+      );
 
-      for (const u of incomingUsers) {
-        if (!u || !u.userId) continue;
-        const key = u.userId.toUpperCase();
-        const prev = userMap.get(key);
-        if (!prev) {
-          userMap.set(key, u);
-        } else {
-          const isApproved = prev.paymentStatus === 'approved' || u.paymentStatus === 'approved';
-          userMap.set(key, {
-            ...prev,
-            ...u,
-            paymentStatus: isApproved ? 'approved' : (u.paymentStatus || prev.paymentStatus),
-          });
+      const existingIds = new Set(existingUsers.map((u) => String(u.userId).toUpperCase()));
+      const merged = mergeUsersNonDestructive(existingUsers, activeIncoming);
+      saveUsersToDisk(merged);
+
+      // Queue any newly discovered users for Firestore backup in background
+      for (const u of activeIncoming) {
+        if (!existingIds.has(String(u.userId).toUpperCase())) {
+          void syncSingleUserToFirestore(u);
         }
       }
 
-      const merged = Array.from(userMap.values());
-      saveUsersToDisk(merged);
       const sanitizedMerged = merged.map((u) => {
         const { password, ...rest } = u;
         return rest;
@@ -1084,6 +1529,50 @@ async function startServer() {
       res.json({ success: true, count: sanitizedMerged.length, users: sanitizedMerged });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // API Route: Get Archived / Soft-Deleted Users Vault
+  app.get("/api/users/archive", (_req: Request, res: Response) => {
+    try {
+      const archived = loadArchivedUsersFromDisk();
+      return res.json({ success: true, count: archived.length, archivedUsers: archived });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to load archive" });
+    }
+  });
+
+  // API Route: Restore Archived User Back to Active Members
+  app.post("/api/users/restore/:userId", (req: Request, res: Response) => {
+    try {
+      const cleanId = String(req.params.userId || "").trim().toUpperCase();
+      const archived = loadArchivedUsersFromDisk();
+      const target = archived.find((u) => u && String(u.userId).toUpperCase() === cleanId);
+      if (!target) {
+        return res.status(404).json({ success: false, error: "आर्काइव में यह सदस्य नहीं मिला।" });
+      }
+
+      const restoredUser = {
+        ...target,
+        isArchived: false,
+        archivedAt: undefined,
+        archivedReason: undefined,
+      };
+      const remainingArchived = archived.filter((u) => String(u.userId).toUpperCase() !== cleanId);
+      saveArchivedUsersToDisk(remainingArchived);
+
+      const currentActive = loadUsersFromDisk();
+      const nextActive = mergeUsersNonDestructive(currentActive, [restoredUser]);
+      saveUsersToDisk(nextActive);
+      void syncSingleUserToFirestore(restoredUser);
+
+      return res.json({
+        success: true,
+        message: "सदस्य का डेटा सफलतापूर्वक पुनः सक्रिय (Restore) कर दिया गया है!",
+        user: restoredUser,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Restore failed" });
     }
   });
 
@@ -1247,6 +1736,7 @@ async function startServer() {
     try {
       const {
         fullName,
+        username,
         mobileNumber,
         email,
         selectedPlanId = 1,
@@ -1259,9 +1749,24 @@ async function startServer() {
         paymentScreenshotUrl,
         googleDrivePaymentLink,
         paymentUtr,
+        paymentMode,
         address,
+        state,
+        district,
+        pincode,
+        fatherOrHusbandName,
+        motherName,
+        dob,
+        gender,
+        qualification,
+        aadhaarNumber,
         payoutUpi,
         emergencyContact,
+        profileFrameId,
+        privacySettings,
+        registrationFormData,
+        bio,
+        coverUrl,
       } = req.body;
 
       if (!fullName || typeof fullName !== "string" || fullName.trim().length < 3) {
@@ -1311,7 +1816,7 @@ async function startServer() {
 
       // STRICT SPONSOR VALIDATION: No random sponsor ID allowed
       const cleanSponsor = (sponsorId || "IOIS999VK01").trim().toUpperCase();
-      const isMasterSponsor = cleanSponsor === "IOIS999VK01";
+      const isMasterSponsor = cleanSponsor === "IOIS999VK01" || cleanSponsor === "SWACCDK01";
       const isExistingSponsor = users.some((u) => u.userId && u.userId.toUpperCase() === cleanSponsor);
 
       if (!isMasterSponsor && !isExistingSponsor) {
@@ -1353,37 +1858,62 @@ async function startServer() {
         ? req.body.userId.trim().toUpperCase()
         : generateUserIdHelper(fullName, planPrice, users);
 
-      // Verify userId uniqueness against any collision
+      // Verify userId uniqueness against any collision (including archived archive IDs!)
+      const archivedIds = new Set(loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase()));
       let safetyCounter = 1;
-      while (users.some((u) => u.userId && u.userId.toUpperCase() === userId.toUpperCase())) {
+      while (
+        users.some((u) => u.userId && u.userId.toUpperCase() === userId.toUpperCase()) ||
+        archivedIds.has(userId.toUpperCase())
+      ) {
         userId = generateUserIdHelper(fullName + safetyCounter, planPrice, users);
         safetyCounter++;
       }
 
+      const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "") : undefined;
+
       const newUser = {
         userId,
+        username: cleanUsername || undefined,
         fullName: fullName.trim(),
+        fatherOrHusbandName: fatherOrHusbandName ? String(fatherOrHusbandName).trim() : undefined,
+        motherName: motherName ? String(motherName).trim() : undefined,
+        dob: dob ? String(dob).trim() : undefined,
+        gender: gender ? String(gender).trim() : undefined,
+        qualification: qualification ? String(qualification).trim() : undefined,
+        aadhaarNumber: aadhaarNumber ? String(aadhaarNumber).trim() : undefined,
         mobileNumber: cleanDigits,
         email: cleanEmail || `${cleanDigits.slice(-10)}@iois.in`,
         sponsorId: cleanSponsor,
         telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
         selectedPlanId: Number(selectedPlanId),
-        role: role || "member",
+        role: role || "Verified Elite Member",
         password: password || "1234",
         photoUrl,
         googleDrivePhotoLink: googleDrivePhotoLink ? googleDrivePhotoLink.trim() : undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || undefined,
         googleDrivePaymentLink: googleDrivePaymentLink ? googleDrivePaymentLink.trim() : undefined,
         paymentUtr: paymentUtr ? paymentUtr.trim() : undefined,
+        paymentMode: paymentMode ? String(paymentMode).trim() : "UPI",
         paymentStatus: "pending",
         createdAt: new Date().toISOString(),
         address: address ? address.trim() : undefined,
+        state: state ? String(state).trim() : undefined,
+        district: district ? String(district).trim() : undefined,
+        pincode: pincode ? String(pincode).trim() : undefined,
         payoutUpi: payoutUpi ? payoutUpi.trim() : undefined,
         emergencyContact: emergencyContact ? emergencyContact.trim() : undefined,
+        profileFrameId: profileFrameId || undefined,
+        privacySettings: privacySettings || undefined,
+        registrationFormData: registrationFormData || undefined,
+        bio: bio || undefined,
+        coverUrl: coverUrl || undefined,
       };
 
       users.unshift(newUser);
       saveUsersToDisk(users);
+
+      // Persist immediately to Cloud Firestore in background too
+      void syncSingleUserToFirestore(newUser);
 
       // Trigger Telegram Alert in background
       sendTelegramRegistrationAlert(newUser, req).catch((e) => {
@@ -1576,6 +2106,7 @@ async function startServer() {
 
       users.unshift(newMember);
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(newMember);
 
       sendTelegramRegistrationAlert(newMember, req).catch(() => {});
 
@@ -1623,6 +2154,7 @@ async function startServer() {
       };
 
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[index]);
 
       return res.json({
         success: true,
@@ -1815,6 +2347,7 @@ async function startServer() {
 
       users[userIndex].password = newPassword;
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[userIndex]);
 
       return res.json({
         success: true,
@@ -1866,6 +2399,7 @@ async function startServer() {
       };
 
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[index]);
 
       return res.json({
         success: true,
@@ -1903,6 +2437,7 @@ async function startServer() {
       }
 
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[index]);
 
       return res.json({
         success: true,
@@ -1914,22 +2449,39 @@ async function startServer() {
     }
   });
 
-  // API Route: Admin Delete User
+  // API Route: Admin Soft-Archive User (NEVER permanently loses data; moves cleanly to archive vault)
   app.delete("/api/users/:userId", (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      let users = loadUsersFromDisk();
-      const initialLen = users.length;
-      users = users.filter((u) => u.userId.toUpperCase() !== userId.toUpperCase());
+      const cleanId = String(userId || "").trim().toUpperCase();
+      const users = loadUsersFromDisk();
+      const targetUser = users.find((u) => u.userId && u.userId.toUpperCase() === cleanId);
 
-      if (users.length === initialLen) {
+      if (!targetUser) {
         return res.status(404).json({ success: false, error: "यूजर नहीं मिला।" });
       }
 
-      saveUsersToDisk(users);
-      return res.json({ success: true, message: "यूजर सफलतापूर्वक डिलीट कर दिया गया।" });
+      const archivedEntry = {
+        ...targetUser,
+        isArchived: true,
+        archivedAt: new Date().toISOString(),
+        archivedReason: "Admin archive vault",
+      };
+
+      const archivedList = loadArchivedUsersFromDisk();
+      saveArchivedUsersToDisk(mergeUsersNonDestructive(archivedList, [archivedEntry]));
+
+      const remaining = users.filter((u) => u.userId && u.userId.toUpperCase() !== cleanId);
+      saveUsersToDisk(remaining, { allowShrink: true });
+      void syncSingleUserToFirestore(archivedEntry);
+
+      return res.json({
+        success: true,
+        archived: true,
+        message: "यूजर को आर्काइव बैकअप वॉल्ट में सुरक्षित स्थानांतरित कर दिया गया (डेटा कभी भी रिस्टोर किया जा सकता है)।",
+      });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: "डिलीट में त्रुटि आई।" });
+      return res.status(500).json({ success: false, error: "हटाने में त्रुटि आई।" });
     }
   });
 
@@ -2137,6 +2689,7 @@ async function startServer() {
       };
 
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[index]);
       return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: users[index] });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
@@ -2880,6 +3433,7 @@ async function startServer() {
       }
 
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[index]);
 
       // Send confirmation feedback back to Telegram
       if (cfg.enabled && cfg.botToken && cfg.chatId) {
@@ -2940,6 +3494,7 @@ async function startServer() {
               users[idx].rejectionReason = "Telegram बटन द्वारा अस्वीकृत";
             }
             saveUsersToDisk(users);
+            void syncSingleUserToFirestore(users[idx]);
 
             if (cfg.botToken) {
               // Answer callback query
@@ -3717,6 +4272,9 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Hydrate users once from Firestore cleanly on boot (non-blocking)
+  void hydrateServerFromFirestoreOnce(false);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`IOIS Server is running on port ${PORT}`);
