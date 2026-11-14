@@ -342,20 +342,28 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            {/* Current Photo Preview with 3D Live Frame */}
+            {/* Current Photo Preview with 3D/4D/8D/16D Live Frame */}
             {(() => {
               const activeFrameId = (typeof window !== 'undefined' && localStorage.getItem(`iois_user_frame_${user.userId}`)) || user.profileFrameId || 'iois-spinning-orbit-rainbow';
               const frameDef = getProfileFrameById(activeFrameId);
               return (
                 <div className="relative shrink-0 flex items-center justify-center p-2">
-                  <div className={`p-2 rounded-full flex items-center justify-center transition-all duration-300 ${frameDef.cssClass || 'frame-iois-spinning-orbit-rainbow'}`}>
+                  <div className={`relative p-2 rounded-full flex items-center justify-center transition-all duration-300 ${frameDef.cssClass || 'frame-iois-spinning-orbit-rainbow'}`}>
                     <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-xl relative z-10">
                       <img 
-                        src={photoUrl || user.photoUrl} 
+                        src={(photoUrl || user.photoUrl)?.trim() || PRESET_AVATARS[0].url} 
                         alt={fullName} 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-cover object-top" 
                       />
                     </div>
+                    {frameDef.badgeIcon && (
+                      <span className="absolute -bottom-1 -left-1 z-20 w-6 h-6 rounded-full bg-slate-950 border border-amber-400 text-[11px] flex items-center justify-center shadow pointer-events-none">
+                        {frameDef.badgeIcon}
+                      </span>
+                    )}
+                    <span className="absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[8.5px] font-black border border-slate-950 shadow pointer-events-none">
+                      {frameDef.dimension}
+                    </span>
                   </div>
                 </div>
               );

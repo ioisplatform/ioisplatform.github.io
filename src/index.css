@@ -478,7 +478,7 @@ html.light .tiranga-text {
   width: max-content;
   flex-shrink: 0;
   will-change: transform;
-  animation: marquee 26s linear infinite;
+  animation: marquee 64s linear infinite;
 }
 
 .ticker-viewport {
@@ -501,7 +501,7 @@ html.light .tiranga-text {
   will-change: transform;
   transform: translate3d(0, 0, 0);
   -webkit-transform: translate3d(0, 0, 0);
-  animation: ticker-marquee-continuous 40s linear infinite;
+  animation: ticker-marquee-continuous 96s linear infinite;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   perspective: 1000px;
@@ -511,16 +511,66 @@ html.light .tiranga-text {
 }
 
 .ticker-continuous-track-normal {
-  animation-duration: 26s;
+  animation-duration: 62s;
 }
 
 .ticker-continuous-track-fast {
-  animation-duration: 16s;
+  animation-duration: 36s;
 }
 
 /* Explicit pause ONLY when the user clicks the pause button, NOT on hover */
 .ticker-continuous-track.ticker-is-paused {
   animation-play-state: paused !important;
+}
+
+/* Live News Feed Controlled-Speed Tracks (Slower, Comfortable Reading Cadence) */
+.ticker-track-ultra-slow,
+.ticker-track-slow,
+.ticker-track-normal,
+.ticker-track-fast {
+  display: flex;
+  width: max-content;
+  flex-shrink: 0;
+  white-space: nowrap;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation-name: ticker-marquee-continuous;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.ticker-track-ultra-slow {
+  animation-duration: 155s;
+}
+
+.ticker-track-slow {
+  animation-duration: 110s;
+}
+
+.ticker-track-normal {
+  animation-duration: 68s;
+}
+
+.ticker-track-fast {
+  animation-duration: 38s;
+}
+
+.ticker-paused {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .ticker-continuous-track,
+  .ticker-track-ultra-slow,
+  .ticker-track-slow,
+  .ticker-track-normal,
+  .ticker-track-fast {
+    animation-play-state: paused !important;
+  }
 }
 
 /* Clock Styles with upright digits */
@@ -1688,18 +1738,16 @@ html.light .tiranga-text {
 .frame-crimson-phoenix-burst::after { content: ''; position: absolute; inset: -2px; border-radius: 9999px; background: #020617; z-index: 2; }
 
 /* Animated Fallback Frame for all Frame IDs so every single frame glows, orbits, and NEVER obscures the profile photo */
-[class^="frame-"],
-[class*=" frame-"] {
+:where([class^="frame-"], [class*=" frame-"]) {
   position: relative;
   isolation: isolate;
 }
-[class^="frame-"] > *,
-[class*=" frame-"] > * {
+:where([class^="frame-"], [class*=" frame-"]) > * {
   position: relative;
   z-index: 10;
 }
-[class^="frame-"]::before,
-[class*=" frame-"]::before {
+:where([class^="frame-"])::before,
+:where([class*=" frame-"])::before {
   content: '';
   position: absolute;
   inset: -5px;
@@ -1710,8 +1758,8 @@ html.light .tiranga-text {
   pointer-events: none;
   box-shadow: 0 0 14px rgba(251, 191, 36, 0.65);
 }
-[class^="frame-"]::after,
-[class*=" frame-"]::after {
+:where([class^="frame-"])::after,
+:where([class*=" frame-"])::after {
   content: '';
   position: absolute;
   inset: -2px;
@@ -1737,6 +1785,363 @@ html.light .tiranga-text {
 .frame-obsidian-gold-filigree::before { background: conic-gradient(from 0deg, #0f172a, #fbbf24, #1e293b, #f59e0b, #0f172a); }
 .frame-golden-wreath-laurel::before { background: conic-gradient(from 0deg, #facc15, #eab308, #fef08a, #ca8a04, #facc15); }
 .frame-classic-minimalist-gold::before { background: conic-gradient(from 0deg, #eab308, #fef08a, #d97706, #eab308); }
+
+/* ========================================================================= */
+/* ULTRA-EFFECTIVE 3D / 4D / 8D / 16D PROFILE FRAME ENGINE (SHAPES + ZOOM)   */
+/* ========================================================================= */
+@property --iois-grad-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes ioisPhotoZoomHoverPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.065); }
+}
+
+@keyframes iois16dPhotoZoomBreath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.105); }
+}
+
+@keyframes ioisShapeNeonShimmer {
+  0% {
+    --iois-grad-angle: 0deg;
+    filter: brightness(1) saturate(1.15) hue-rotate(0deg);
+  }
+  50% {
+    --iois-grad-angle: 180deg;
+    filter: brightness(1.25) saturate(1.45) hue-rotate(18deg);
+  }
+  100% {
+    --iois-grad-angle: 360deg;
+    filter: brightness(1) saturate(1.15) hue-rotate(0deg);
+  }
+}
+
+@keyframes ioisGlowAura3d {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.55)); }
+  50% { filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.8)); }
+}
+
+@keyframes ioisGlowAura4d {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.72)) drop-shadow(0 0 16px rgba(251, 191, 36, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.92)) drop-shadow(0 0 24px rgba(236, 72, 153, 0.65));
+  }
+}
+
+@keyframes ioisGlowAura8d {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.85)) drop-shadow(0 0 22px rgba(168, 85, 247, 0.65));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(244, 63, 94, 0.92)) drop-shadow(0 0 30px rgba(251, 191, 36, 0.8));
+  }
+}
+
+@keyframes ioisGlowAura16d {
+  0% {
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 26px rgba(236, 72, 153, 0.8)) drop-shadow(0 0 36px rgba(251, 191, 36, 0.55));
+  }
+  33% {
+    filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.98)) drop-shadow(0 0 28px rgba(16, 185, 129, 0.82)) drop-shadow(0 0 40px rgba(56, 189, 248, 0.65));
+  }
+  66% {
+    filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.98)) drop-shadow(0 0 28px rgba(244, 63, 94, 0.85)) drop-shadow(0 0 40px rgba(251, 191, 36, 0.65));
+  }
+  100% {
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 26px rgba(236, 72, 153, 0.8)) drop-shadow(0 0 36px rgba(251, 191, 36, 0.55));
+  }
+}
+
+/* Smooth Profile Picture Zoom Effects (Always Keeps Head/Face Centered) */
+[class*="frame-"] img {
+  transform-origin: center 35%;
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), filter 0.3s ease;
+  will-change: transform;
+}
+
+[class*="frame-"]:hover > div:first-child img,
+[class*="frame-"]:hover > img {
+  transform: scale(1.16) !important;
+  filter: contrast(1.04) saturate(1.06);
+}
+
+[class*="frame-"].frame-zoom-pulse > div:first-child img,
+[class*="frame-"].frame-zoom-pulse > img {
+  animation: ioisPhotoZoomHoverPulse 3.8s ease-in-out infinite;
+}
+
+[class*="frame-"].frame-dim-16d.frame-zoom-pulse > div:first-child img,
+[class*="frame-"].frame-dim-16d.frame-zoom-pulse > img {
+  animation: iois16dPhotoZoomBreath 3.2s ease-in-out infinite;
+}
+
+/* Dimension Intensity Tiers (3D, 4D, 8D, 16D) */
+[class*="frame-"].frame-dim-3d {
+  animation: ioisGlowAura3d 3.4s ease-in-out infinite;
+}
+[class*="frame-"].frame-dim-3d::before {
+  inset: -5px;
+}
+
+[class*="frame-"].frame-dim-4d {
+  animation: ioisGlowAura4d 2.8s ease-in-out infinite;
+}
+[class*="frame-"].frame-dim-4d::before {
+  inset: -6px;
+}
+
+[class*="frame-"].frame-dim-8d {
+  animation: ioisGlowAura8d 2.4s ease-in-out infinite;
+}
+[class*="frame-"].frame-dim-8d::before {
+  inset: -7px;
+}
+
+[class*="frame-"].frame-dim-16d {
+  animation: ioisGlowAura16d 2.2s linear infinite;
+}
+[class*="frame-"].frame-dim-16d::before {
+  inset: -8.5px;
+}
+
+/* Non-Circle Geometric Shapes: Keep Contour Upright While Neon Colors Flow Smoothly */
+[class*="frame-"]:not(.frame-shape-circle)::before {
+  transform: none !important;
+  animation: ioisShapeNeonShimmer 2.8s linear infinite !important;
+}
+
+/* 1. Round Circle Enhanced Halo Glow */
+.frame-shape-circle::before,
+.frame-shape-circle::after,
+.frame-shape-circle > div:first-child,
+.frame-shape-circle > img {
+  border-radius: 9999px !important;
+}
+
+/* 2. Hexagon Crest */
+.frame-shape-hexagon::before,
+.frame-shape-hexagon::after,
+.frame-shape-hexagon > div:first-child,
+.frame-shape-hexagon > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%) !important;
+}
+
+/* 3. Octagon Imperial */
+.frame-shape-octagon::before,
+.frame-shape-octagon::after,
+.frame-shape-octagon > div:first-child,
+.frame-shape-octagon > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%) !important;
+}
+
+/* 4. Diamond Prism Cut */
+.frame-shape-diamond::before,
+.frame-shape-diamond::after,
+.frame-shape-diamond > div:first-child,
+.frame-shape-diamond > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 98% 50%, 50% 100%, 2% 50%) !important;
+}
+
+/* 5. Squircle Superellipse VIP */
+.frame-shape-squircle::before {
+  border-radius: 30% !important;
+}
+.frame-shape-squircle::after {
+  border-radius: 28% !important;
+}
+.frame-shape-squircle > div:first-child,
+.frame-shape-squircle > img {
+  border-radius: 26% !important;
+}
+
+/* 6. Sovereign Royal Shield */
+.frame-shape-shield::before,
+.frame-shape-shield::after,
+.frame-shape-shield > div:first-child,
+.frame-shape-shield > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 96% 14%, 92% 62%, 50% 100%, 8% 62%, 4% 14%) !important;
+}
+
+/* 7. Surya 10-Point Starburst */
+.frame-shape-starburst::before,
+.frame-shape-starburst::after,
+.frame-shape-starburst > div:first-child,
+.frame-shape-starburst > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 66% 12%, 88% 10%, 88% 32%, 100% 50%, 88% 68%, 88% 90%, 66% 88%, 50% 100%, 34% 88%, 12% 90%, 12% 68%, 0% 50%, 12% 32%, 12% 10%, 34% 12%) !important;
+}
+
+/* 8. Sacred 8-Petal Lotus Blossom */
+.frame-shape-lotus::before,
+.frame-shape-lotus::after,
+.frame-shape-lotus > div:first-child,
+.frame-shape-lotus > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 68% 14%, 86% 14%, 86% 32%, 100% 50%, 86% 68%, 86% 86%, 68% 86%, 50% 100%, 32% 86%, 14% 86%, 14% 68%, 0% 50%, 14% 32%, 14% 14%, 32% 14%) !important;
+}
+
+/* 9. Emperor Royal Crown Crest */
+.frame-shape-crown::before,
+.frame-shape-crown::after,
+.frame-shape-crown > div:first-child,
+.frame-shape-crown > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(10% 18%, 31% 4%, 50% 16%, 69% 4%, 90% 18%, 97% 62%, 78% 94%, 50% 100%, 22% 94%, 3% 62%) !important;
+}
+
+/* 10. Gem Crystal 8-Facet */
+.frame-shape-crystal::before,
+.frame-shape-crystal::after,
+.frame-shape-crystal > div:first-child,
+.frame-shape-crystal > img {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  clip-path: polygon(50% 0%, 86% 14%, 100% 50%, 86% 86%, 50% 100%, 14% 86%, 0% 50%, 14% 14%) !important;
+}
+
+/* ========================================================================= */
+/* CUSTOM GRADIENT PALETTES FOR ALL 34 NEW 4D / 8D / 16D & SYMBOL FRAMES     */
+/* ========================================================================= */
+.frame-quantum-16d-hypercube::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #00f5ff, #6366f1, #ec4899, #fbbf24, #10b981, #00f5ff) !important;
+}
+.frame-quantum-16d-mahakal-trishul::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ff6b00, #fbbf24, #dc2626, #fff7ed, #ea580c, #ff6b00) !important;
+}
+.frame-quantum-16d-om-brahmand::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #fbbf24, #ff9933, #fef08a, #f97316, #fbbf24) !important;
+}
+.frame-quantum-16d-vishwakarma-chakra::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #f59e0b, #38bdf8, #fef08a, #d97706, #ffffff, #f59e0b) !important;
+}
+.frame-quantum-16d-kohinoor-emperor::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ffffff, #38bdf8, #fbbf24, #e2e8f0, #818cf8, #ffffff) !important;
+}
+.frame-quantum-16d-surya-dev-corona::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #f97316, #fde047, #ef4444, #fbbf24, #f97316) !important;
+}
+.frame-quantum-16d-crystal-galaxy::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #c084fc, #38bdf8, #f472b6, #818cf8, #2dd4bf, #c084fc) !important;
+}
+.frame-quantum-16d-rainbow-zoom-max::before {
+  background: conic-gradient(from 0deg, #ff0055, #ff9900, #ffee00, #00ff88, #00e5ff, #8b5cf6, #ff00cc, #ff0055) !important;
+  animation: ioisSpinOrbit 1.8s linear infinite !important;
+}
+.frame-quantum-16d-shakti-peacock::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #06b6d4, #10b981, #1d4ed8, #fbbf24, #14b8a6, #06b6d4) !important;
+}
+.frame-quantum-16d-phoenix-sovereign::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #e11d48, #fbbf24, #9f1239, #fde047, #f97316, #e11d48) !important;
+}
+
+.frame-holo-8d-cyber-hexagon::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #00e5ff, #ff0099, #7c3aed, #00ffaa, #00e5ff) !important;
+}
+.frame-holo-8d-diamond-prism::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #e0f2fe, #38bdf8, #a855f7, #ffffff, #0284c7, #e0f2fe) !important;
+}
+.frame-holo-8d-plasma-octagon::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #6366f1, #06b6d4, #ffffff, #ec4899, #6366f1) !important;
+}
+.frame-holo-8d-emerald-shield::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #10b981, #86efac, #fbbf24, #047857, #10b981) !important;
+}
+.frame-holo-8d-ruby-starburst::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #f43f5e, #fb923c, #fde047, #be123c, #f43f5e) !important;
+}
+.frame-holo-8d-gold-squircle::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #fef08a, #f59e0b, #ffffff, #d97706, #fef08a) !important;
+}
+.frame-holo-8d-chandrayaan-orbit::before {
+  background: conic-gradient(from 0deg, #1d4ed8, #e0f2fe, #38bdf8, #fbbf24, #0f172a, #1d4ed8) !important;
+  animation: ioisSpinOrbit 2.4s linear infinite !important;
+}
+.frame-holo-8d-eid-chand-mubarak::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #10b981, #fde047, #34d399, #065f46, #10b981) !important;
+}
+.frame-holo-8d-kalash-swastik::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ea580c, #facc15, #dc2626, #fef08a, #ea580c) !important;
+}
+.frame-holo-8d-sapphire-zoom-ring::before {
+  background: conic-gradient(from 0deg, #0ea5e9, #e0f2fe, #2563eb, #38bdf8, #0ea5e9) !important;
+  animation: ioisSpinOrbit 2.1s linear infinite !important;
+}
+
+.frame-glow-4d-neon-circle-cyan::before {
+  background: conic-gradient(from 0deg, #22d3ee, #06b6d4, #e0f2fe, #3b82f6, #22d3ee) !important;
+  animation: ioisSpinOrbit 2.2s linear infinite !important;
+}
+.frame-glow-4d-golden-halo-zoom::before {
+  background: conic-gradient(from 0deg, #fde047, #f59e0b, #fffbeb, #eab308, #fde047) !important;
+  animation: ioisSpinOrbit 2.6s linear infinite !important;
+}
+.frame-glow-4d-rose-magenta-pulse::before {
+  background: conic-gradient(from 0deg, #f472b6, #ec4899, #fbcfe8, #be185d, #f472b6) !important;
+  animation: ioisSpinOrbit 2.4s linear infinite !important;
+}
+.frame-glow-4d-emerald-radar-zoom::before {
+  background: conic-gradient(from 0deg, #10b981, #bbf7d0, #059669, #34d399, #10b981) !important;
+  animation: ioisSpinOrbit 2.3s linear infinite !important;
+}
+.frame-glow-4d-tricolor-ashok-zoom::before {
+  background: conic-gradient(from 0deg, #ff9933 0deg 115deg, #ffffff 115deg 235deg, #138808 235deg 360deg) !important;
+  animation: ioisSpinOrbit 2.8s linear infinite !important;
+}
+.frame-glow-4d-amethyst-squircle::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #a855f7, #f0abfc, #6366f1, #7e22ce, #a855f7) !important;
+}
+.frame-glow-4d-bronze-warrior-hex::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ea580c, #fbbf24, #9a3412, #fdba74, #ea580c) !important;
+}
+.frame-glow-4d-pearl-crown-crest::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ffffff, #cbd5e1, #e0f2fe, #f8fafc, #ffffff) !important;
+}
+
+.frame-symbol-navratri-shakti-trishul::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #dc2626, #facc15, #f97316, #fecaca, #dc2626) !important;
+}
+.frame-symbol-holi-gulal-splash::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #ec4899, #facc15, #22c55e, #06b6d4, #a855f7, #ec4899) !important;
+}
+.frame-symbol-krishna-bansuri-peacock::before {
+  background: conic-gradient(from 0deg, #06b6d4, #10b981, #3b82f6, #fbbf24, #14b8a6, #06b6d4) !important;
+  animation: ioisSpinOrbit 2.5s linear infinite !important;
+}
+.frame-symbol-buddha-bodhi-peace::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #fbbf24, #fef08a, #f59e0b, #ffffff, #fbbf24) !important;
+}
+.frame-symbol-ganesh-siddhi-gold::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #f97316, #fbbf24, #e11d48, #fef08a, #f97316) !important;
+}
+.frame-symbol-tiger-bharat-shourya::before {
+  background: conic-gradient(from var(--iois-grad-angle, 0deg), #f59e0b, #1e293b, #fbbf24, #ea580c, #f59e0b) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="frame-"],
+  [class*="frame-"]::before,
+  [class*="frame-"] img {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 
 /* ========================================================================= */
 /* 3D RUBY VIP BUTTON (FOR ADMIN CONTROL PANEL IN HEADER)                   */

@@ -1,6 +1,15 @@
 import { UserProfile, HelpTicket, KnowledgeItem, AdminPrivateMessage } from '../types';
 import { PLANS } from '../data/plansData';
 import { db } from '../lib/firebase';
+import {
+  idbGet,
+  idbSet,
+  idbRemove,
+  safeLocalStorageGet,
+  safeLocalStorageRemove,
+  safeLocalStorageSet,
+  stripOversizedDataUrls,
+} from '../utils/safeStorage';
 import { 
   collection, 
   doc, 
@@ -24,23 +33,37 @@ const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
 const STORAGE_DEVICE_SESSION_TOKEN_KEY = 'iois_device_session_token';
 
+const BULKY_EVICT_KEYS = [
+  STORAGE_USERS_KEY,
+  STORAGE_INTERVIEWS_KEY,
+  STORAGE_UNANSWERED_KEY,
+  'iois_social_messages_local_v1',
+];
+
+let memoryUsers: UserProfile[] | null = null;
+let memoryCurrentUser: UserProfile | null | undefined = undefined;
+let memoryTickets: HelpTicket[] | null = null;
+let idbHydrationPromise: Promise<void> | null = null;
+
 export const getDeviceSessionToken = (): string => {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem(STORAGE_DEVICE_SESSION_TOKEN_KEY) || '';
+  return safeLocalStorageGet(STORAGE_DEVICE_SESSION_TOKEN_KEY) || '';
 };
 
 export const setDeviceSessionToken = (token: string): void => {
   if (typeof window === 'undefined') return;
   if (token) {
-    localStorage.setItem(STORAGE_DEVICE_SESSION_TOKEN_KEY, token);
+    safeLocalStorageSet(STORAGE_DEVICE_SESSION_TOKEN_KEY, token, {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
   } else {
-    localStorage.removeItem(STORAGE_DEVICE_SESSION_TOKEN_KEY);
+    safeLocalStorageRemove(STORAGE_DEVICE_SESSION_TOKEN_KEY);
   }
 };
 
 export const clearDeviceSessionToken = (): void => {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(STORAGE_DEVICE_SESSION_TOKEN_KEY);
+  safeLocalStorageRemove(STORAGE_DEVICE_SESSION_TOKEN_KEY);
 };
 
 export const getDeviceFingerprintLabel = (): string => {
@@ -352,9 +375,7 @@ export const subscribeToFirestoreTickets = (onUpdate: (tickets: HelpTicket[]) =>
         if (t && t.id) liveTickets.push(t);
       });
       if (liveTickets.length > 0) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(liveTickets));
-        }
+        saveTicketsLocally(liveTickets);
         onUpdate(liveTickets);
       }
     }, (error) => {
@@ -400,7 +421,11 @@ export const subscribeToFirestoreKnowledge = (onUpdate: (items: KnowledgeItem[])
       });
       if (liveItems.length > 0) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KNOWLEDGE_KEY, JSON.stringify(liveItems));
+          void idbSet(STORAGE_KNOWLEDGE_KEY, liveItems);
+          safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(liveItems), {
+            maxBytes: 600_000,
+            evictKeysOnQuota: [STORAGE_USERS_KEY],
+          });
         }
         onUpdate(liveItems);
       }
@@ -425,7 +450,11 @@ export const fetchKnowledgeFromFirestore = async (): Promise<KnowledgeItem[]> =>
       });
       if (items.length > 0) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KNOWLEDGE_KEY, JSON.stringify(items));
+          void idbSet(STORAGE_KNOWLEDGE_KEY, items);
+          safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(items), {
+            maxBytes: 600_000,
+            evictKeysOnQuota: [STORAGE_USERS_KEY],
+          });
         }
         return items;
       }
@@ -493,7 +522,10 @@ export const subscribeToFirestoreUnanswered = (onUpdate: (items: any[]) => void)
         if (u && u.id) live.push(u);
       });
       if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_UNANSWERED_KEY, JSON.stringify(live));
+        void idbSet(STORAGE_UNANSWERED_KEY, live);
+        safeLocalStorageSet(STORAGE_UNANSWERED_KEY, JSON.stringify(live), {
+          maxBytes: 400_000,
+        });
       }
       onUpdate(live);
     }, (error) => {
@@ -529,7 +561,10 @@ export const subscribeToFirestoreInterviews = (onUpdate: (records: any[]) => voi
       });
       if (live.length > 0) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_INTERVIEWS_KEY, JSON.stringify(live));
+          void idbSet(STORAGE_INTERVIEWS_KEY, live);
+          safeLocalStorageSet(STORAGE_INTERVIEWS_KEY, JSON.stringify(live), {
+            maxBytes: 400_000,
+          });
         }
         onUpdate(live);
       }
@@ -583,12 +618,62 @@ export const generateCustomIOISUserId = (
   return finalId;
 };
 
+const hydrateUsersFromIdb = (): Promise<void> => {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (idbHydrationPromise) return idbHydrationPromise;
+
+  idbHydrationPromise = (async () => {
+    try {
+      const [idbUsers, idbCur, idbTix] = await Promise.all([
+        idbGet<UserProfile[]>(STORAGE_USERS_KEY),
+        idbGet<UserProfile>(STORAGE_CURRENT_USER_KEY),
+        idbGet<HelpTicket[]>(STORAGE_TICKETS_KEY),
+      ]);
+
+      if (Array.isArray(idbUsers) && idbUsers.length > 0) {
+        const cleanIdb = idbUsers.filter(
+          (u: UserProfile) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
+        );
+        // Merge with memoryUsers (IDB first so any LS-stripped photos are restored, memoryUsers second so newer fields win)
+        memoryUsers = mergeUserLists(cleanIdb, memoryUsers || [], INITIAL_DEMO_USERS);
+      }
+
+      if (idbCur && idbCur.userId) {
+        if (!memoryCurrentUser) {
+          memoryCurrentUser = idbCur;
+        } else if (memoryCurrentUser.userId?.toUpperCase() === idbCur.userId.toUpperCase()) {
+          memoryCurrentUser = {
+            ...idbCur,
+            ...memoryCurrentUser,
+            photoUrl: memoryCurrentUser.photoUrl || idbCur.photoUrl,
+            paymentScreenshotUrl: memoryCurrentUser.paymentScreenshotUrl || idbCur.paymentScreenshotUrl,
+          };
+        }
+      }
+
+      if (Array.isArray(idbTix) && idbTix.length > 0 && !memoryTickets) {
+        memoryTickets = idbTix;
+      }
+    } catch {
+      // Non-fatal IndexedDB hydration fallback
+    }
+  })();
+
+  return idbHydrationPromise;
+};
+
+if (typeof window !== 'undefined') {
+  void hydrateUsersFromIdb();
+}
+
 export const getAllUsers = (): UserProfile[] => {
   if (typeof window === 'undefined') return INITIAL_DEMO_USERS;
+  if (memoryUsers !== null) {
+    return memoryUsers;
+  }
   try {
-    const raw = localStorage.getItem(STORAGE_USERS_KEY);
+    const raw = safeLocalStorageGet(STORAGE_USERS_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(INITIAL_DEMO_USERS));
       return INITIAL_DEMO_USERS;
     }
     const parsed = JSON.parse(raw);
@@ -596,13 +681,11 @@ export const getAllUsers = (): UserProfile[] => {
       const cleanUsers = parsed.filter(
         (u: UserProfile) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())
       );
-      if (cleanUsers.length !== parsed.length) {
-        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(cleanUsers));
-      }
+      memoryUsers = cleanUsers;
       return cleanUsers;
     }
     return INITIAL_DEMO_USERS;
-  } catch (e) {
+  } catch {
     return INITIAL_DEMO_USERS;
   }
 };
@@ -714,10 +797,35 @@ export const getSponsorUserAsync = async (sponsorId?: string | null): Promise<Us
 
 export const saveUsers = (users: UserProfile[]): void => {
   if (typeof window === 'undefined') return;
+
+  const cleanUsers = Array.isArray(users)
+    ? users.filter((u) => u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase()))
+    : [];
+
+  // 1. Always preserve full user records (including photos & screenshots) in memory + IndexedDB
+  memoryUsers = cleanUsers;
+  void idbSet(STORAGE_USERS_KEY, cleanUsers);
+
+  // 2. Write a quota-safe snapshot to localStorage (never exhaust browser ~5MB limit or throw QuotaExceededError)
   try {
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users));
-  } catch (e) {
-    console.error('Failed to save users to localStorage', e);
+    const fullSerialized = JSON.stringify(cleanUsers);
+    if (fullSerialized.length <= 900_000) {
+      const saved = safeLocalStorageSet(STORAGE_USERS_KEY, fullSerialized);
+      if (saved) return;
+    }
+
+    // Fallback: strip large base64 data URLs in the localStorage copy ONLY (memoryUsers & IndexedDB retain full photos)
+    const compactUsers = cleanUsers.map((u) => stripOversizedDataUrls(u, 4096));
+    const compactSerialized = JSON.stringify(compactUsers);
+    if (compactSerialized.length <= 900_000) {
+      const savedCompact = safeLocalStorageSet(STORAGE_USERS_KEY, compactSerialized);
+      if (savedCompact) return;
+    }
+
+    // If localStorage is still tight due to other app keys, remove redundant user list cache cleanly
+    safeLocalStorageRemove(STORAGE_USERS_KEY);
+  } catch {
+    safeLocalStorageRemove(STORAGE_USERS_KEY);
   }
 };
 
@@ -1324,6 +1432,7 @@ export const secureRecoverUserIdAsync = async (
  * Fetch all users from Firestore + server + local cache and merge without data loss
  */
 export const fetchUsersFromServer = async (): Promise<UserProfile[]> => {
+  await hydrateUsersFromIdb();
   const localUsers = getAllUsers();
   const firestoreUsers: UserProfile[] = [];
   let serverUsers: UserProfile[] = [];
@@ -1966,24 +2075,90 @@ export const loginUser = (identifier: string, password?: string): UserProfile | 
 export const getCurrentUser = (): UserProfile | null => {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(STORAGE_CURRENT_USER_KEY);
-    if (!raw) return null;
-    const user: UserProfile = JSON.parse(raw);
-    if (user && user.payoutUpi) {
-      user.payoutUpi = sanitizeUpiId(user.payoutUpi);
+    let user: UserProfile | null = null;
+    if (memoryCurrentUser !== undefined) {
+      user = memoryCurrentUser;
+    } else {
+      const raw = safeLocalStorageGet(STORAGE_CURRENT_USER_KEY);
+      if (raw) {
+        user = JSON.parse(raw) as UserProfile;
+        memoryCurrentUser = user;
+      } else {
+        memoryCurrentUser = null;
+      }
+    }
+
+    if (user) {
+      // Enrich missing photoUrl/paymentScreenshotUrl from full memoryUsers if localStorage held a compact session copy
+      if ((!user.photoUrl || !user.paymentScreenshotUrl) && memoryUsers && memoryUsers.length > 0) {
+        const fullMatch = memoryUsers.find((u) => u.userId?.toUpperCase() === user!.userId?.toUpperCase());
+        if (fullMatch) {
+          user = {
+            ...user,
+            photoUrl: user.photoUrl || fullMatch.photoUrl,
+            paymentScreenshotUrl: user.paymentScreenshotUrl || fullMatch.paymentScreenshotUrl,
+          };
+          memoryCurrentUser = user;
+        }
+      }
+      if (user.payoutUpi) {
+        user = { ...user, payoutUpi: sanitizeUpiId(user.payoutUpi) };
+      }
     }
     return user;
-  } catch (e) {
+  } catch {
     return null;
   }
 };
 
 export const setCurrentUser = (user: UserProfile | null): void => {
   if (typeof window === 'undefined') return;
+  memoryCurrentUser = user;
   if (!user) {
-    localStorage.removeItem(STORAGE_CURRENT_USER_KEY);
-  } else {
-    localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(user));
+    safeLocalStorageRemove(STORAGE_CURRENT_USER_KEY);
+    void idbRemove(STORAGE_CURRENT_USER_KEY);
+    return;
+  }
+
+  // Always save full user record to IndexedDB
+  void idbSet(STORAGE_CURRENT_USER_KEY, user);
+
+  try {
+    const serialized = JSON.stringify(user);
+    if (
+      serialized.length <= 1_200_000 &&
+      safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, serialized, {
+        evictKeysOnQuota: BULKY_EVICT_KEYS,
+      })
+    ) {
+      return;
+    }
+
+    // Fallback 1: omit large paymentScreenshotUrl in localStorage session copy (rarely needed in active session header)
+    const withoutReceipt: UserProfile = {
+      ...user,
+      paymentScreenshotUrl:
+        user.paymentScreenshotUrl && user.paymentScreenshotUrl.startsWith('data:') && user.paymentScreenshotUrl.length > 4096
+          ? ''
+          : user.paymentScreenshotUrl,
+    };
+    const withoutReceiptJson = JSON.stringify(withoutReceipt);
+    if (
+      withoutReceiptJson.length <= 1_200_000 &&
+      safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, withoutReceiptJson, {
+        evictKeysOnQuota: BULKY_EVICT_KEYS,
+      })
+    ) {
+      return;
+    }
+
+    // Fallback 2: strip any huge inline data URLs in localStorage session copy while memoryCurrentUser & IDB retain them
+    const compactUser = stripOversizedDataUrls(user, 4096);
+    safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, JSON.stringify(compactUser), {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
+  } catch {
+    // memoryCurrentUser & IndexedDB still hold the active user safely
   }
 };
 
@@ -2306,15 +2481,17 @@ export const findUserByEmail = (email: string): UserProfile | null => {
 // Admin Auth and Status Updates
 export const isAdminLoggedIn = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem(STORAGE_ADMIN_SESSION_KEY) === 'true';
+  return safeLocalStorageGet(STORAGE_ADMIN_SESSION_KEY) === 'true';
 };
 
 export const setAdminSession = (active: boolean): void => {
   if (typeof window === 'undefined') return;
   if (active) {
-    localStorage.setItem(STORAGE_ADMIN_SESSION_KEY, 'true');
+    safeLocalStorageSet(STORAGE_ADMIN_SESSION_KEY, 'true', {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
   } else {
-    localStorage.removeItem(STORAGE_ADMIN_SESSION_KEY);
+    safeLocalStorageRemove(STORAGE_ADMIN_SESSION_KEY);
   }
 };
 
@@ -2362,19 +2539,49 @@ export const deleteUserAccount = async (userId: string): Promise<boolean> => {
   return true;
 };
 
+const saveTicketsLocally = (tickets: HelpTicket[]): void => {
+  if (typeof window === 'undefined') return;
+  const clean = Array.isArray(tickets) ? tickets : [];
+  memoryTickets = clean;
+  void idbSet(STORAGE_TICKETS_KEY, clean);
+
+  try {
+    const serialized = JSON.stringify(clean);
+    if (serialized.length <= 600_000 && safeLocalStorageSet(STORAGE_TICKETS_KEY, serialized)) {
+      return;
+    }
+    const compact = clean.map((t) => stripOversizedDataUrls(t, 4096));
+    const compactJson = JSON.stringify(compact);
+    if (compactJson.length <= 600_000) {
+      safeLocalStorageSet(STORAGE_TICKETS_KEY, compactJson);
+    } else {
+      safeLocalStorageRemove(STORAGE_TICKETS_KEY);
+    }
+  } catch {
+    safeLocalStorageRemove(STORAGE_TICKETS_KEY);
+  }
+};
+
 // Help & Support Tickets Engine
 export const getHelpTickets = (): HelpTicket[] => {
   if (typeof window === 'undefined') return [];
+  if (memoryTickets !== null) return memoryTickets;
   try {
-    const raw = localStorage.getItem(STORAGE_TICKETS_KEY);
+    const raw = safeLocalStorageGet(STORAGE_TICKETS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryTickets = parsed;
+      return parsed;
+    }
+    return [];
+  } catch {
     return [];
   }
 };
 
 export const fetchTicketsFromServer = async (): Promise<HelpTicket[]> => {
+  await hydrateUsersFromIdb();
   // Check Firestore first
   try {
     if (db) {
@@ -2386,9 +2593,7 @@ export const fetchTicketsFromServer = async (): Promise<HelpTicket[]> => {
         if (t && t.id) firestoreTickets.push(t);
       });
       if (firestoreTickets.length > 0) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(firestoreTickets));
-        }
+        saveTicketsLocally(firestoreTickets);
         return firestoreTickets;
       }
     }
@@ -2401,9 +2606,7 @@ export const fetchTicketsFromServer = async (): Promise<HelpTicket[]> => {
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.tickets)) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(data.tickets));
-        }
+        saveTicketsLocally(data.tickets);
         return data.tickets;
       }
     }
@@ -2421,10 +2624,8 @@ export const createHelpTicket = (ticket: Omit<HelpTicket, 'id' | 'createdAt' | '
     createdAt: new Date().toISOString(),
     status: 'open',
   };
-  tickets.unshift(newTicket);
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(tickets));
-  }
+  const updated = [newTicket, ...tickets];
+  saveTicketsLocally(updated);
 
   // Firestore & Server sync
   syncTicketToFirestore(newTicket);
@@ -2438,14 +2639,15 @@ export const createHelpTicket = (ticket: Omit<HelpTicket, 'id' | 'createdAt' | '
 };
 
 export const replyHelpTicket = (ticketId: string, reply: string, status: 'in_progress' | 'resolved' = 'resolved'): void => {
-  const tickets = getHelpTickets();
+  const tickets = [...getHelpTickets()];
   const index = tickets.findIndex((t) => t.id === ticketId);
   if (index !== -1) {
-    tickets[index].adminReply = reply;
-    tickets[index].status = status;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(tickets));
-    }
+    tickets[index] = {
+      ...tickets[index],
+      adminReply: reply,
+      status,
+    };
+    saveTicketsLocally(tickets);
 
     syncTicketToFirestore(tickets[index]);
     fetch(`/api/tickets/${encodeURIComponent(ticketId)}/reply`, {
@@ -2557,11 +2759,21 @@ export const getShortSponsorUrl = (user: { userId: string; username?: string }):
 // 2. Private Direct Messaging Service (Admin <-> User)
 // =========================================================================
 
+const memoryPrivateMessages = new Map<string, AdminPrivateMessage[]>();
+
 export const getLocalPrivateChatMessages = (userId: string): AdminPrivateMessage[] => {
   if (typeof window === 'undefined') return [];
+  const key = `${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`;
+  const cached = memoryPrivateMessages.get(key);
+  if (cached) return cached;
   try {
-    const raw = localStorage.getItem(`${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`);
-    return raw ? JSON.parse(raw) : [];
+    const raw = safeLocalStorageGet(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) {
+      memoryPrivateMessages.set(key, parsed);
+      return parsed;
+    }
+    return [];
   } catch {
     return [];
   }
@@ -2569,8 +2781,16 @@ export const getLocalPrivateChatMessages = (userId: string): AdminPrivateMessage
 
 export const saveLocalPrivateChatMessages = (userId: string, msgs: AdminPrivateMessage[]): void => {
   if (typeof window === 'undefined') return;
+  const key = `${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`;
+  memoryPrivateMessages.set(key, msgs);
+  void idbSet(key, msgs);
   try {
-    localStorage.setItem(`${STORAGE_PRIVATE_MESSAGES_KEY}_${userId.toUpperCase()}`, JSON.stringify(msgs));
+    const serialized = JSON.stringify(msgs);
+    if (serialized.length <= 400_000 && safeLocalStorageSet(key, serialized)) {
+      return;
+    }
+    const compact = msgs.map((m) => stripOversizedDataUrls(m, 4096));
+    safeLocalStorageSet(key, JSON.stringify(compact), { maxBytes: 400_000 });
   } catch {}
 };
 

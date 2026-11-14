@@ -504,8 +504,8 @@ export default function App() {
                   <div className="flex items-center gap-3 text-center sm:text-left">
                     <div
                       onClick={() => handleOpenPublicProfile(currentUser)}
-                      className={`p-1.5 rounded-full cursor-pointer shrink-0 ${homeFrame.cssClass || homeFrame.effectClass}`}
-                      title="अपनी पब्लिक प्रोफाइल देखें"
+                      className={`relative p-1.5 rounded-full cursor-pointer shrink-0 ${homeFrame.cssClass || homeFrame.effectClass}`}
+                      title={`${homeFrame.nameHi} (${homeFrame.dimension}) — अपनी पब्लिक प्रोफाइल देखें`}
                     >
                       <div className="relative z-10 w-12 h-12 rounded-full overflow-hidden border border-slate-900 bg-slate-900">
                         <img
@@ -517,6 +517,11 @@ export default function App() {
                           className="w-full h-full object-cover object-top"
                         />
                       </div>
+                      {homeFrame.badgeIcon && (
+                        <span className="absolute -bottom-1 -right-1 z-20 w-5 h-5 rounded-full bg-slate-950 border border-amber-400 text-[10px] flex items-center justify-center shadow pointer-events-none">
+                          {homeFrame.badgeIcon}
+                        </span>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">

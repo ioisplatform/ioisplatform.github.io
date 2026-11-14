@@ -468,7 +468,7 @@ export const IoisChatHelpHub: React.FC<IoisChatHelpHubProps> = ({
                   >
                     <div className={`w-10 h-10 shrink-0 ${getProfileFrameById(mySponsor.profileFrameId).cssClass || getProfileFrameById(mySponsor.profileFrameId).effectClass}`}>
                       <img
-                        src={mySponsor.photoUrl}
+                        src={mySponsor.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                         alt={mySponsor.fullName}
                         className="w-full h-full object-cover rounded-full"
                       />
@@ -512,7 +512,7 @@ export const IoisChatHelpHub: React.FC<IoisChatHelpHubProps> = ({
                       >
                         <div className={`w-10 h-10 shrink-0 ${getProfileFrameById(u.profileFrameId).cssClass || getProfileFrameById(u.profileFrameId).effectClass}`}>
                           <img
-                            src={u.photoUrl}
+                            src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                             alt={u.fullName}
                             className="w-full h-full object-cover rounded-full"
                           />
@@ -697,7 +697,7 @@ export const IoisChatHelpHub: React.FC<IoisChatHelpHubProps> = ({
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <img
-                            src={f.photoUrl}
+                            src={f.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                             alt={f.fullName}
                             className="w-8 h-8 rounded-full object-cover shrink-0"
                           />
@@ -758,7 +758,7 @@ export const IoisChatHelpHub: React.FC<IoisChatHelpHubProps> = ({
                       <div className="flex items-center gap-2.5">
                         <div className={`w-10 h-10 shrink-0 ${getProfileFrameById(u.profileFrameId).cssClass || getProfileFrameById(u.profileFrameId).effectClass}`}>
                           <img
-                            src={u.photoUrl}
+                            src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                             alt={u.fullName}
                             className="w-full h-full object-cover rounded-full"
                           />
@@ -851,7 +851,7 @@ export const IoisChatHelpHub: React.FC<IoisChatHelpHubProps> = ({
                         }`}
                       >
                         <img
-                          src={activePeerUser.photoUrl}
+                          src={activePeerUser.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                           alt={activePeerUser.fullName}
                           className="w-full h-full object-cover rounded-full"
                         />

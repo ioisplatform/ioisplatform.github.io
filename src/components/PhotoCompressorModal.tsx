@@ -355,11 +355,15 @@ export const PhotoCompressorTool: React.FC<{ onDownloadSuccess?: () => void }> =
                 </span>
               </div>
               <div className="w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
-                <img 
-                  src={originalUrl} 
-                  alt="Original" 
-                  className="w-full h-full object-contain"
-                />
+                {originalUrl ? (
+                  <img 
+                    src={originalUrl} 
+                    alt="Original" 
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-slate-500">लोड हो रहा है...</span>
+                )}
               </div>
               <div className="text-[10.5px] text-slate-400 text-center">
                 आकार: {originalDimensions.width} × {originalDimensions.height} px
@@ -378,7 +382,7 @@ export const PhotoCompressorTool: React.FC<{ onDownloadSuccess?: () => void }> =
                 </span>
               </div>
               <div className="w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-emerald-500/30 flex items-center justify-center relative">
-                {isProcessing ? (
+                {isProcessing || !compressedUrl ? (
                   <div className="flex flex-col items-center gap-2 text-amber-400">
                     <RefreshCw className="w-6 h-6 animate-spin" />
                     <span className="text-xs font-bold">कंप्रेस हो रहा है...</span>

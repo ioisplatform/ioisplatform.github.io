@@ -998,7 +998,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                 title="पूरी प्रोफाइल देखने हेतु क्लिक करें"
                               >
                                 <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900 shadow-sm">
-                                  <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                                  <img src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt={u.fullName} className="w-full h-full object-cover" />
                                 </div>
                                 <div>
                                   <div className="font-bold text-white text-sm group-hover:text-amber-300 transition flex items-center gap-1.5">
@@ -1270,7 +1270,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 <div className="p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 rounded-2xl border-2 border-amber-400/80 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-400 shrink-0">
-                      <img src={rootUser.photoUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={rootUser.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1367,7 +1367,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0">
-                                <img src={item.user.photoUrl} alt="" className="w-full h-full object-cover" />
+                                <img src={item.user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                               </div>
                               <div className="overflow-hidden">
                                 <div className="font-bold text-white text-xs truncate">{item.user.fullName}</div>
@@ -1584,7 +1584,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         }`}
                       >
                         <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-950 shrink-0">
-                          <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
+                          <img src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
@@ -1765,7 +1765,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-amber-400 bg-slate-950 shadow-xl">
-                      <img src={inspectedUser.photoUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={inspectedUser.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-slate-950 border border-amber-400">
                       <UserCheck className="w-3.5 h-3.5 text-amber-400" />
@@ -2402,7 +2402,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                           return (
                             <div key={m.userId} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-3">
                               <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
-                                <img src={m.photoUrl} alt="" className="w-full h-full object-cover" />
+                                <img src={m.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                               </div>
                               <div className="min-w-0 flex-1 text-xs">
                                 <div className="font-bold text-white truncate">{m.fullName}</div>
@@ -3446,11 +3446,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   >
                     <div className="space-y-2.5">
                       <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
-                        <img
-                          src={slide.imageUrl}
-                          alt={slide.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        />
+                        {slide.imageUrl?.trim() ? (
+                          <img
+                            src={slide.imageUrl}
+                            alt={slide.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 font-bold">
+                            बैनर फोटो सेट नहीं
+                          </div>
+                        )}
                         <div className="absolute top-2 left-2 bg-slate-950/90 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40">
                           Slide #{idx + 1}
                         </div>
@@ -3917,7 +3923,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent p-3.5 rounded-xl border border-amber-500/30">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-amber-400/80 bg-slate-900 shrink-0 shadow-md">
-                      <img src={selectedFormUser.photoUrl} alt={selectedFormUser.fullName} className="w-full h-full object-cover" />
+                      <img src={selectedFormUser.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt={selectedFormUser.fullName} className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="text-xs text-amber-300 font-bold uppercase tracking-wider">IOIS INDIA OFFICIALLY REGISTERED</div>
@@ -4390,7 +4396,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                 title="प्रोफाइल जांचें"
                               >
                                 <div className="w-9 h-9 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900 shadow-sm">
-                                  <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                                  <img src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt={u.fullName} className="w-full h-full object-cover" />
                                 </div>
                                 <div>
                                   <div className="font-bold text-white text-xs group-hover:text-amber-300 transition">

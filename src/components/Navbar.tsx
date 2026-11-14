@@ -93,21 +93,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   // "More" Modal state for all 17+ platform popup options
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
 
-  // Ticker running speed state: 'normal' (24s), 'slow' (40s), 'fast' (14s), 'paused' (paused)
-  const [tickerSpeed, setTickerSpeed] = useState<'normal' | 'slow' | 'fast' | 'paused'>('normal');
+  // Ticker running speed state: default to calm 'slow' (90s) for comfortable reading
+  const [tickerSpeed, setTickerSpeed] = useState<'normal' | 'slow' | 'fast' | 'paused'>('slow');
 
   const tickerDuration = {
-    slow: '45s',
-    normal: '26s',
-    fast: '15s',
+    slow: '90s',
+    normal: '58s',
+    fast: '32s',
     paused: '0s',
   }[tickerSpeed];
 
   const cycleTickerSpeed = () => {
-    if (tickerSpeed === 'normal') setTickerSpeed('slow');
-    else if (tickerSpeed === 'slow') setTickerSpeed('fast');
+    if (tickerSpeed === 'slow') setTickerSpeed('normal');
+    else if (tickerSpeed === 'normal') setTickerSpeed('fast');
     else if (tickerSpeed === 'fast') setTickerSpeed('paused');
-    else setTickerSpeed('normal');
+    else setTickerSpeed('slow');
   };
 
   const speedLabel = {
@@ -525,7 +525,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="मेरा डैशबोर्ड खोलें"
                 >
                   <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-slate-950 shrink-0">
-                    <img src={currentUser.photoUrl} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={currentUser.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <span className="truncate">डैशबोर्ड</span>
                 </button>

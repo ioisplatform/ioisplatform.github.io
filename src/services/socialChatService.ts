@@ -8,6 +8,14 @@ import {
 } from '../types';
 import { db } from '../lib/firebase';
 import {
+  idbGet,
+  idbSet,
+  safeLocalStorageGet,
+  safeLocalStorageRemove,
+  safeLocalStorageSet,
+  stripOversizedDataUrls,
+} from '../utils/safeStorage';
+import {
   collection,
   doc,
   setDoc,
@@ -55,12 +63,14 @@ export const getGroupThreadId = (groupId: string): string => {
   return `group:${groupId.trim()}`;
 };
 
+const memoryArrayCache = new Map<string, any[]>();
+
 export const getSocialUnreadCache = (userId: string): SocialUnreadCache => {
   if (typeof window === 'undefined' || !userId) {
     return { totalUnreadCount: 0, unreadSummaries: [], pendingFriendRequestsCount: 0, updatedAt: '' };
   }
   try {
-    const raw = localStorage.getItem(`${STORAGE_SOCIAL_CACHE_PREFIX}${userId.trim().toUpperCase()}`);
+    const raw = safeLocalStorageGet(`${STORAGE_SOCIAL_CACHE_PREFIX}${userId.trim().toUpperCase()}`);
     if (raw) return JSON.parse(raw);
   } catch {}
   return { totalUnreadCount: 0, unreadSummaries: [], pendingFriendRequestsCount: 0, updatedAt: '' };
@@ -69,9 +79,14 @@ export const getSocialUnreadCache = (userId: string): SocialUnreadCache => {
 export const saveSocialUnreadCache = (userId: string, cache: SocialUnreadCache): void => {
   if (typeof window === 'undefined' || !userId) return;
   try {
-    localStorage.setItem(
+    const compactCache: SocialUnreadCache = {
+      ...cache,
+      unreadSummaries: (cache.unreadSummaries || []).map((s) => stripOversizedDataUrls(s, 4096)),
+    };
+    safeLocalStorageSet(
       `${STORAGE_SOCIAL_CACHE_PREFIX}${userId.trim().toUpperCase()}`,
-      JSON.stringify(cache)
+      JSON.stringify(compactCache),
+      { maxBytes: 150_000, evictKeysOnQuota: [STORAGE_SOCIAL_MESSAGES_LOCAL] }
     );
     window.dispatchEvent(new Event('iois_notifications_updated'));
   } catch {}
@@ -79,9 +94,18 @@ export const saveSocialUnreadCache = (userId: string, cache: SocialUnreadCache):
 
 const getLocalArray = <T>(key: string): T[] => {
   if (typeof window === 'undefined') return [];
+  const cached = memoryArrayCache.get(key);
+  if (cached) return cached as T[];
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    const raw = safeLocalStorageGet(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        memoryArrayCache.set(key, parsed);
+        return parsed;
+      }
+    }
+    return [];
   } catch {
     return [];
   }
@@ -89,10 +113,49 @@ const getLocalArray = <T>(key: string): T[] => {
 
 const saveLocalArray = <T>(key: string, items: T[]): void => {
   if (typeof window === 'undefined') return;
+  const clean = Array.isArray(items) ? items : [];
+  memoryArrayCache.set(key, clean);
+  void idbSet(key, clean);
+
   try {
-    localStorage.setItem(key, JSON.stringify(items));
-  } catch {}
+    const serialized = JSON.stringify(clean);
+    if (serialized.length <= 450_000 && safeLocalStorageSet(key, serialized)) {
+      return;
+    }
+    const compact = clean.slice(-80).map((item) =>
+      item && typeof item === 'object' ? stripOversizedDataUrls(item as Record<string, any>, 4096) : item
+    );
+    const compactJson = JSON.stringify(compact);
+    if (compactJson.length <= 450_000 && safeLocalStorageSet(key, compactJson)) {
+      return;
+    }
+    safeLocalStorageRemove(key);
+  } catch {
+    safeLocalStorageRemove(key);
+  }
 };
+
+if (typeof window !== 'undefined') {
+  void Promise.all([
+    idbGet<SocialChatMessage[]>(STORAGE_SOCIAL_MESSAGES_LOCAL),
+    idbGet<SocialGroup[]>(STORAGE_SOCIAL_GROUPS_LOCAL),
+    idbGet<FriendRequest[]>(STORAGE_FRIEND_REQUESTS_LOCAL),
+    idbGet<ProfileVisitLog[]>(STORAGE_PROFILE_VISITS_LOCAL),
+  ]).then(([msgs, grps, reqs, visits]) => {
+    if (Array.isArray(msgs) && msgs.length > 0 && !memoryArrayCache.has(STORAGE_SOCIAL_MESSAGES_LOCAL)) {
+      memoryArrayCache.set(STORAGE_SOCIAL_MESSAGES_LOCAL, msgs);
+    }
+    if (Array.isArray(grps) && grps.length > 0 && !memoryArrayCache.has(STORAGE_SOCIAL_GROUPS_LOCAL)) {
+      memoryArrayCache.set(STORAGE_SOCIAL_GROUPS_LOCAL, grps);
+    }
+    if (Array.isArray(reqs) && reqs.length > 0 && !memoryArrayCache.has(STORAGE_FRIEND_REQUESTS_LOCAL)) {
+      memoryArrayCache.set(STORAGE_FRIEND_REQUESTS_LOCAL, reqs);
+    }
+    if (Array.isArray(visits) && visits.length > 0 && !memoryArrayCache.has(STORAGE_PROFILE_VISITS_LOCAL)) {
+      memoryArrayCache.set(STORAGE_PROFILE_VISITS_LOCAL, visits);
+    }
+  });
+}
 
 const computeLocalSummaries = (
   cleanUserId: string,
@@ -335,15 +398,15 @@ export const toggleProfileLikeAsync = async (
 
   let likesObj: Record<string, string[]> = {};
   try {
-    const raw = localStorage.getItem(STORAGE_PROFILE_LIKES_LOCAL);
+    const raw = safeLocalStorageGet(STORAGE_PROFILE_LIKES_LOCAL);
     if (raw) likesObj = JSON.parse(raw);
   } catch {}
   const list = likesObj[cleanTarget] || [];
   const exists = list.includes(cleanLiker);
   likesObj[cleanTarget] = exists ? list.filter((x) => x !== cleanLiker) : [...list, cleanLiker];
-  try {
-    localStorage.setItem(STORAGE_PROFILE_LIKES_LOCAL, JSON.stringify(likesObj));
-  } catch {}
+  safeLocalStorageSet(STORAGE_PROFILE_LIKES_LOCAL, JSON.stringify(likesObj), {
+    evictKeysOnQuota: [STORAGE_SOCIAL_MESSAGES_LOCAL],
+  });
   return { liked: !exists, profileLikes: likesObj[cleanTarget] };
 };
 

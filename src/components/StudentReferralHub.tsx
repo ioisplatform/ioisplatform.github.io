@@ -1031,7 +1031,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
                         <td className="p-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-400/50 bg-slate-900 shrink-0">
-                              <img src={item.user.photoUrl} alt="" className="w-full h-full object-cover" />
+                              <img src={item.user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                             </div>
                             <div>
                               <div className="font-bold text-white group-hover:text-amber-300 transition">
@@ -1117,7 +1117,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
             <div className="flex flex-col items-center">
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-lg border-2 border-amber-300 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-900 shrink-0">
-                  <img src={user.photoUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <div className="text-sm font-black">{user.fullName} (YOU)</div>
@@ -1162,7 +1162,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
 
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0">
-                            <img src={item.user.photoUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={item.user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <div className="font-black text-white text-xs group-hover:text-amber-300 transition">
@@ -1236,7 +1236,7 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
 
             <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
               <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-amber-400 shrink-0 shadow-lg">
-                <img src={selectedDownline.photoUrl} alt="" className="w-full h-full object-cover" />
+                <img src={selectedDownline.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="space-y-1">
                 <h3 className="text-lg font-black text-white">{selectedDownline.fullName}</h3>

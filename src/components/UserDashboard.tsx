@@ -22,7 +22,7 @@ import { PrivateChatMessenger } from './PrivateChatMessenger';
 import { IoisChatHelpHub } from './IoisChatHelpHub';
 import { NotificationModal } from './NotificationModal';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
-import { PROFILE_FRAMES, getProfileFrameById } from '../data/profileFramesData';
+import { PROFILE_FRAMES, getProfileFrameById, SHAPE_LABELS } from '../data/profileFramesData';
 import { getUserUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
 import { fetchSocialBootstrapAsync, getSocialUnreadCache } from '../services/socialChatService';
 import {
@@ -141,7 +141,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   }, [user.profileFrameId]);
 
   const [isFrameModalOpen, setIsFrameModalOpen] = useState<boolean>(false);
-  const [frameCategoryFilter, setFrameCategoryFilter] = useState<'all' | 'orbit' | 'plan' | 'festive' | 'gemstone'>('all');
+  const [frameCategoryFilter, setFrameCategoryFilter] = useState<
+    'all' | '16d' | '8d' | '4d' | '3d' | 'shapes' | 'circles' | 'symbols' | 'plan' | 'festive' | 'gemstone'
+  >('all');
 
   // Complete Photo Lightbox & Photo Changer Popups
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState<boolean>(false);
@@ -704,13 +706,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           {/* Left: Crystal-Clear Avatar + Identity */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 w-full md:w-auto text-center sm:text-left">
             <div className="flex flex-col items-center gap-2 shrink-0">
-              {/* Unobstructed Profile Photo with 3D Live Frame (Click for Full Lightbox) */}
+              {/* Unobstructed Profile Photo with 3D/4D/8D/16D Live Frame + Symbol & Shape */}
               <div
                 className={`relative p-2 rounded-full flex items-center justify-center cursor-pointer transition transform hover:scale-105 ${
                   activeFrame.cssClass || activeFrame.effectClass || 'frame-iois-spinning-orbit-rainbow'
                 }`}
                 onClick={() => setIsPhotoLightboxOpen(true)}
-                title="पूरा फोटो साफ-साफ देखने के लिए क्लिक करें"
+                title={`${activeFrame.nameHi} (${activeFrame.dimension}) — पूरा फोटो देखने के लिए क्लिक करें`}
               >
                 <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-2xl">
                   <img
@@ -722,6 +724,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     className="w-full h-full object-cover object-top"
                   />
                 </div>
+                {activeFrame.badgeIcon && (
+                  <span
+                    className="absolute -bottom-1 -left-1 z-20 w-7 h-7 rounded-full bg-slate-950/95 border-2 border-amber-400 text-xs flex items-center justify-center shadow-lg pointer-events-none"
+                    title={activeFrame.badgeLabel || activeFrame.name}
+                  >
+                    {activeFrame.badgeIcon}
+                  </span>
+                )}
+                <span
+                  className={`absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full text-[9px] font-black border shadow-lg pointer-events-none ${
+                    activeFrame.dimension === '16D'
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-amber-400 to-cyan-400 text-slate-950 border-white'
+                      : activeFrame.dimension === '8D'
+                      ? 'bg-cyan-400 text-slate-950 border-cyan-100'
+                      : activeFrame.dimension === '4D'
+                      ? 'bg-amber-400 text-slate-950 border-amber-100'
+                      : 'bg-slate-800 text-amber-300 border-amber-500/50'
+                  }`}
+                >
+                  {activeFrame.dimension}
+                </span>
               </div>
 
               {/* Clean Photo Action Pills Below Avatar (Never Covers the Face) */}
@@ -1630,10 +1653,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div className="space-y-1 min-w-0">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-500/40">
                     <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
-                    <span>{PROFILE_FRAMES.length}+ 3D LIVE HD PROFILE FRAMES</span>
+                    <span>{PROFILE_FRAMES.length} LIVE 3D • 4D • 8D • 16D GLOW & SHAPE FRAMES</span>
                   </div>
                   <h3 className="text-base sm:text-xl font-black text-white">
-                    अपनी प्रोफाइल के लिए 3D लाइव फ्रेम चुनें
+                    अपनी प्रोफाइल के लिए 3D / 4D / 8D / 16D शेप व ज़ूम फ्रेम चुनें
                   </h3>
                 </div>
 
@@ -1648,16 +1671,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
               <div className="px-4 py-2.5 bg-slate-900/80 border-b border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0 custom-scrollbar">
                 {[
-                  { id: 'all', label: `सभी फ्रेम्स (${PROFILE_FRAMES.length})` },
-                  { id: 'orbit', label: '🌀 3D स्पिनिंग ऑर्बिट' },
+                  { id: 'all', label: `सभी (${PROFILE_FRAMES.length})` },
+                  { id: '16d', label: '🌌 16D क्वांटम' },
+                  { id: '8d', label: '⚡ 8D होलो' },
+                  { id: '4d', label: '🌀 4D ग्लो ज़ूम' },
+                  { id: '3d', label: '✨ 3D क्लासिक' },
+                  { id: 'shapes', label: '🔷 अलग शेप्स (Shapes)' },
+                  { id: 'circles', label: '⭕ गोल ग्लो सर्कल' },
+                  { id: 'symbols', label: '🔱 सिंबल / प्रतीक' },
                   { id: 'plan', label: '👑 7 मास्टर प्लान' },
-                  { id: 'festive', label: '🪔 दीवाली, छठ, धनतेरस' },
+                  { id: 'festive', label: '🪔 त्योहार स्पेशल' },
                   { id: 'gemstone', label: '💎 जेमस्टोन VIP' },
                 ].map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setFrameCategoryFilter(cat.id as any)}
+                    onClick={() => setFrameCategoryFilter(cat.id as typeof frameCategoryFilter)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
                       frameCategoryFilter === cat.id
                         ? 'bg-amber-400 text-slate-950 font-black shadow-md'
@@ -1672,38 +1701,60 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <div className="p-4 sm:p-5 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 custom-scrollbar">
                 {PROFILE_FRAMES.filter((f) => {
                   if (frameCategoryFilter === 'all') return true;
-                  if (frameCategoryFilter === 'orbit') return f.id.includes('orbit');
-                  if (frameCategoryFilter === 'plan') return f.id.includes('plan');
-                  if (frameCategoryFilter === 'festive')
-                    return ['dhanteras', 'diwali', 'govardhan', 'bhaidooj', 'chhath', 'navratri', 'eid', 'holi', 'republic'].some((k) =>
-                      f.id.includes(k)
+                  if (frameCategoryFilter === '16d') return f.dimension === '16D';
+                  if (frameCategoryFilter === '8d') return f.dimension === '8D';
+                  if (frameCategoryFilter === '4d') return f.dimension === '4D';
+                  if (frameCategoryFilter === '3d') return f.dimension === '3D';
+                  if (frameCategoryFilter === 'shapes') return f.shape !== 'circle';
+                  if (frameCategoryFilter === 'circles') return f.shape === 'circle';
+                  if (frameCategoryFilter === 'symbols')
+                    return (
+                      f.id.startsWith('symbol-') ||
+                      ['quantum-16d-mahakal-trishul', 'quantum-16d-om-brahmand', 'quantum-16d-vishwakarma-chakra', 'quantum-16d-shakti-peacock', 'quantum-16d-phoenix-sovereign', 'holo-8d-eid-chand-mubarak', 'holo-8d-kalash-swastik', 'lion-national-emblem', 'dharma-chakra-spin', 'ashok-chakra-shine'].includes(f.id)
                     );
+                  if (frameCategoryFilter === 'plan') return f.id.includes('plan-');
+                  if (frameCategoryFilter === 'festive') return f.tier === 'festive';
                   if (frameCategoryFilter === 'gemstone')
-                    return ['sapphire', 'emerald', 'ruby', 'amethyst', 'obsidian', 'cyberpunk', 'prism', 'supernova'].some((k) =>
-                      f.id.includes(k)
+                    return ['sapphire', 'emerald', 'ruby', 'amethyst', 'diamond', 'obsidian', 'kohinoor', 'cyberpunk', 'prism'].some((k) =>
+                      f.id.includes(k) || f.tier === k
                     );
                   return true;
                 }).map((frame) => {
                   const isSelected = activeFrameId === frame.id;
+                  const shapeInfo = SHAPE_LABELS[frame.shape];
                   return (
                     <div
                       key={frame.id}
                       onClick={() => handleSelectFrame(frame.id)}
-                      className={`relative p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col items-center text-center justify-between gap-2.5 ${
+                      className={`relative p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col items-center text-center justify-between gap-2.5 group ${
                         isSelected
                           ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-2 ring-amber-400/40'
                           : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
                       }`}
                     >
+                      <span
+                        className={`absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full border z-20 ${
+                          frame.dimension === '16D'
+                            ? 'bg-gradient-to-r from-fuchsia-500 via-amber-400 to-cyan-400 text-slate-950 border-white shadow'
+                            : frame.dimension === '8D'
+                            ? 'bg-cyan-400/90 text-slate-950 border-cyan-200'
+                            : frame.dimension === '4D'
+                            ? 'bg-amber-400/90 text-slate-950 border-amber-200'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {frame.dimension}
+                      </span>
+
                       {isSelected && (
-                        <span className="absolute top-2 right-2 bg-amber-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shadow z-20">
+                        <span className="absolute top-2 right-2 bg-amber-400 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow z-20">
                           <Check className="w-2.5 h-2.5" />
                           <span>सक्रिय</span>
                         </span>
                       )}
 
-                      <div className="pt-2">
-                        <div className={`p-2 rounded-full flex items-center justify-center ${frame.cssClass || frame.effectClass}`}>
+                      <div className="pt-5 pb-1">
+                        <div className={`relative p-2 rounded-full flex items-center justify-center ${frame.cssClass || frame.effectClass}`}>
                           <div className="relative z-10 w-14 h-14 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-950 shadow-inner">
                             <img
                               src={avatarImgSrc}
@@ -1714,15 +1765,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                               className="w-full h-full object-cover object-top"
                             />
                           </div>
+                          {frame.badgeIcon && (
+                            <span className="absolute -bottom-1 -right-1 z-20 w-5 h-5 rounded-full bg-slate-950 border border-amber-400 text-[10px] flex items-center justify-center shadow">
+                              {frame.badgeIcon}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <div className="w-full space-y-0.5">
                         <h4 className="text-xs font-black text-white truncate">{frame.name}</h4>
                         <p className="text-[10px] text-amber-300 font-bold truncate">{frame.nameHi}</p>
-                        <span className="inline-block text-[9px] bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800 text-slate-400 mt-1">
-                          {frame.tier}
-                        </span>
+                        <div className="flex items-center justify-center gap-1 pt-1 flex-wrap">
+                          <span className="inline-block text-[8.5px] bg-slate-950 px-1.5 py-0.5 rounded-full border border-slate-800 text-cyan-300 font-bold">
+                            {shapeInfo.icon} {shapeInfo.hi}
+                          </span>
+                          {frame.zoomEffect && (
+                            <span className="inline-block text-[8.5px] bg-emerald-500/15 px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-300 font-bold">
+                              🔍 Zoom
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <button

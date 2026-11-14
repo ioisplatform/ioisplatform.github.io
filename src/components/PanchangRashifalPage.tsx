@@ -124,11 +124,17 @@ export const PanchangRashifalPage: React.FC = () => {
             className="w-full lg:w-96 aspect-video rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-xl bg-black shrink-0 relative cursor-pointer group"
             title="विस्तृत विवरण के लिए क्लिक करें"
           >
-            <img 
-              src={panchang?.festivalsToday?.imageUrl || ''} 
-              alt={panchang?.festivalsToday?.nameHindi || 'पावन दिवस'} 
-              className="w-full h-full object-contain group-hover:scale-102 transition-transform select-none"
-            />
+            {panchang?.festivalsToday?.imageUrl ? (
+              <img 
+                src={panchang.festivalsToday.imageUrl} 
+                alt={panchang?.festivalsToday?.nameHindi || 'पावन दिवस'} 
+                className="w-full h-full object-contain group-hover:scale-102 transition-transform select-none"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-950 text-amber-300 font-black text-sm">
+                {panchang?.festivalsToday?.nameHindi || 'IOIS FESTIVAL 2026'}
+              </div>
+            )}
             <div className="absolute top-2 right-2 bg-slate-950/90 text-amber-300 border border-amber-400/50 px-2 py-0.5 rounded-full text-[9.5px] font-black flex items-center gap-1 shadow-md">
               <Maximize2 className="w-3 h-3 text-amber-400" />
               <span>पॉपअप खोलें</span>

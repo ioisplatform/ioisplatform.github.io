@@ -463,7 +463,7 @@ export interface ChatMessage {
   learned?: boolean;
 }
 
-export type TickerSpeed = 'paused' | 'slow' | 'normal' | 'fast';
+export type TickerSpeed = 'paused' | 'ultra_slow' | 'slow' | 'normal' | 'fast';
 
 export interface TelegramConfig {
   enabled: boolean;

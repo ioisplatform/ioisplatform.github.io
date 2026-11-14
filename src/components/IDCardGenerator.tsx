@@ -943,28 +943,36 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
             </div>
           </div>
 
-          {/* 3.5. 3D Live Animated Profile Frame Selector for ID Card */}
+          {/* 3.5. 3D / 4D / 8D / 16D Live Animated Profile Frame Selector for ID Card */}
           <div className="space-y-2 p-3 bg-gradient-to-r from-amber-500/10 via-slate-950 to-slate-900 rounded-2xl border border-amber-500/40 shadow-inner">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <label className="flex items-center gap-1.5 text-xs text-white font-black">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                <span>3D लाइव प्रोफाइल फ्रेम (ID Card Live Frame):</span>
+                <span>3D / 4D / 8D / 16D प्रोफाइल फ्रेम:</span>
               </label>
-              <span className="text-[10px] font-mono text-amber-300 font-bold truncate max-w-[160px]">
-                {activeFrameDef.nameHi}
+              <span className="text-[10px] font-mono text-amber-300 font-bold truncate max-w-[170px]">
+                [{activeFrameDef.dimension}] {activeFrameDef.nameHi}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto pr-0.5 custom-scrollbar">
               {[
-                { id: 'iois-spinning-orbit-rainbow', label: '🌀 रेनबो चक्र' },
-                { id: 'iois-spinning-orbit-gold', label: '✨ 24K गोल्ड' },
-                { id: 'iois-spinning-orbit-tricolor', label: '🇮🇳 तिरंगा' },
-                { id: 'festive-diwali-diyaglow', label: '🪔 दीवाली दिया' },
-                { id: 'festive-dhanteras-shubhlabh', label: '🪙 धनतेरस' },
-                { id: 'festive-chhath-surya-arghya', label: '🌅 छठ सूर्य' },
-                { id: 'gemstone-sapphire-neon', label: '💙 रॉयल नीलम' },
-                { id: 'plan-07-masterlifetime', label: '👑 मास्टर 999' },
+                { id: 'iois-spinning-orbit-rainbow', label: '🌀 4D रेनबो' },
+                { id: 'quantum-16d-rainbow-zoom-max', label: '🌈 16D ज़ूम गोल' },
+                { id: 'quantum-16d-hypercube', label: '💠 16D अष्टभुज' },
+                { id: 'quantum-16d-mahakal-trishul', label: '🔱 16D त्रिशूल' },
+                { id: 'quantum-16d-om-brahmand', label: 'ॐ 16D ब्रह्मांड' },
+                { id: 'quantum-16d-kohinoor-emperor', label: '👑 16D कोहिनूर' },
+                { id: 'holo-8d-cyber-hexagon', label: '⬡ 8D षट्भुज' },
+                { id: 'holo-8d-diamond-prism', label: '🔷 8D डायमंड' },
+                { id: 'holo-8d-emerald-shield', label: '🛡️ 8D रक्षा ढाल' },
+                { id: 'holo-8d-ruby-starburst', label: '🔥 8D स्टारबर्स्ट' },
+                { id: 'glow-4d-neon-circle-cyan', label: '🌀 4D स्यान ग्लो' },
+                { id: 'glow-4d-golden-halo-zoom', label: '✨ 4D गोल्ड ज़ूम' },
+                { id: 'symbol-krishna-bansuri-peacock', label: '🦚 8D मोरपंख' },
+                { id: 'festive-diwali-diya', label: '🪔 दीवाली कमल' },
+                { id: 'festive-chhath-surya', label: '☀️ 8D छठ सूर्य' },
+                { id: 'plan-07-masterlifetime', label: '👑 16D मास्टर' },
               ].map((fr) => {
                 const isSelected = activeCardFrameId === fr.id;
                 return (
@@ -978,7 +986,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <span>{fr.label}</span>
+                    <span className="truncate">{fr.label}</span>
                   </button>
                 );
               })}
@@ -1386,7 +1394,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                       {/* Middle Row: Photo, Details & Microchip */}
                       <div className="flex items-center gap-3.5 my-auto relative z-10 py-1">
                         
-                        {/* Member Photo with 3D Live Animated Frame & Stamp */}
+                        {/* Member Photo with 3D/4D/8D/16D Live Animated Frame & Stamp */}
                         <div className="relative shrink-0 flex items-center justify-center p-1.5">
                           <div className={`relative p-2 rounded-full flex items-center justify-center transition-all duration-300 ${activeFrameDef.cssClass || 'frame-iois-spinning-orbit-rainbow'}`}>
                             <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-xl relative z-10">
@@ -1394,10 +1402,15 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                                 src={displayPhoto}
                                 alt={displayFullName}
                                 crossOrigin="anonymous"
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover object-top"
                               />
                             </div>
                           </div>
+                          {activeFrameDef.badgeIcon && (
+                            <span className="absolute top-0 left-0 z-20 w-5 h-5 rounded-full bg-slate-950 border border-amber-400 text-[10px] flex items-center justify-center shadow pointer-events-none">
+                              {activeFrameDef.badgeIcon}
+                            </span>
+                          )}
                           <div className="absolute bottom-0 right-0 bg-emerald-500 text-slate-950 p-1 rounded-full border-2 border-slate-950 shadow-md z-20">
                             <BadgeCheck className="w-3.5 h-3.5 stroke-[2.5]" />
                           </div>
@@ -1617,7 +1630,7 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                         </span>
                       </div>
 
-                      {/* Portrait Photo with 3D Live Animated Frame & Stamp */}
+                      {/* Portrait Photo with 3D/4D/8D/16D Live Animated Frame & Stamp */}
                       <div className="relative my-auto flex flex-col items-center space-y-1.5">
                         <div className="relative p-1.5">
                           <div className={`relative p-2.5 rounded-full flex items-center justify-center transition-all duration-300 ${activeFrameDef.cssClass || 'frame-iois-spinning-orbit-rainbow'}`}>
@@ -1626,10 +1639,15 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                                 src={displayPhoto}
                                 alt={displayFullName}
                                 crossOrigin="anonymous"
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover object-top"
                               />
                             </div>
                           </div>
+                          {activeFrameDef.badgeIcon && (
+                            <span className="absolute top-0 left-0 z-20 w-5.5 h-5.5 rounded-full bg-slate-950 border border-amber-400 text-[10.5px] flex items-center justify-center shadow pointer-events-none">
+                              {activeFrameDef.badgeIcon}
+                            </span>
+                          )}
                           <div className="absolute bottom-0 right-1 bg-emerald-500 text-slate-950 p-1 rounded-full border-2 border-slate-950 shadow-md z-20">
                             <BadgeCheck className="w-3.5 h-3.5 stroke-[2.5]" />
                           </div>

@@ -178,77 +178,106 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
       <div className="w-full max-w-xl rounded-2xl sm:rounded-3xl bg-slate-900 border-2 border-amber-500/40 shadow-2xl overflow-hidden my-auto max-h-[93dvh] flex flex-col">
         {/* Cover Banner */}
         <div
-          className="relative h-28 sm:h-36 bg-gradient-to-r from-indigo-700 via-purple-700 to-cyan-600 shrink-0"
+          className="relative h-24 sm:h-32 bg-gradient-to-r from-indigo-700 via-purple-700 to-cyan-600 shrink-0"
           style={
             targetUser.coverUrl
               ? { backgroundImage: `url(${targetUser.coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
               : undefined
           }
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/25 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-950/80 hover:bg-red-600 text-white flex items-center justify-center border border-white/25 cursor-pointer transition z-20"
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-950/85 hover:bg-red-600 text-white flex items-center justify-center border border-white/25 cursor-pointer transition z-20 shadow-md"
             aria-label="बंद करें"
           >
             <X className="w-4 h-4" />
           </button>
-          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-950/80 border border-cyan-400/40 text-[10px] font-black text-cyan-200 flex items-center gap-1 z-20">
+          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-950/85 border border-cyan-400/40 text-[10px] font-black text-cyan-200 flex items-center gap-1 z-20 shadow">
             <Sparkles className="w-3 h-3 text-amber-400" />
             <span>IOIS CHAT & HELP PROFILE</span>
           </div>
+          {targetUser.paymentStatus === 'approved' && (
+            <div className="absolute bottom-2.5 right-3 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-[10px] font-black text-emerald-200 flex items-center gap-1 backdrop-blur-sm z-10">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              <span>VERIFIED MEMBER</span>
+            </div>
+          )}
         </div>
 
-        {/* Clean Profile Body */}
-        <div className="px-4 sm:px-6 pb-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 -mt-12 sm:-mt-14 relative z-10">
-            <div className="flex items-end gap-3.5 min-w-0">
-              {/* Crystal-Clear Profile Avatar with 3D Frame (Clickable for Complete View) */}
+        {/* Clean Profile Body (Zero Clipping) */}
+        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-slate-950/75 border border-slate-800/90 shadow-lg relative z-10">
+            <div className="flex flex-col xs:flex-row sm:flex-row items-center gap-3.5 sm:gap-4 min-w-0 text-center xs:text-left sm:text-left">
+              {/* Crystal-Clear Profile Avatar with Full Unobstructed 3D/4D/8D/16D Frame */}
               <div
                 onClick={() => setIsPhotoLightboxOpen(true)}
-                className={`relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 p-1.5 rounded-full cursor-pointer group ${frame.cssClass || frame.effectClass}`}
-                title="पूरा फोटो साफ-साफ देखने के लिए क्लिक करें"
+                className={`relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 p-2 rounded-full cursor-pointer group ${frame.cssClass || frame.effectClass}`}
+                title={`${frame.nameHi} (${frame.dimension}) — पूरा फोटो देखने के लिए क्लिक करें`}
               >
-                <img
-                  src={imgSrc}
-                  alt={targetUser.fullName}
-                  onError={() => {
-                    if (imgSrc !== FALLBACK_AVATAR) setImgSrc(FALLBACK_AVATAR);
-                  }}
-                  className="relative z-10 w-full h-full object-cover object-top rounded-full border-2 border-slate-950 bg-slate-900 shadow-xl"
-                />
+                <div className="relative z-10 w-full h-full rounded-full overflow-hidden border-2 border-slate-950 bg-slate-900 shadow-xl">
+                  <img
+                    src={imgSrc}
+                    alt={targetUser.fullName}
+                    onError={() => {
+                      if (imgSrc !== FALLBACK_AVATAR) setImgSrc(FALLBACK_AVATAR);
+                    }}
+                    className="w-full h-full object-cover object-top"
+                  />
+                </div>
+                {frame.badgeIcon && (
+                  <span
+                    className="absolute -bottom-0.5 -left-0.5 z-20 w-7 h-7 rounded-full bg-slate-950/95 border-2 border-amber-400 text-xs flex items-center justify-center shadow-lg pointer-events-none"
+                    title={frame.badgeLabel || frame.name}
+                  >
+                    {frame.badgeIcon}
+                  </span>
+                )}
                 <span
-                  className="absolute -bottom-0.5 -right-0.5 z-20 w-7 h-7 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border-2 border-slate-950 flex items-center justify-center shadow-lg transition group-hover:scale-110"
+                  className={`absolute -top-0.5 -right-0.5 z-20 px-1.5 py-0.5 rounded-full text-[9px] font-black border shadow-lg pointer-events-none ${
+                    frame.dimension === '16D'
+                      ? 'bg-gradient-to-r from-fuchsia-500 via-amber-400 to-cyan-400 text-slate-950 border-white'
+                      : frame.dimension === '8D'
+                      ? 'bg-cyan-400 text-slate-950 border-cyan-100'
+                      : frame.dimension === '4D'
+                      ? 'bg-amber-400 text-slate-950 border-amber-100'
+                      : 'bg-slate-800 text-amber-300 border-amber-500/50'
+                  }`}
+                >
+                  {frame.dimension}
+                </span>
+                <span
+                  className="absolute bottom-0 right-0 z-20 w-7 h-7 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border-2 border-slate-950 flex items-center justify-center shadow-lg transition group-hover:scale-110"
                   title="पूरा फोटो देखें"
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
                 </span>
               </div>
 
-              <div className="pb-1 min-w-0 pt-2 sm:pt-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <h2 className="text-base sm:text-xl font-black text-white truncate">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center justify-center xs:justify-start sm:justify-start gap-1.5">
+                  <h2 className="text-base sm:text-xl font-black text-white truncate max-w-full">
                     {targetUser.fullName}
                   </h2>
                   {targetUser.paymentStatus === 'approved' && (
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   )}
                 </div>
-                <p className="text-xs font-bold text-cyan-300 truncate">
+                <p className="text-xs font-bold text-cyan-300 font-mono truncate">
                   {targetUser.username ? `@${targetUser.username} • ` : ''}
                   {targetUser.userId}
                 </p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-400/40 text-[10px] font-bold text-indigo-200">
+                <div className="flex flex-wrap items-center justify-center xs:justify-start sm:justify-start gap-1.5 pt-1">
+                  <span className="inline-block px-2.5 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-[10.5px] font-bold text-indigo-200">
                     {plan.name} • {frame.nameHi}
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsPhotoLightboxOpen(true)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-[10px] font-black text-amber-300 cursor-pointer transition"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 text-[10.5px] font-black text-amber-300 cursor-pointer transition"
                   >
-                    <Maximize2 className="w-2.5 h-2.5" />
+                    <Maximize2 className="w-3 h-3" />
                     <span>पूरा फोटो देखें</span>
                   </button>
                 </div>
@@ -258,9 +287,9 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
             <button
               type="button"
               onClick={handleCopyProfileLink}
-              className="self-start sm:self-end px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer shrink-0 transition"
+              className="self-center sm:self-end px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600/80 text-xs font-bold text-slate-100 flex items-center gap-1.5 cursor-pointer shrink-0 transition shadow-sm"
             >
-              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-cyan-300" />}
               <span>{copiedLink ? 'लिंक कॉपी हुआ' : 'प्रोफाइल शेयर'}</span>
             </button>
           </div>

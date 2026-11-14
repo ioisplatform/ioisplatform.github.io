@@ -28,13 +28,13 @@ export const TickerBar: React.FC<TickerBarProps> = memo(({ currentUser, onOpenRe
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [speed, setSpeed] = useState<TickerSpeed>('slow');
 
-  // Auto-advance slides in card mode every 4.5 seconds
+  // Auto-advance slides in card mode every 7.5 seconds for comfortable reading
   useEffect(() => {
     if (viewMode !== 'card' || isPaused) return;
 
     const timer = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % PLANS.length);
-    }, 4500);
+    }, 7500);
 
     return () => clearInterval(timer);
   }, [viewMode, isPaused]);

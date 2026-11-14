@@ -44,148 +44,148 @@ const DEFAULT_IOIS_NEWS_VIDEO = {
   embedUrl: 'https://www.youtube-nocookie.com/embed/bcjXgHGTBDQ?autoplay=1&modestbranding=1&rel=0&iv_load_policy=3'
 };
 
-// 7 Master Plans In-Depth Analysis Data with Practical Hindi Examples
+// 7 Master Plans In-Depth Analysis Data (Synced with Official plansData.ts)
 const PLANS_IN_DEPTH_ANALYSIS = [
   {
     planId: 1,
-    name: 'Plan 1 - Basic Starter (छात्र व शुरुआती योजना)',
+    name: 'Plan 01 — Bal Vikas Access (शुरुआती छात्र व वेरिफिकेशन पास)',
     cost: '₹10',
     incentiveRate: '70%',
     incentiveAmount: '₹7.00',
     validity: '30 दिन',
-    targetAudience: 'स्कूल/कॉलेज छात्र व नए उपयोगकर्ता जो बिना जोखिम मंच को समझना चाहते हैं।',
+    targetAudience: 'स्कूल छात्र, अभिभावक और नए उपयोगकर्ता जो बिना जोखिम IOIS सिस्टम को लाइव समझना चाहते हैं।',
     includedBenefits: [
-      'डिजिटल वेरिफाइड ID कार्ड तुरंत जनरेट',
-      'Class 1-5 बेसिक NCERT फॉर्मूला शीट्स',
-      'हर सफल रेफरल पर सीधा 70% (₹7) का भुगतान'
+      'तुरंत वेरिफाइड डिजिटल ID कार्ड व व्यक्तिगत स्पॉन्सर डैशबोर्ड',
+      'Class 1-5 NCERT डिजिटल PDFs व इंटरएक्टिव प्रैक्टिस वर्कशीट्स',
+      'हर सफल रेफरल पर सीधा 70% (₹7) का तुरंत UPI पेआउट',
     ],
     calculationExample: {
-      referrals: '10 मित्र / संपर्क',
-      calculation: '10 × ₹7.00 = ₹70.00',
-      monthlyPotential: '₹2,100 / माह (प्रतिदिन 10 रेफरल पर)'
+      referrals: '10 मित्र / छात्र',
+      calculation: '10 × ₹7.00 = ₹70.00 (तुरंत कमाई)',
+      monthlyPotential: '₹2,100 / माह (प्रतिदिन 10 रेफरल पर)',
     },
-    badgeColor: 'border-amber-400 bg-amber-500/10 text-amber-300'
+    badgeColor: 'border-amber-400 bg-amber-500/10 text-amber-300',
   },
   {
     planId: 2,
-    name: 'Plan 2 - Elementary Spark (प्राथमिक डिजिटल बंडल)',
-    cost: '₹20',
-    incentiveRate: '50%',
-    incentiveAmount: '₹10.00',
+    name: 'Plan 02 — Youth Skill Access (युवा कौशल व जॉब टूल्स)',
+    cost: '₹49',
+    incentiveRate: '70%',
+    incentiveAmount: '₹34.00',
     validity: '45 दिन',
-    targetAudience: 'प्रतियोगी परीक्षाओं की तैयारी शुरू कर रहे युवा और ग्रामीण छात्र।',
+    targetAudience: 'कॉलेज फ्रेशर्स, नौकरी खोजने वाले युवा और फ्रीलांसिंग शुरू करने वाले छात्र।',
     includedBenefits: [
-      'डिजिटल ID कार्ड व QR कोड',
-      'Class 6-8 अध्ययन नोट्स व सामान्य ज्ञान',
-      'हर सफल रेफरल पर 50% (₹10) का नकद इंसेंटिव'
+      'ATS-फ्रेंडली प्रोफेशनल Resume / CV टेम्प्लेट्स व जॉब लेटर फॉर्मेट्स',
+      'क्यूरेटेड AI Prompt Engineering गाइड व इंटरव्यू चेकलिस्ट',
+      'हर सफल रेफरल पर सीधा 70% (₹34) का इंस्टेंट पेआउट',
     ],
     calculationExample: {
-      referrals: '15 मित्र / संपर्क',
-      calculation: '15 × ₹10.00 = ₹150.00',
-      monthlyPotential: '₹4,500 / माह (प्रतिदिन 15 रेफरल पर)'
+      referrals: '10 सहपाठी / युवा',
+      calculation: '10 × ₹34.00 = ₹340.00 (उसी दिन कमाई)',
+      monthlyPotential: '₹10,200 / माह (प्रतिदिन 10 रेफरल पर)',
     },
-    badgeColor: 'border-blue-400 bg-blue-500/10 text-blue-300'
+    badgeColor: 'border-sky-400 bg-sky-500/10 text-sky-300',
   },
   {
     planId: 3,
-    name: 'Plan 3 - Silver Booster (सिल्वर अध्ययन बंडल)',
-    cost: '₹50',
-    incentiveRate: '50%',
-    incentiveAmount: '₹25.00',
-    validity: '60 दिन',
-    targetAudience: 'महिलाएं, गृहणियां और 10वीं/12वीं बोर्ड परीक्षा के छात्र।',
+    name: 'Plan 03 — Career & Job Access (करियर व बोर्ड परीक्षा मास्टरी)',
+    cost: '₹99',
+    incentiveRate: '65%',
+    incentiveAmount: '₹64.00',
+    validity: '90 दिन',
+    targetAudience: 'कक्षा 6 से 12 तक के छात्र, ट्यूशन शिक्षक और सरकारी/प्राइवेट एग्जाम आकांक्षी।',
     includedBenefits: [
-      'फुल HD ID कार्ड (Front & Back) डाउनलोड',
-      'Class 9-10 ऑल सब्जेक्ट्स हस्तलिखित नोट्स',
-      'हर रेफरल पर ₹25 का सीधा UPI भुगतान'
+      'Class 6-12 की संपूर्ण डिजिटल किताबें, नोट्स व अध्यायवार समाधान',
+      'स्ट्रीम चयन, सॉफ्ट स्किल्स और सरकारी-प्राइवेट परीक्षा कैलेंडर',
+      'हर सफल रेफरल पर सीधा 65% (₹64) का UPI पेआउट',
     ],
     calculationExample: {
-      referrals: '20 मित्र / संपर्क',
-      calculation: '20 × ₹25.00 = ₹500.00',
-      monthlyPotential: '₹15,000 / माह (प्रतिदिन 20 रेफरल पर)'
+      referrals: '20 छात्र / मित्र',
+      calculation: '20 × ₹64.00 = ₹1,280.00 (सीधा बैंक क्रेडिट)',
+      monthlyPotential: '₹19,200 / माह (प्रतिदिन 10 रेफरल पर)',
     },
-    badgeColor: 'border-slate-300 bg-slate-500/10 text-slate-200'
+    badgeColor: 'border-indigo-400 bg-indigo-500/10 text-indigo-300',
   },
   {
     planId: 4,
-    name: 'Plan 4 - Gold Academic (गोल्ड सम्पूर्ण पैकेज)',
-    cost: '₹99',
-    incentiveRate: '50%',
-    incentiveAmount: '₹49.50',
-    validity: '90 दिन',
-    targetAudience: 'प्रतियोगी छात्र (SSC, Railway, Banking) और ट्यूशन शिक्षक।',
+    name: 'Plan 04 — Family VIP Access (पारिवारिक सुरक्षा व अभिभावक हब)',
+    cost: '₹199',
+    incentiveRate: '60%',
+    incentiveAmount: '₹119.00',
+    validity: '180 दिन (6 माह)',
+    targetAudience: 'माता-पिता, गृहणियां और जागरूक परिवार जो साइबर सुरक्षा व स्मार्ट बजट चाहते हैं।',
     includedBenefits: [
-      'Class 1 से 12 तक NCERT संपूर्ण समाधान',
-      'साक्षात्कार प्रश्न बैंक (Interview Q&A Guide)',
-      'हर सफल रेफरल पर ₹49.50 की सीधी कमाई'
+      'बच्चों के सुरक्षित इंटरनेट व स्क्रीन कंट्रोल के लिए डिजिटल पेरेंटिंग किट',
+      'ऑनलाइन फ्रॉड से बचाव गाइड, फैमिली हेल्थ/योग और घरेलू बजट टेम्प्लेट्स',
+      'हर सफल रेफरल पर सीधा 60% (₹119) का इंस्टेंट पेआउट',
     ],
     calculationExample: {
-      referrals: '10 मित्र / संपर्क',
-      calculation: '10 × ₹49.50 = ₹495.00',
-      monthlyPotential: '₹14,850 / माह (प्रतिदिन 10 रेफरल पर)'
+      referrals: '5 परिवार / संपर्क',
+      calculation: '5 × ₹119.00 = ₹595.00',
+      monthlyPotential: '₹17,850 / माह (प्रतिदिन 5 रेफरल पर)',
     },
-    badgeColor: 'border-yellow-400 bg-yellow-500/15 text-yellow-300'
+    badgeColor: 'border-emerald-400 bg-emerald-500/10 text-emerald-300',
   },
   {
     planId: 5,
-    name: 'Plan 5 - Diamond Career Pro (डायमंड करियर प्रो)',
-    cost: '₹199',
-    incentiveRate: '50%',
-    incentiveAmount: '₹99.50',
+    name: 'Plan 05 — Student Elite Access (प्रतियोगी परीक्षा स्पेशल)',
+    cost: '₹299',
+    incentiveRate: '60%',
+    incentiveAmount: '₹179.00',
     validity: '180 दिन (6 माह)',
-    targetAudience: 'डिग्री/डिप्लोमा छात्र, पार्ट-टाइम अर्नर व युवा पेशेवर।',
+    targetAudience: 'SSC, रेलवे, बैंकिंग, पुलिस व राज्य स्तरीय प्रतियोगी परीक्षाओं की तैयारी करने वाले अभ्यर्थी।',
     includedBenefits: [
-      'बोनाफाइड सर्टिफिकेट व छात्रवृत्ति गाइड',
-      '256-Bit एन्क्रिप्टेड स्मार्ट डिजिटल पहचान पत्र',
-      'हर सफल रेफरल पर ₹99.50 सीधा बैंक क्रेडिट'
+      'SSC/Railway/Banking/Police परीक्षा नोट्स व स्पीड मैथ-रीजनिंग शॉर्टकट्स',
+      'दैनिक करंट अफेयर्स, स्टैटिक GK संग्रह और डाउट-क्लियरिंग स्टडी सर्कल',
+      'हर सफल रेफरल पर सीधा 60% (₹179) का इंस्टेंट पेआउट',
     ],
     calculationExample: {
-      referrals: '10 मित्र / संपर्क',
-      calculation: '10 × ₹99.50 = ₹995.00',
-      monthlyPotential: '₹29,850 / माह (प्रतिदिन 10 रेफरल पर)'
+      referrals: '10 कोचिंग साथी',
+      calculation: '10 × ₹179.00 = ₹1,790.00',
+      monthlyPotential: '₹26,850 / माह (प्रतिदिन 5 रेफरल पर)',
     },
-    badgeColor: 'border-cyan-400 bg-cyan-500/15 text-cyan-300'
+    badgeColor: 'border-purple-400 bg-purple-500/15 text-purple-300',
   },
   {
     planId: 6,
-    name: 'Plan 6 - Platinum VIP (नागरिक व सीएससी सेवा केंद्र)',
+    name: 'Plan 06 — Agency Reseller Hub (डिजिटल बिजनेस व ऑटोमेशन)',
     cost: '₹499',
-    incentiveRate: '50%',
-    incentiveAmount: '₹249.50',
+    incentiveRate: '55%',
+    incentiveAmount: '₹274.00',
     validity: '365 दिन (1 वर्ष)',
-    targetAudience: 'साइबर कैफे, CSC ऑपरेटर व सक्रिय लीडर्स।',
+    targetAudience: 'CSC/साइबर कैफे संचालक, डिजिटल मार्केटर और घर बैठे डिजिटल रीसेलिंग एजेंसी चलाने वाले।',
     includedBenefits: [
-      'RTPS (जाति, आय, निवास) व जमीन दाखिल-खारिज डायरेक्ट गाइड',
-      'कस्टम मार्केटिंग टेम्प्लेट्स व प्रमोटर टूल्स',
-      'हर सफल रेफरल पर ₹249.50 का बम्पर इंसेंटिव'
+      'डिजिटल रीसेलिंग लाइसेंस, मास्टर ब्रांडिंग किट व लैंडिंग पेज फ्रेमवर्क',
+      'WhatsApp ऑटोमेशन स्क्रिप्ट्स, मैसेज टेम्प्लेट्स व सोशल मीडिया ग्रोथ किट',
+      'हर सफल रेफरल पर सीधा 55% (₹274) का बम्पर पेआउट',
     ],
     calculationExample: {
-      referrals: '10 मित्र / ग्राहक',
-      calculation: '10 × ₹249.50 = ₹2,495.00',
-      monthlyPotential: '₹74,850 / माह (प्रतिदिन 10 रेफरल पर)'
+      referrals: '20 क्लाइंट्स / सदस्य',
+      calculation: '20 × ₹274.00 = ₹5,480.00',
+      monthlyPotential: '₹41,100 / माह (प्रतिदिन 5 रेफरल पर)',
     },
-    badgeColor: 'border-indigo-400 bg-indigo-500/15 text-indigo-300'
+    badgeColor: 'border-yellow-400 bg-yellow-500/15 text-yellow-300',
   },
   {
     planId: 7,
-    name: 'Plan 7 - Royal Ultimate (लाइफटाइम वीआईपी पार्टनर)',
+    name: 'Plan 07 — Lifetime Master Access (आजीवन वीआईपी मास्टर एक्सेस)',
     cost: '₹999',
     incentiveRate: '50%',
-    incentiveAmount: '₹499.50',
+    incentiveAmount: '₹499.00',
     validity: 'आजीवन (Lifetime Access)',
-    targetAudience: 'मुख्य प्रमोटर्स, उच्च अर्निंग करने वाले व संपूर्ण डिजिटल एक्सेस चाहने वाले।',
+    targetAudience: 'कम्युनिटी लीडर्स, फुल-टाइम प्रमोटर्स और सभी 7 प्लान्स का आजीवन लाभ लेने वाले सदस्य।',
     includedBenefits: [
-      'सभी 7 प्लांस व भविष्य के सभी डिजिटल कोर्स आजीवन फ्री',
-      'वीआईपी 24x7 ऑल इंडिया सपोर्ट व प्रायोरिटी अप्रूवल',
-      'हर सफल रेफरल पर ₹499.50 का उच्चतम इंसेंटिव'
+      'सभी 6 निचले प्लान्स का पूरा एक्सेस + भविष्य के सभी कोर्स आजीवन फ्री',
+      'डायरेक्ट VIP मेंटरशिप, मास्टर रीसेलर लाइसेंस व प्रायोरिटी वेरिफिकेशन',
+      'हर सफल रेफरल पर सर्वोच्च ₹499 (50%) का सीधा इंस्टेंट पेआउट',
     ],
     calculationExample: {
-      referrals: '10 सदस्य',
-      calculation: '10 × ₹499.50 = ₹4,995.00',
-      monthlyPotential: '₹1,49,850 / माह (प्रतिदिन 10 रेफरल पर)'
+      referrals: '20 विजनरी सदस्य',
+      calculation: '20 × ₹499.00 = ₹9,980.00',
+      monthlyPotential: '₹74,850 / माह (प्रतिदिन 5 रेफरल पर)',
     },
-    badgeColor: 'border-amber-300 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-200'
-  }
+    badgeColor: 'border-amber-300 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-200',
+  },
 ];
 
 interface LiveNewsPageProps {
@@ -355,131 +355,169 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
     }
   }, [activeArticle, isSpeaking]);
 
-  // Determine ticker class based on speed state
+  // Determine ticker class based on speed state (default calm 'slow' speed)
   const getTickerClass = () => {
+    const base =
+      tickerSpeed === 'ultra_slow'
+        ? 'ticker-track-ultra-slow'
+        : tickerSpeed === 'normal'
+          ? 'ticker-track-normal'
+          : tickerSpeed === 'fast'
+            ? 'ticker-track-fast'
+            : 'ticker-track-slow';
+
     if (tickerSpeed === 'paused' || isTickerHovered) {
-      return 'ticker-track-slow ticker-paused';
+      return `${base} ticker-paused`;
     }
-    if (tickerSpeed === 'slow') return 'ticker-track-slow';
-    if (tickerSpeed === 'normal') return 'ticker-track-normal';
-    if (tickerSpeed === 'fast') return 'ticker-track-fast';
-    return 'ticker-track-slow';
+    return base;
   };
+
+  const activeSpeedDescription =
+    tickerSpeed === 'paused'
+      ? 'रुका हुआ'
+      : isTickerHovered
+        ? 'पढ़ने हेतु रुका हुआ'
+        : tickerSpeed === 'ultra_slow'
+          ? 'अति-धीमी आरामदायक गति'
+          : tickerSpeed === 'slow'
+            ? 'धीमी गति (पढ़ने में आसान)'
+            : tickerSpeed === 'normal'
+              ? 'सामान्य गति'
+              : 'तेज़ गति';
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
       
       {/* ========================================================================= */}
-      {/* 1. TOP INTERACTIVE LIVE NEWS TICKER WITH MANUAL SPEED CONTROLS             */}
-      {/*    (DEFAULT: SLOW / धीमी गति - EASILY READABLE & USER CONTROLLABLE)        */}
+      {/* 1. TOP INTERACTIVE LIVE NEWS TICKER WITH INTUITIVE SPEED CONTROLS         */}
+      {/*    (DEFAULT: SLOW / धीमी गति - COMFORTABLE & UNHURRIED READING)           */}
       {/* ========================================================================= */}
-      <div className="rounded-2xl sm:rounded-3xl bg-slate-950 border-2 border-amber-500/50 shadow-2xl overflow-hidden">
-        {/* Speed Controller Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-5 py-2.5 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border-b border-slate-800 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex h-2.5 w-2.5 relative">
+      <div className="rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800 shadow-2xl overflow-hidden">
+        {/* Clean Editorial Speed Controller Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-5 py-2.5 bg-slate-900/95 border-b border-slate-800 text-xs">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="flex h-2 w-2 relative shrink-0" aria-hidden="true">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
             </span>
-            <span className="font-black text-white text-xs sm:text-sm tracking-wide">
-              लाइव न्यूज़ टिकर फ़ीड (Real-Time Live News)
+            <span className="font-bold text-white text-xs sm:text-sm tracking-tight">
+              लाइव न्यूज़ फ़ीड
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/40 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{isLiveApiConnected ? 'लाइव API कनेक्टेड' : 'रीयल-टाइम फ़ीड'}</span>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              · {isLiveApiConnected ? 'लाइव अपडेट सक्रिय' : 'ताज़ा बुलेटिन'} · {activeSpeedDescription}
             </span>
             <button
               type="button"
               onClick={loadRealTimeNews}
               disabled={isRefreshingNews}
-              className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer text-[10px] flex items-center gap-1 border border-slate-700"
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition cursor-pointer text-[11px] font-medium flex items-center gap-1.5 border border-slate-700"
               title="ताज़ा समाचार रीफ़्रेश करें"
             >
-              <RefreshCw className={`w-3 h-3 ${isRefreshingNews ? 'animate-spin text-amber-400' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${isRefreshingNews ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
               <span className="hidden sm:inline">रीफ़्रेश ({lastRefreshedAt})</span>
             </button>
           </div>
 
-          {/* Interactive Manual Speed Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-[11px] text-slate-400 font-medium hidden md:inline">स्क्रॉल गति:</span>
-            
-            {/* Pause/Play Toggle Button */}
+          {/* Intuitive Self-Explanatory Speed Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <button
+              type="button"
               onClick={() => setTickerSpeed(tickerSpeed === 'paused' ? 'slow' : 'paused')}
-              className={`px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1 border transition cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border transition cursor-pointer ${
                 tickerSpeed === 'paused' || isTickerHovered
-                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white'
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                  : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white'
               }`}
-              title="समाचार टिकर रोकें या शुरू करें"
+              title="समाचार टिकर रोकें या चलाएं"
             >
               {tickerSpeed === 'paused' ? <Play className="w-3 h-3 fill-slate-950" /> : <Pause className="w-3 h-3" />}
-              <span>{tickerSpeed === 'paused' ? 'प्ले करें' : 'रोकें (Pause)'}</span>
+              <span>{tickerSpeed === 'paused' ? 'चलाएं' : 'रोकें'}</span>
             </button>
 
-            {/* Speed Options (Slow, Normal, Fast) */}
-            <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+            <div
+              role="group"
+              aria-label="स्क्रॉल गति चुनें"
+              className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px]"
+            >
               <button
+                type="button"
+                onClick={() => setTickerSpeed('ultra_slow')}
+                className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
+                  tickerSpeed === 'ultra_slow'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="अति-धीमी गति — आराम से एक-एक शब्द पढ़ें"
+              >
+                बहुत धीमी
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setTickerSpeed('slow')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'slow'
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
                 }`}
-                title="धीमी व आरामदायक गति - पढ़ने में सबसे आसान"
+                title="धीमी और संतुलित गति (डिफ़ॉल्ट)"
               >
-                <span>🐢 धीमी</span>
+                धीमी
               </button>
 
               <button
+                type="button"
                 onClick={() => setTickerSpeed('normal')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'normal'
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
                 }`}
-                title="सामान्य गति"
+                title="सामान्य स्क्रॉल गति"
               >
-                <span>🚶 सामान्य</span>
+                सामान्य
               </button>
 
               <button
+                type="button"
                 onClick={() => setTickerSpeed('fast')}
-                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'fast'
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
                 }`}
                 title="तेज़ गति"
               >
-                <span>⚡ तेज</span>
+                तेज़
               </button>
             </div>
           </div>
         </div>
 
-        {/* Marquee Track (Paused on Hover) */}
+        {/* Controlled-Speed Marquee Track (Automatically Pauses on Hover or Touch) */}
         <div 
-          className="relative overflow-hidden py-3 bg-black/95 select-none"
+          className="relative overflow-hidden py-3 bg-[#020617] select-none"
           onMouseEnter={() => setIsTickerHovered(true)}
           onMouseLeave={() => setIsTickerHovered(false)}
+          onTouchStart={() => setIsTickerHovered(true)}
+          onTouchEnd={() => setIsTickerHovered(false)}
         >
           <div className={getTickerClass()}>
             {[...articlesList, ...articlesList].map((art, idx) => (
               <button
+                type="button"
                 key={`${art.id}-${idx}`}
                 onClick={() => setActiveArticle(art)}
-                className="inline-flex items-center gap-2.5 mx-4 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-400 hover:bg-slate-800 transition text-left cursor-pointer group shrink-0"
+                className="inline-flex items-center gap-2.5 mx-3 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-amber-400/70 hover:bg-slate-800/90 transition text-left cursor-pointer group shrink-0"
               >
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 group-hover:scale-125 transition" />
-                <span className="text-amber-400 font-bold text-xs shrink-0">[{art.source}]</span>
-                <span className="text-white text-xs font-medium group-hover:text-amber-200 transition">
+                <span className="text-amber-400 font-semibold text-xs shrink-0">{art.source}</span>
+                <span className="text-slate-600 shrink-0" aria-hidden="true">·</span>
+                <span className="text-slate-100 text-xs sm:text-[13px] font-medium group-hover:text-amber-200 transition">
                   {art.title}
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono shrink-0">({art.time})</span>
-                <span className="text-[10px] text-emerald-400 font-bold ml-1 underline group-hover:text-white">
-                  पढ़ें ➔
+                <span className="text-[11px] text-slate-400 font-mono tabular-nums shrink-0">{art.time}</span>
+                <span className="text-[11px] text-amber-400 font-semibold ml-1 group-hover:underline shrink-0">
+                  पूरा पढ़ें →
                 </span>
               </button>
             ))}
@@ -576,20 +614,24 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
       {activeTab === 'iois-overview' && (
         <div className="space-y-8 animate-fadeIn">
           {/* Platform Introduction Banner */}
-          <section className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950/20 border-2 border-amber-500/30 space-y-6 shadow-2xl">
+          <section className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950/20 border border-amber-500/30 space-y-6 shadow-2xl">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-xs font-bold">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>100% पारदर्शी, सुरक्षित व अधिकृत डिजिटल मंच</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  IOIS (Indian Online Incentive & Study) क्या है और कैसे काम करता है?
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>100% पारदर्शी, सुरक्षित डिजिटल लर्निंग व सपोर्टिंग इकोसिस्टम</span>
+                </p>
+                <h3 className="text-xl sm:text-2xl font-black text-white text-balance">
+                  IOIS (Indian Online Income Supporting System) क्या है और कैसे काम करता है?
                 </h3>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+                  IOIS एक डिजिटल शिक्षा, स्किल विकास और रेफरल सपोर्ट प्लेटफॉर्म है। कोई भी नया उपयोगकर्ता मात्र ₹10 से ₹999 के 7 प्लान्स में से एक चुनकर अध्ययन सामग्री व डिजिटल ID कार्ड प्राप्त कर सकता है, और दूसरों को जोड़ने पर <strong className="text-amber-300">50% से 70% तक सीधा UPI इंसेंटिव</strong> पा सकता है।
+                </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {onOpenAiChat && (
                   <button
+                    type="button"
                     onClick={onOpenAiChat}
                     className="btn-3d-gold px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer flex items-center gap-2 shadow-md"
                   >
@@ -602,32 +644,32 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black tabular-nums">
                   1
                 </div>
                 <h4 className="text-sm font-black text-white">सीधा 50% से 70% इंसेंटिव</h4>
                 <p className="text-slate-300 leading-relaxed">
-                  प्लान 1 (₹10) पर 70% यानी ₹7, और बाकी सभी प्लान्स पर 50% सीधा रेफरल इंसेंटिव सीधे आपके UPI खाते में दैनिक प्राप्त होता है।
+                  Plan 01 (₹10) व Plan 02 (₹49) पर 70%, Plan 03 (₹99) पर 65%, Plan 04–05 पर 60%, Plan 06 पर 55% और Plan 07 (₹999) पर 50% (₹499) सीधा पेआउट आपके UPI खाते में मिलता है।
                 </p>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-black tabular-nums">
                   2
                 </div>
-                <h4 className="text-sm font-black text-white">डिजिटल शिक्षा व NCERT संसाधन</h4>
+                <h4 className="text-sm font-black text-white">डिजिटल शिक्षा, जॉब व AI संसाधन</h4>
                 <p className="text-slate-300 leading-relaxed">
-                  Class 1 से 12 तक के हस्तलिखित नोट्स, गणित/साइंस फॉर्मूला शीट्स, बोनाफाइड सर्टिफिकेट व साक्षात्कार प्रश्न बैंक बिल्कुल मुफ्त।
+                  Class 1 से 12 NCERT नोट्स, रिज्यूमे टेम्प्लेट्स, AI प्रॉम्ट्स, प्रतियोगी परीक्षा नोट्स, RTPS नागरिक सेवा गाइड और एजेंसी ऑटोमेशन टूल्स तुरंत अनलॉक होते हैं।
                 </p>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black tabular-nums">
                   3
                 </div>
-                <h4 className="text-sm font-black text-white">स्मार्ट पहचान पत्र (Digital ID Card)</h4>
+                <h4 className="text-sm font-black text-white">वेरिफाइड डिजिटल ID कार्ड व नेटवर्क</h4>
                 <p className="text-slate-300 leading-relaxed">
-                  हर सदस्य का 256-Bit एन्क्रिप्टेड स्मार्ट डिजिटल पहचान पत्र बनता है जिसमें प्राइवेसी सेटिंग्स (नंबर/ईमेल मास्क) की पूरी सुविधा है।
+                  हर सदस्य को 256-Bit सुरक्षित डिजिटल पहचान पत्र, प्राइवेसी नियंत्रण, IOIS CHAT &amp; HELP नेटवर्क और पारदर्शी अर्निंग डैशबोर्ड मिलता है।
                 </p>
               </div>
             </div>
@@ -639,15 +681,16 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
                   <Crown className="w-5 h-5 text-amber-400" />
-                  <span>7 मास्टर योजनाओं का सम्पूर्ण विश्लेषण व कमाई उदाहरण (Practical Examples)</span>
+                  <span>सभी 7 योजनाओं का सम्पूर्ण विश्लेषण, लाभ व उपयोग उदाहरण</span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  हर प्लान की लागत, इंसेंटिव प्रतिशत, शामिल सुविधाएं और वास्तविक कमाई का गणित समझें:
+                  हर प्लान की कीमत, वैधता, इंसेंटिव प्रतिशत, शामिल संसाधन और वास्तविक उपयोग का उदाहरण समझें:
                 </p>
               </div>
 
               {onNavigate && (
                 <button
+                  type="button"
                   onClick={() => onNavigate('plans')}
                   className="btn-3d-silver px-4 py-2 rounded-xl text-xs font-black cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-md"
                 >
@@ -664,22 +707,24 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
                   className="p-5 sm:p-6 rounded-3xl bg-slate-950 border border-slate-800 hover:border-amber-400/50 transition flex flex-col justify-between space-y-4 shadow-xl"
                 >
                   <div className="space-y-3">
-                    {/* Header with price & rate badge */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border mb-1.5 ${p.badgeColor}`}>
-                          {p.cost} | {p.validity}
-                        </span>
-                        <h4 className="text-base font-black text-white leading-tight">{p.name}</h4>
+                    {/* Header with clean unboxed metadata & tabular figures */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-bold text-amber-300 tabular-nums">
+                          <span>{p.cost}</span>
+                          <span className="mx-1.5 text-slate-600" aria-hidden="true">·</span>
+                          <span className="text-slate-300">{p.validity}</span>
+                        </div>
+                        <h4 className="text-base font-black text-white leading-snug">{p.name}</h4>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-right shrink-0 tabular-nums">
                         <span className="text-lg sm:text-xl font-black text-amber-400">{p.incentiveRate}</span>
-                        <span className="text-[10px] text-emerald-400 block font-bold">({p.incentiveAmount})</span>
+                        <span className="text-[11px] text-emerald-400 block font-bold">{p.incentiveAmount}</span>
                       </div>
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      <strong className="text-amber-400 block mb-0.5">उपयुक्तता:</strong>
+                      <strong className="text-amber-400 block mb-0.5">किसके लिए उपयुक्त (Use Case):</strong>
                       {p.targetAudience}
                     </p>
 
@@ -694,15 +739,15 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
                     </div>
 
                     {/* Practical Math Example */}
-                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1.5">
+                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1.5 tabular-nums">
                       <div className="flex items-center justify-between text-[11px] font-bold text-amber-400">
-                        <span>📊 उदाहरण (Example):</span>
+                        <span>उदाहरण (Example)</span>
                         <span>{p.calculationExample.referrals}</span>
                       </div>
                       <div className="text-xs font-mono font-bold text-white">
                         {p.calculationExample.calculation}
                       </div>
-                      <div className="text-[10px] text-emerald-400 font-bold border-t border-slate-800 pt-1">
+                      <div className="text-[11px] text-emerald-400 font-bold border-t border-slate-800 pt-1">
                         अनुमानित मासिक: {p.calculationExample.monthlyPotential}
                       </div>
                     </div>
@@ -797,14 +842,18 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
 
               {/* Video Embed Frame */}
               <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex items-center justify-center">
-                <iframe
-                  key={playerKey}
-                  src={currentEmbedSource}
-                  title={selectedChannel.name}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                {currentEmbedSource ? (
+                  <iframe
+                    key={playerKey}
+                    src={currentEmbedSource}
+                    title={selectedChannel.name}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <span className="text-xs text-slate-400">वीडियो लोड हो रहा है...</span>
+                )}
               </div>
 
               {/* Player Mode & Direct Live Options */}
@@ -939,15 +988,19 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
               </button>
             </form>
 
-            <div className="relative w-full h-[550px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-inner">
-              <iframe
-                key={browserKey}
-                src={browserUrl}
-                title="IOIS Chrome In-App Browser"
-                className="w-full h-full border-0 bg-white"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
-              />
+            <div className="relative w-full h-[550px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-inner flex items-center justify-center">
+              {browserUrl ? (
+                <iframe
+                  key={browserKey}
+                  src={browserUrl}
+                  title="IOIS Chrome In-App Browser"
+                  className="w-full h-full border-0 bg-white"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-presentation"
+                />
+              ) : (
+                <span className="text-xs text-slate-400">वेब पेज लोड हो रहा है...</span>
+              )}
             </div>
           </div>
         </div>

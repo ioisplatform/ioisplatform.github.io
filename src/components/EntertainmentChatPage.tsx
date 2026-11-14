@@ -861,14 +861,18 @@ export const EntertainmentChatPage: React.FC<EntertainmentChatPageProps> = ({
 
               {/* Video iFrame Stage (Ad-Free Privacy Embed) */}
               <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-inner flex items-center justify-center">
-                <iframe
-                  key={playerKey}
-                  src={currentVideo.embedUrl}
-                  title={currentVideo.title}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                {currentVideo?.embedUrl ? (
+                  <iframe
+                    key={playerKey}
+                    src={currentVideo.embedUrl}
+                    title={currentVideo.title}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <span className="text-xs text-slate-400">वीडियो उपलब्ध नहीं है</span>
+                )}
               </div>
 
               {/* Player Bottom Controls (Previous, Next, Auto-Advance) */}
