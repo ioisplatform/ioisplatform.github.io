@@ -74,7 +74,20 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
 
       {/* 1. IOIS CLOCK & VEDIC DUAL TIME WATCH (DIRECTLY BELOW HEADER) */}
       <section className="w-full">
-        <HomeHeaderWatch />
+        <HomeHeaderWatch
+          currentUser={currentUser}
+          onNavigate={onNavigate}
+          onOpenLogin={onOpenLogin}
+          onOpenRegister={onOpenRegister}
+          onOpenSponsorAddMember={onOpenSponsorAddMember}
+          onOpenChatHelp={onOpenChatHelp}
+          onOpenDashboard={onOpenDashboard}
+          onOpenIdCard={onOpenIdCard}
+          onOpenFestivalModal={onOpenFestivalModal}
+          onOpenRashifalModal={onOpenRashifalModal}
+          onOpenPhotoCompressor={onOpenPhotoCompressor}
+          onOpenAiChat={onOpenAiChat}
+        />
       </section>
 
       {/* 1.5 SLIDER SYSTEM 1: LIVE FESTIVE & MISSION BANNER CAROUSEL */}

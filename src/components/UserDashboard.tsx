@@ -18,6 +18,7 @@ import {
 import { SmartFileUpload } from './SmartFileUpload';
 import { ProfileEditSection } from './ProfileEditSection';
 import { StudentReferralHub } from './StudentReferralHub';
+import { ReferralTreeVisualizer } from './ReferralTreeVisualizer';
 import { MarketingToolsSection } from './MarketingToolsSection';
 import { IDCardGenerator } from './IDCardGenerator';
 import { PromotionalPosterStudio } from './PromotionalPosterStudio';
@@ -66,6 +67,7 @@ import {
   TrendingUp,
   Rocket,
   ArrowUpRight,
+  Network,
 } from 'lucide-react';
 
 const FALLBACK_AVATAR =
@@ -73,6 +75,7 @@ const FALLBACK_AVATAR =
 
 type FeaturePopupKey =
   | 'referral'
+  | 'referral_tree'
   | 'iois_chat'
   | 'idcard'
   | 'chat'
@@ -168,6 +171,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [userUnreadCount, setUserUnreadCount] = useState<number>(() => getUserUnreadCount(user.userId));
 
   // Live Stats & Server Sync
+  const [allUsersState, setAllUsersState] = useState<UserProfile[]>(() => getAllUsers());
   const [stats, setStats] = useState(() => getDownlineStats(user.userId));
 
   useEffect(() => {
@@ -175,12 +179,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     const syncDownlinesAndSelf = async () => {
       try {
         const localUsers = getAllUsers();
-        if (mounted) setStats(getDownlineStats(user.userId, localUsers));
+        if (mounted) {
+          setAllUsersState(localUsers);
+          setStats(getDownlineStats(user.userId, localUsers));
+        }
         const [liveUsers, fullSelf] = await Promise.all([
           fetchUsersFromServer(),
           refreshCurrentUserFullAsync(user.userId),
         ]);
         if (mounted && Array.isArray(liveUsers) && liveUsers.length > 0) {
+          setAllUsersState(liveUsers);
           setStats(getDownlineStats(user.userId, liveUsers));
         }
         if (mounted && fullSelf) {
@@ -455,6 +463,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       title: '📊 कमाई, टीम नेटवर्क व विथड्रॉल (Earnings & Team)',
       subtitle: 'अपनी डायरेक्ट/टोटल टीम, रेफरल QR और वॉलेट विथड्रॉल मैनेज करें',
     },
+    referral_tree: {
+      title: '🌳 इंटरैक्टिव रेफरल ट्री (Visual Referral Tree)',
+      subtitle: 'अपनी टीम का मल्टी-लेवल ट्री देखें — किसी भी सदस्य पर क्लिक कर उसका सारांश व स्टेटस जांचें',
+    },
     iois_chat: {
       title: '💬 IOIS CHAT & HELP (सोशल व ग्रुप चैट)',
       subtitle: 'दोस्तों से चैट करें, ग्रुप बनाएं, फोटो/वीडियो व लिंक शेयर करें',
@@ -493,6 +505,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <StudentReferralHub
             user={user}
             onOpenIdCard={() => setActiveFeaturePopup('idcard')}
+            onOpenPublicProfile={onOpenPublicProfile}
+            onOpenSponsorAddMember={onOpenSponsorAddMember}
+            onOpenChatWithUser={(target) => {
+              setSocialTargetUserId(target.userId);
+              setSocialTargetThreadId('');
+              setActiveFeaturePopup('iois_chat');
+            }}
+          />
+        );
+      case 'referral_tree':
+        return (
+          <ReferralTreeVisualizer
+            rootUser={user}
+            allUsers={allUsersState}
+            onOpenPublicProfile={onOpenPublicProfile}
+            onOpenSponsorAddMember={onOpenSponsorAddMember}
+            onOpenChatWithUser={(target) => {
+              setSocialTargetUserId(target.userId);
+              setSocialTargetThreadId('');
+              setActiveFeaturePopup('iois_chat');
+            }}
           />
         );
       case 'idcard':
@@ -1065,6 +1098,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setActiveFeaturePopup('referral_tree')}
+              className="px-2.5 py-1 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/50 text-purple-200 font-black text-[10.5px] flex items-center gap-1 cursor-pointer transition"
+              title="इंटरैक्टिव विजुअल रेफरल ट्री खोलें"
+            >
+              <Network className="w-3 h-3" />
+              <span>ट्री देखें</span>
+            </button>
+            <button
+              type="button"
               onClick={handleShareWhatsApp}
               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10.5px] cursor-pointer"
             >
@@ -1117,6 +1159,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <div>
               <div className="text-xs sm:text-sm font-black text-white">कमाई, टीम व विथड्रॉल</div>
               <div className="text-[10.5px] text-amber-300/90 mt-0.5">QR, डाउनलाइन व पैसे निकालें</div>
+            </div>
+          </button>
+
+          {/* 1B. Interactive Visual Referral Tree Popup */}
+          <button
+            type="button"
+            onClick={() => setActiveFeaturePopup('referral_tree')}
+            className="group p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-slate-900 to-slate-950 hover:from-emerald-500/30 border-2 border-emerald-500/45 hover:border-emerald-400 text-left transition cursor-pointer shadow-lg flex flex-col justify-between gap-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-9 h-9 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center shadow">
+                <Network className="w-4 h-4" />
+              </span>
+              <span className="text-[10px] font-black text-emerald-300 font-mono tabular-nums">
+                {stats.totalDownlinesCount} टीम
+              </span>
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-black text-white">रेफरल ट्री (Referral Tree)</div>
+              <div className="text-[10.5px] text-emerald-300/90 mt-0.5">टीम ग्राफ व सदस्य स्टेटस देखें</div>
             </div>
           </button>
 
@@ -1352,7 +1414,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             aria-modal="true"
           >
             <div
-              className="w-full max-w-5xl max-h-[93dvh] bg-slate-950 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl shadow-[0_25px_90px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+              className={`w-full ${
+                activeFeaturePopup === 'referral_tree' ? 'max-w-6xl' : 'max-w-5xl'
+              } max-h-[93dvh] bg-slate-950 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl shadow-[0_25px_90px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-4 sm:px-6 py-3.5 border-b border-slate-800 bg-slate-900 flex items-center justify-between gap-3 shrink-0">

@@ -6,15 +6,15 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  initializeFirestore,
   getFirestore,
   collection,
   doc,
   getDoc,
   getDocs,
   setDoc,
+  setLogLevel,
   Firestore,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 
 dotenv.config();
 
@@ -337,6 +337,7 @@ let firestoreHydrationPromise: Promise<{ synced: number; error?: string }> | nul
 function getServerFirestore(): Firestore | null {
   if (serverFirestoreDb) return serverFirestoreDb;
   try {
+    setLogLevel("error");
     const cfgPath = path.join(process.cwd(), "firebase-applet-config.json");
     if (!fs.existsSync(cfgPath)) return null;
     const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
@@ -1570,6 +1571,142 @@ async function startServer() {
         fallback: true
       });
     }
+  });
+
+  // In-memory cache for real-time recruitment / job updates
+  let cachedLiveJobs: any[] = [];
+  let lastLiveJobsFetchTimestamp = 0;
+
+  const getTodayIstIsoKey = (): string => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+    } catch {
+      return getTodayServerDateKey();
+    }
+  };
+
+  // API Route: Real-Time Active & Upcoming Recruitment Updates (Auto-excludes expired dates)
+  app.get("/api/live-jobs", async (_req: Request, res: Response) => {
+    const now = Date.now();
+    const todayIst = getTodayIstIsoKey();
+
+    if (cachedLiveJobs.length > 0 && now - lastLiveJobsFetchTimestamp < 90000) {
+      const activeCached = cachedLiveJobs.filter((job) => !job.lastDateIso || job.lastDateIso >= todayIst);
+      return res.json({
+        success: true,
+        todayIst,
+        jobs: activeCached,
+        fromCache: true,
+        updatedAt: new Date(lastLiveJobsFetchTimestamp).toISOString(),
+      });
+    }
+
+    const liveItems: any[] = [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4500);
+      const rssUrl =
+        "https://news.google.com/rss/search?q=%E0%A4%B8%E0%A4%B0%E0%A4%95%E0%A4%BE%E0%A4%B0%E0%A5%80+%E0%A4%AD%E0%A4%B0%E0%A5%8D%E0%A4%A4%E0%A5%80+OR+%E0%A4%A8%E0%A4%88+%E0%A4%B5%E0%A5%88%E0%A4%95%E0%A5%87%E0%A4%82%E0%A4%B8%E0%A5%80+OR+SSC+OR+RRB+OR+IBPS+OR+UPSC+recruitment&hl=hi&gl=IN&ceid=IN:hi";
+      const response = await fetch(rssUrl, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IOIS-Jobs/1.0" },
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const xml = await response.text();
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
+        let idx = 1;
+        const maxAgeMs = 14 * 24 * 60 * 60 * 1000;
+
+        while ((match = itemRegex.exec(xml)) !== null && liveItems.length < 10) {
+          const itemContent = match[1];
+          const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
+          const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+          const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
+          const sourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/.exec(itemContent);
+
+          let rawTitle = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim() : "";
+          const link = linkMatch ? linkMatch[1].trim() : "https://ncs.gov.in";
+          const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : "";
+          const source = sourceMatch ? sourceMatch[1].trim() : "आधिकारिक रोजगार अपडेट";
+
+          if (rawTitle.includes(" - ")) {
+            const parts = rawTitle.split(" - ");
+            if (parts.length > 1) {
+              rawTitle = parts.slice(0, -1).join(" - ").trim();
+            }
+          }
+          if (!rawTitle) continue;
+
+          // Exclude items older than 14 days so only current & active notifications appear
+          let timeLabel = "आज लाइव अपडेट";
+          let isRecent = true;
+          if (pubDateStr) {
+            const pubMs = new Date(pubDateStr).getTime();
+            if (!Number.isNaN(pubMs)) {
+              const ageMs = now - pubMs;
+              if (ageMs > maxAgeMs) {
+                isRecent = false;
+              } else {
+                const diffMin = Math.max(1, Math.floor(ageMs / 60000));
+                if (diffMin < 60) timeLabel = `${diffMin} मिनट पहले`;
+                else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)} घंटे पहले`;
+                else timeLabel = `${Math.floor(diffMin / 1440)} दिन पहले`;
+              }
+            }
+          }
+          if (!isRecent) continue;
+
+          const lower = rawTitle.toLowerCase();
+          const department = /ssc/.test(lower)
+            ? "कर्मचारी चयन आयोग (SSC Live)"
+            : /रेलवे|rrb|railway/.test(lower)
+              ? "भारतीय रेलवे (RRB Live)"
+              : /बैंक|ibps|sbi|rbi/.test(lower)
+                ? "बैंकिंग भर्ती (IBPS / SBI Live)"
+                : /upsc|ias|ips/.test(lower)
+                  ? "संघ लोक सेवा आयोग (UPSC Live)"
+                  : /पुलिस|constable|si|army|agniveer|defence/.test(lower)
+                    ? "रक्षा एवं पुलिस भर्ती (Defence / Police)"
+                    : source;
+
+          liveItems.push({
+            id: `live-rss-job-${idx++}`,
+            title: rawTitle,
+            department,
+            type: "govt",
+            totalPosts: "आधिकारिक नोटिफिकेशन देखें",
+            qualification: "पद अनुसार 10वीं / 12वीं / स्नातक",
+            ageLimit: "नियमानुसार पात्रता",
+            salary: "नियमानुसार सरकारी वेतनमान",
+            location: "भारत (India Live)",
+            lastDate: "आवेदन सक्रिय / आगामी (Live)",
+            statusType: "live",
+            publishedAt: timeLabel,
+            source,
+            applyUrl: link,
+            isNew: true,
+          });
+        }
+      }
+    } catch {
+      // Fallback safely handled on client & below
+    }
+
+    if (liveItems.length > 0) {
+      cachedLiveJobs = liveItems;
+      lastLiveJobsFetchTimestamp = now;
+    }
+
+    res.json({
+      success: true,
+      todayIst,
+      jobs: liveItems.length > 0 ? liveItems : cachedLiveJobs,
+      fromCache: false,
+      updatedAt: new Date(now).toISOString(),
+    });
   });
 
   // API Route: Get All Users (Lightweight directory summary; Admin Full & Profile routes serve heavy media/audit logs)

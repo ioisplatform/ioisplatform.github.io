@@ -440,6 +440,10 @@ export interface JobAlert {
   salary: string;
   location: string;
   lastDate: string;
+  lastDateIso?: string;
+  statusType?: 'live' | 'upcoming' | 'ongoing';
+  publishedAt?: string;
+  source?: string;
   applyUrl: string;
   notificationUrl?: string;
   isNew: boolean;

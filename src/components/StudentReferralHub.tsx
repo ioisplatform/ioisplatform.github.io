@@ -16,6 +16,7 @@ import {
   createHelpTicket
 } from '../services/userService';
 import { PromotionalPosterStudio } from './PromotionalPosterStudio';
+import { ReferralTreeVisualizer } from './ReferralTreeVisualizer';
 import { 
   Share2, 
   Copy, 
@@ -53,9 +54,20 @@ import {
 interface StudentReferralHubProps {
   user: UserProfile;
   onOpenIdCard?: () => void;
+  initialActiveView?: 'table' | 'tree';
+  onOpenPublicProfile?: (userOrHandle: UserProfile | string) => void;
+  onOpenSponsorAddMember?: (planId?: number) => void;
+  onOpenChatWithUser?: (targetUser: UserProfile) => void;
 }
 
-export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, onOpenIdCard }) => {
+export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({
+  user,
+  onOpenIdCard,
+  initialActiveView = 'table',
+  onOpenPublicProfile,
+  onOpenSponsorAddMember,
+  onOpenChatWithUser,
+}) => {
   // 1. Referral Link Configuration (ACC India / SWACCDK01 Style: ?sponsor=...)
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ioisplatform.github.io';
   const referralUrl = `${origin}/?sponsor=${encodeURIComponent(user.userId)}`;
@@ -67,11 +79,15 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
   const [copiedId, setCopiedId] = useState(false);
   const [copiedTemplateIdx, setCopiedTemplateIdx] = useState<number | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [activeView, setActiveView] = useState<'table' | 'tree'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'tree'>(initialActiveView);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending'>('all');
   const [planFilterId, setPlanFilterId] = useState<number | null>(null);
   const [selectedDownline, setSelectedDownline] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    setActiveView(initialActiveView);
+  }, [initialActiveView]);
 
   // 3. Withdrawal Management State
   const [withdrawalAmount, setWithdrawalAmount] = useState<string>('');
@@ -82,18 +98,21 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
   const [withdrawals, setWithdrawals] = useState<any[]>(() => getLocalWithdrawals(user.userId));
 
   // 4. Downline Data Calculation + Cross-Device Withdrawal Hydration
+  const [allUsersState, setAllUsersState] = useState<UserProfile[]>(() => getAllUsers());
   const [downlineMembers, setDownlineMembers] = useState<DownlineMemberInfo[]>([]);
   const [stats, setStats] = useState(() => getDownlineStats(user.userId));
 
   useEffect(() => {
     let mounted = true;
     const allUsers = getAllUsers();
+    setAllUsersState(allUsers);
     setDownlineMembers(getAllDownlinesRecursive(user.userId, allUsers));
     setStats(getDownlineStats(user.userId, allUsers));
 
     fetchUsersFromServer({ skipFirestore: true })
       .then((fresh) => {
         if (mounted && Array.isArray(fresh) && fresh.length > 0) {
+          setAllUsersState(fresh);
           setDownlineMembers(getAllDownlinesRecursive(user.userId, fresh));
           setStats(getDownlineStats(user.userId, fresh));
         }
@@ -123,7 +142,10 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
     const approved = members.filter((m) => m.user.paymentStatus === 'approved');
     const pending = members.filter((m) => m.user.paymentStatus !== 'approved');
     const direct = members.filter((m) => m.level === 1);
-    const totalCommission = approved.reduce((sum, m) => sum + (m.commissionEarned || 0), 0);
+    const totalCommission = approved.reduce(
+      (sum, m) => sum + (m.level === 1 ? m.instantPayout : Math.round(m.instantPayout * 0.2)),
+      0
+    );
     return {
       plan,
       totalJoined: members.length,
@@ -977,32 +999,34 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
           </div>
         </div>
 
-        {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="नाम, User ID या मोबाइल से खोजें..."
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-amber-400 transition"
-            />
-          </div>
+        {/* Search & Filter Bar (for Table Mode) */}
+        {activeView === 'table' && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="नाम, User ID या मोबाइल से खोजें..."
+                className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-amber-400 transition"
+              />
+            </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <span className="text-xs text-slate-400 font-bold shrink-0">स्टेटस:</span>
-            <select
-              value={statusFilter}
-              onChange={(e: any) => setStatusFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-400 transition cursor-pointer"
-            >
-              <option value="all">सभी सदस्य ({downlineMembers.length})</option>
-              <option value="approved">केवल एक्टिव ({stats.approvedCount})</option>
-              <option value="pending">केवल पेंडिंग ({stats.pendingCount})</option>
-            </select>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <span className="text-xs text-slate-400 font-bold shrink-0">स्टेटस:</span>
+              <select
+                value={statusFilter}
+                onChange={(e: any) => setStatusFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-400 transition cursor-pointer"
+              >
+                <option value="all">सभी सदस्य ({downlineMembers.length})</option>
+                <option value="approved">केवल एक्टिव ({stats.approvedCount})</option>
+                <option value="pending">केवल पेंडिंग ({stats.pendingCount})</option>
+              </select>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* View Content: Table Mode */}
         {activeView === 'table' && (
@@ -1128,111 +1152,15 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
           </div>
         )}
 
-        {/* View Content: Visual Hierarchy Tree */}
+        {/* View Content: Interactive Visual Hierarchy Tree */}
         {activeView === 'tree' && (
-          <div className="p-4 sm:p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-6">
-            {/* Root User Node (Self) */}
-            <div className="flex flex-col items-center">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-lg border-2 border-amber-300 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-900 shrink-0">
-                  <img src={user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
-                </div>
-                <div>
-                  <div className="text-sm font-black">{user.fullName} (YOU)</div>
-                  <div className="text-[10px] font-mono text-slate-900 font-bold">ID: {user.userId}</div>
-                </div>
-              </div>
-              <div className="w-0.5 h-6 bg-amber-400"></div>
-            </div>
-
-            {/* Direct Level 1 Nodes */}
-            <div className="space-y-4">
-              <div className="text-center">
-                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-slate-900 border border-amber-500/40 text-amber-300">
-                  Level 1 Direct Referrals ({stats.directCount} Members)
-                </span>
-              </div>
-
-              {stats.directCount === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">
-                  अभी तक आपके नीचे कोई डायरेक्ट सदस्य नहीं जुड़ा है।
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {downlineMembers
-                    .filter((m) => m.level === 1)
-                    .map((item) => (
-                      <div
-                        key={item.user.userId}
-                        onClick={() => setSelectedDownline(item.user)}
-                        className="p-3.5 bg-slate-900 hover:bg-slate-850 rounded-2xl border border-slate-700 hover:border-amber-400/80 transition cursor-pointer space-y-2 group shadow-md"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-amber-400">Level 1</span>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                            item.user.paymentStatus === 'approved' 
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          }`}>
-                            {item.user.paymentStatus.toUpperCase()}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0">
-                            <img src={item.user.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <div className="font-black text-white text-xs group-hover:text-amber-300 transition">
-                              {item.user.fullName}
-                            </div>
-                            <div className="text-[10px] font-mono text-slate-400">{item.user.userId}</div>
-                            <div className="text-[10px] text-slate-300">{item.planName}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-800 text-slate-400">
-                          <span>इंसेंटिव: <strong className="text-emerald-400 font-mono">₹{item.instantPayout}</strong></span>
-                          <span className="text-amber-400 group-hover:underline flex items-center gap-0.5">
-                            विवरण <ChevronRight className="w-3 h-3" />
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-
-            {/* Deeper Levels (Level 2+) if any */}
-            {downlineMembers.some((m) => m.level > 1) && (
-              <div className="pt-4 border-t border-slate-800 space-y-3">
-                <div className="text-center">
-                  <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-slate-900 border border-sky-500/40 text-sky-300">
-                    Level 2+ Secondary Downlines ({downlineMembers.filter((m) => m.level > 1).length} Members)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                  {downlineMembers
-                    .filter((m) => m.level > 1)
-                    .map((item) => (
-                      <div
-                        key={item.user.userId}
-                        onClick={() => setSelectedDownline(item.user)}
-                        className="p-3 bg-slate-900/70 hover:bg-slate-850 rounded-xl border border-slate-800 hover:border-sky-400 transition cursor-pointer text-xs space-y-1"
-                      >
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-sky-300 font-bold">Level {item.level}</span>
-                          <span className="text-slate-400">By: {item.directSponsorName}</span>
-                        </div>
-                        <div className="font-bold text-white truncate">{item.user.fullName}</div>
-                        <div className="text-[10px] font-mono text-slate-400 truncate">{item.user.userId}</div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <ReferralTreeVisualizer
+            rootUser={user}
+            allUsers={allUsersState}
+            onOpenPublicProfile={onOpenPublicProfile}
+            onOpenSponsorAddMember={onOpenSponsorAddMember}
+            onOpenChatWithUser={onOpenChatWithUser}
+          />
         )}
       </div>
     </div>
