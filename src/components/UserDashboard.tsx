@@ -6,6 +6,9 @@ import {
   getDownlineStats,
   getAllUsers,
   fetchUsersFromServer,
+  refreshCurrentUserFullAsync,
+  getLocalWithdrawals,
+  fetchUserWithdrawalsAsync,
   createHelpTicket,
   getHelpTickets,
   fetchTicketsFromServer,
@@ -169,17 +172,23 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   useEffect(() => {
     let mounted = true;
-    const syncDownlines = async () => {
+    const syncDownlinesAndSelf = async () => {
       try {
         const localUsers = getAllUsers();
         if (mounted) setStats(getDownlineStats(user.userId, localUsers));
-        const liveUsers = await fetchUsersFromServer();
+        const [liveUsers, fullSelf] = await Promise.all([
+          fetchUsersFromServer(),
+          refreshCurrentUserFullAsync(user.userId),
+        ]);
         if (mounted && Array.isArray(liveUsers) && liveUsers.length > 0) {
           setStats(getDownlineStats(user.userId, liveUsers));
         }
+        if (mounted && fullSelf) {
+          onUserUpdated(fullSelf);
+        }
       } catch {}
     };
-    syncDownlines();
+    syncDownlinesAndSelf();
     return () => {
       mounted = false;
     };
@@ -232,14 +241,29 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   };
 
-  const [withdrawals] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem(`iois_withdrawals_${user.userId}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [withdrawals, setWithdrawals] = useState<any[]>(() => getLocalWithdrawals(user.userId));
+
+  useEffect(() => {
+    let mounted = true;
+    const loadW = async () => {
+      try {
+        const synced = await fetchUserWithdrawalsAsync(user.userId);
+        if (mounted) setWithdrawals(synced);
+      } catch {}
+    };
+    loadW();
+    const handleUpdated = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      if (!detail || detail.userId?.toUpperCase() === user.userId?.toUpperCase()) {
+        setWithdrawals(detail?.withdrawals || getLocalWithdrawals(user.userId));
+      }
+    };
+    window.addEventListener('iois_withdrawals_updated', handleUpdated);
+    return () => {
+      mounted = false;
+      window.removeEventListener('iois_withdrawals_updated', handleUpdated);
+    };
+  }, [user.userId, user.withdrawals]);
 
   const totalWithdrawn = withdrawals
     .filter((w: any) => w.status !== 'rejected')

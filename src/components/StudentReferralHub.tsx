@@ -8,6 +8,10 @@ import {
   getDirectDownlines, 
   DownlineMemberInfo,
   getAllUsers,
+  fetchUsersFromServer,
+  getLocalWithdrawals,
+  fetchUserWithdrawalsAsync,
+  saveUserWithdrawalAsync,
   maskMobile,
   createHelpTicket
 } from '../services/userService';
@@ -75,23 +79,36 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
   const [payoutAddress, setPayoutAddress] = useState<string>('');
   const [withdrawSuccess, setWithdrawSuccess] = useState<string>('');
   const [withdrawError, setWithdrawError] = useState<string>('');
-  const [withdrawals, setWithdrawals] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem(`iois_withdrawals_${user.userId}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [withdrawals, setWithdrawals] = useState<any[]>(() => getLocalWithdrawals(user.userId));
 
-  // 4. Downline Data Calculation
+  // 4. Downline Data Calculation + Cross-Device Withdrawal Hydration
   const [downlineMembers, setDownlineMembers] = useState<DownlineMemberInfo[]>([]);
   const [stats, setStats] = useState(() => getDownlineStats(user.userId));
 
   useEffect(() => {
+    let mounted = true;
     const allUsers = getAllUsers();
     setDownlineMembers(getAllDownlinesRecursive(user.userId, allUsers));
     setStats(getDownlineStats(user.userId, allUsers));
+
+    fetchUsersFromServer({ skipFirestore: true })
+      .then((fresh) => {
+        if (mounted && Array.isArray(fresh) && fresh.length > 0) {
+          setDownlineMembers(getAllDownlinesRecursive(user.userId, fresh));
+          setStats(getDownlineStats(user.userId, fresh));
+        }
+      })
+      .catch(() => {});
+
+    fetchUserWithdrawalsAsync(user.userId)
+      .then((synced) => {
+        if (mounted) setWithdrawals(synced);
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
   }, [user.userId]);
 
   // Balance Calculations
@@ -230,18 +247,19 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({ user, on
 
     const newWithdrawal = {
       id: `WDR-${Date.now().toString().slice(-6)}`,
+      userId: user.userId,
       amount: amountNum,
       method: payoutMethod,
       address: payoutAddress.trim(),
-      status: 'pending',
+      status: 'pending' as const,
       createdAt: new Date().toISOString(),
     };
 
     const updated = [newWithdrawal, ...withdrawals];
     setWithdrawals(updated);
-    try {
-      localStorage.setItem(`iois_withdrawals_${user.userId}`, JSON.stringify(updated));
-    } catch (err) {}
+    void saveUserWithdrawalAsync(user.userId, newWithdrawal).then((synced) => {
+      setWithdrawals(synced);
+    });
 
     // Dispatch ticket to Admin so admin can see and approve payout
     createHelpTicket({

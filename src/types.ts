@@ -89,6 +89,19 @@ export interface UserProfile {
   isArchived?: boolean;
   archivedAt?: string;
   archivedReason?: string;
+  // Cross-device synced withdrawal records
+  withdrawals?: WithdrawalRecord[];
+}
+
+export interface WithdrawalRecord {
+  id: string;
+  userId?: string;
+  amount: number;
+  method: string;
+  address: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AdminPrivateMessage {

@@ -66,6 +66,9 @@ import {
   getCurrentUser, 
   logoutUser, 
   fetchUsersFromServer, 
+  refreshCurrentUserFullAsync,
+  flushPendingUserSyncsAsync,
+  mergeUserLists,
   setCurrentUser as persistCurrentUser, 
   findUserById,
   getSponsorUserAsync,
@@ -244,30 +247,48 @@ export default function App() {
     };
   }, []);
 
-  // Fast Non-Blocking Deferred Sync with backend (Zero Firestore polling storm)
+  // Fast Non-Blocking Deferred Sync with backend (Zero Firestore polling storm + Non-Destructive Full Self Refresh)
   useEffect(() => {
     let isMounted = true;
+    const handleOnlineFlush = () => {
+      void flushPendingUserSyncsAsync();
+    };
+    window.addEventListener('online', handleOnlineFlush);
+
     const sync = async (skipFirestore = false) => {
       if (skipFirestore && typeof document !== 'undefined' && document.hidden) return;
       try {
+        await flushPendingUserSyncsAsync();
         const freshUsers = await fetchUsersFromServer({ skipFirestore });
-        if (isMounted && currentUser) {
+        if (isMounted && currentUser?.userId) {
+          if (!skipFirestore) {
+            const fullSelf = await refreshCurrentUserFullAsync(currentUser.userId);
+            if (isMounted && fullSelf) {
+              setCurrentUser(fullSelf);
+              return;
+            }
+          }
           const found = freshUsers.find((u) => u.userId.toUpperCase() === currentUser.userId.toUpperCase());
           if (found) {
-            setCurrentUser(found);
-            persistCurrentUser(found);
+            const base = getCurrentUser() || currentUser;
+            const mergedSelf = mergeUserLists([base], [found])[0];
+            if (mergedSelf) {
+              setCurrentUser(mergedSelf);
+              persistCurrentUser(mergedSelf);
+            }
           }
         }
-      } catch (e) {
+      } catch {
         // Non-blocking fallback
       }
     };
     
-    // First sync after 1.2s; background polling uses server endpoint only (0 Firestore reads)
-    const initialTimer = setTimeout(() => void sync(false), 1200);
+    // First sync after 800ms; background polling uses server endpoint only (0 Firestore reads)
+    const initialTimer = setTimeout(() => void sync(false), 800);
     const interval = setInterval(() => void sync(true), 45000);
     return () => {
       isMounted = false;
+      window.removeEventListener('online', handleOnlineFlush);
       clearTimeout(initialTimer);
       clearInterval(interval);
     };

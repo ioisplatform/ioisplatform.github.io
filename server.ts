@@ -10,6 +10,7 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   Firestore,
@@ -24,6 +25,7 @@ const USERS_FILE = path.join(DATA_DIR, "users.json");
 const USERS_BACKUP_FILE = path.join(DATA_DIR, "users-backup.json");
 const DELETED_USERS_FILE = path.join(DATA_DIR, "deleted-users-archive.json");
 const TICKETS_FILE = path.join(DATA_DIR, "tickets.json");
+const WITHDRAWALS_FILE = path.join(DATA_DIR, "withdrawals.json");
 const TELEGRAM_CONFIG_FILE = path.join(DATA_DIR, "telegram-config.json");
 const KNOWLEDGE_FILE = path.join(DATA_DIR, "ai-knowledge.json");
 const UNANSWERED_FILE = path.join(DATA_DIR, "ai-unanswered.json");
@@ -269,9 +271,56 @@ ${user.googleDrivePaymentLink ? `🔗 <b>पेमेंट स्लिप ल�
   }
 }
 
-// No demo users - only genuine registered records exist
+// No demo users - only genuine registered records exist (exact ID match only so real users like IOIS999VK05 are never filtered)
 const INITIAL_DEMO_USERS: any[] = [];
-const DEMO_USER_PREFIXES = ["IOIS999RK", "IOIS49PS", "IOIS10AM", "IOIS99KV", "IOIS999VK"];
+const DEMO_USER_IDS_SET = new Set(["IOIS999RK01", "IOIS49PS01", "IOIS10AM01", "IOIS99KV01", "IOIS999SM01"]);
+
+function isDemoUserId(userId?: string): boolean {
+  if (!userId) return false;
+  return DEMO_USER_IDS_SET.has(String(userId).trim().toUpperCase());
+}
+
+function sanitizeAuditValue(val: any): string {
+  if (val === undefined || val === null) return "";
+  const str = String(val);
+  if (str.startsWith("data:") || str.length > 500) {
+    return "[फोटो/दस्तावेज अपडेट]";
+  }
+  return str;
+}
+
+function sanitizeEditHistoryArray(logs: any): any[] {
+  if (!Array.isArray(logs)) return [];
+  return logs
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      ...item,
+      oldValue: sanitizeAuditValue(item.oldValue),
+      newValue: sanitizeAuditValue(item.newValue),
+    }))
+    .slice(0, 100);
+}
+
+function compactUserForPublicDirectory(u: any): any {
+  const { password, editHistory, ...rest } = u;
+  const compact: any = { ...rest };
+  if (typeof compact.paymentScreenshotUrl === "string" && compact.paymentScreenshotUrl.length > 4096) {
+    compact.hasPaymentScreenshot = true;
+    delete compact.paymentScreenshotUrl;
+  }
+  if (
+    compact.registrationFormData &&
+    typeof compact.registrationFormData === "object" &&
+    typeof compact.registrationFormData.paymentScreenshotUrl === "string" &&
+    compact.registrationFormData.paymentScreenshotUrl.length > 4096
+  ) {
+    compact.registrationFormData = {
+      ...compact.registrationFormData,
+      paymentScreenshotUrl: "",
+    };
+  }
+  return compact;
+}
 
 let cachedUsersMemory: any[] | null = null;
 let lastSnapshotTimestamp = 0;
@@ -296,15 +345,7 @@ function getServerFirestore(): Firestore | null {
       cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)"
         ? cfg.firestoreDatabaseId
         : undefined;
-    try {
-      serverFirestoreDb = initializeFirestore(
-        app,
-        { experimentalForceLongPolling: true },
-        databaseId
-      );
-    } catch {
-      serverFirestoreDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
-    }
+    serverFirestoreDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
     return serverFirestoreDb;
   } catch (err) {
     console.warn("[Server Firestore Init Note]:", err);
@@ -331,12 +372,16 @@ function sanitizeDocForFirestore(obj: any): any {
 }
 
 function prepareUserForFirestore(user: any): any {
-  const clean = sanitizeDocForFirestore(user);
+  const normalized = {
+    ...user,
+    ...(Array.isArray(user?.editHistory) ? { editHistory: sanitizeEditHistoryArray(user.editHistory) } : {}),
+  };
+  const clean = sanitizeDocForFirestore(normalized);
   if (!clean) return clean;
   try {
     const size = Buffer.byteLength(JSON.stringify(clean), "utf-8");
     if (size <= 850_000) return clean;
-    // Keep all member details, only trim massive >300KB raw data URIs so Firestore 1MB limit never rejects write
+    // Keep all member details, only trim massive >250KB raw data URIs so Firestore 1MB limit never rejects write
     const trimmed: Record<string, any> = { ...clean, hasServerMedia: true };
     if (
       typeof trimmed.paymentScreenshotUrl === "string" &&
@@ -399,60 +444,64 @@ function mergeUsersNonDestructive(...lists: any[][]): any[] {
     for (const u of list) {
       if (!u || !u.userId) continue;
       const idUpper = String(u.userId).trim().toUpperCase();
-      if (DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix))) continue;
+      if (isDemoUserId(idUpper)) continue;
+
+      const cleanInputUser = Array.isArray(u.editHistory)
+        ? { ...u, userId: idUpper, editHistory: sanitizeEditHistoryArray(u.editHistory) }
+        : { ...u, userId: idUpper };
 
       const existing = map.get(idUpper);
       if (!existing) {
-        map.set(idUpper, { ...u, userId: idUpper });
+        map.set(idUpper, cleanInputUser);
         continue;
       }
 
       const merged: Record<string, any> = { ...existing };
-      for (const [k, val] of Object.entries(u)) {
+      for (const [k, val] of Object.entries(cleanInputUser)) {
         if (val !== undefined && val !== null && val !== "") {
           merged[k] = val;
         }
       }
 
       // Preserve approved status unless explicitly rejected
-      const isApproved = existing.paymentStatus === "approved" || u.paymentStatus === "approved";
+      const isApproved = existing.paymentStatus === "approved" || cleanInputUser.paymentStatus === "approved";
       merged.paymentStatus = isApproved
         ? "approved"
-        : u.paymentStatus || existing.paymentStatus || "pending";
+        : cleanInputUser.paymentStatus || existing.paymentStatus || "pending";
 
       // Preserve media URLs & credentials across partial payloads
       merged.photoUrl =
-        u.photoUrl && String(u.photoUrl).trim()
-          ? u.photoUrl
+        cleanInputUser.photoUrl && String(cleanInputUser.photoUrl).trim()
+          ? cleanInputUser.photoUrl
           : existing.photoUrl;
       merged.paymentScreenshotUrl =
-        u.paymentScreenshotUrl && String(u.paymentScreenshotUrl).trim()
-          ? u.paymentScreenshotUrl
+        cleanInputUser.paymentScreenshotUrl && String(cleanInputUser.paymentScreenshotUrl).trim()
+          ? cleanInputUser.paymentScreenshotUrl
           : existing.paymentScreenshotUrl;
       merged.password =
-        u.password && String(u.password).trim()
-          ? u.password
+        cleanInputUser.password && String(cleanInputUser.password).trim()
+          ? cleanInputUser.password
           : existing.password;
       merged.registrationFormData =
-        u.registrationFormData && typeof u.registrationFormData === "object"
-          ? { ...(existing.registrationFormData || {}), ...u.registrationFormData }
+        cleanInputUser.registrationFormData && typeof cleanInputUser.registrationFormData === "object"
+          ? { ...(existing.registrationFormData || {}), ...cleanInputUser.registrationFormData }
           : existing.registrationFormData;
 
       // Union array fields cleanly
-      if (Array.isArray(existing.friends) || Array.isArray(u.friends)) {
+      if (Array.isArray(existing.friends) || Array.isArray(cleanInputUser.friends)) {
         merged.friends = Array.from(
-          new Set([...(existing.friends || []), ...(u.friends || [])])
+          new Set([...(existing.friends || []), ...(cleanInputUser.friends || [])])
         );
       }
-      if (Array.isArray(existing.profileLikes) || Array.isArray(u.profileLikes)) {
+      if (Array.isArray(existing.profileLikes) || Array.isArray(cleanInputUser.profileLikes)) {
         merged.profileLikes = Array.from(
-          new Set([...(existing.profileLikes || []), ...(u.profileLikes || [])])
+          new Set([...(existing.profileLikes || []), ...(cleanInputUser.profileLikes || [])])
         );
       }
-      if (Array.isArray(existing.editHistory) || Array.isArray(u.editHistory)) {
+      if (Array.isArray(existing.editHistory) || Array.isArray(cleanInputUser.editHistory)) {
         const seenLogs = new Set<string>();
         const combinedLogs: any[] = [];
-        for (const item of [...(u.editHistory || []), ...(existing.editHistory || [])]) {
+        for (const item of [...(cleanInputUser.editHistory || []), ...(existing.editHistory || [])]) {
           if (!item) continue;
           const sig = `${item.field}|${item.timestamp}|${item.newValue}`;
           if (!seenLogs.has(sig)) {
@@ -460,7 +509,24 @@ function mergeUsersNonDestructive(...lists: any[][]): any[] {
             combinedLogs.push(item);
           }
         }
-        merged.editHistory = combinedLogs.slice(0, 100);
+        merged.editHistory = sanitizeEditHistoryArray(combinedLogs);
+      }
+
+      if (Array.isArray(existing.withdrawals) || Array.isArray(cleanInputUser.withdrawals)) {
+        const wMap = new Map<string, any>();
+        for (const w of [...(existing.withdrawals || []), ...(cleanInputUser.withdrawals || [])]) {
+          if (!w || !w.id) continue;
+          const prev = wMap.get(w.id);
+          if (!prev) {
+            wMap.set(w.id, w);
+          } else {
+            const rank = (s?: string) => (s === "approved" ? 3 : s === "rejected" ? 2 : 1);
+            wMap.set(w.id, rank(w.status) >= rank(prev.status) ? { ...prev, ...w } : { ...w, ...prev });
+          }
+        }
+        merged.withdrawals = Array.from(wMap.values()).sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
       }
 
       merged.userId = existing.userId || idUpper;
@@ -471,17 +537,50 @@ function mergeUsersNonDestructive(...lists: any[][]): any[] {
   return Array.from(map.values());
 }
 
+async function fetchSingleUserFromFirestore(userId: string): Promise<any | null> {
+  if (!userId || Date.now() < firestoreQuotaBlockedUntil) return null;
+  const fsDb = getServerFirestore();
+  if (!fsDb) return null;
+  try {
+    const cleanId = String(userId).trim().toUpperCase();
+    const snap = await Promise.race([
+      getDoc(doc(fsDb, "users", cleanId)),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore doc timeout")), 8000)),
+    ]);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data && data.userId && !data.isArchived && !isDemoUserId(data.userId)) {
+        const merged = mergeUsersNonDestructive(loadUsersFromDisk(), [data]);
+        saveUsersToDisk(merged);
+        return merged.find((u) => String(u.userId).toUpperCase() === cleanId) || data;
+      }
+    }
+  } catch (err: any) {
+    if (isQuotaOrResourceExhaustedError(err)) {
+      firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+    }
+  }
+  return null;
+}
+
+async function ensureServerHydratedIfSparse(): Promise<void> {
+  const users = loadUsersFromDisk();
+  if (users.length <= 1 && Date.now() >= firestoreQuotaBlockedUntil) {
+    await hydrateServerFromFirestoreOnce(false);
+  }
+}
+
 function readCleanUsersFile(filePath: string): any[] | null {
   try {
     if (!fs.existsSync(filePath)) return null;
     const raw = fs.readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
-    return parsed.filter((u: any) => {
-      if (!u || !u.userId) return false;
-      const idUpper = String(u.userId).toUpperCase();
-      return !DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix));
-    });
+    return parsed
+      .filter((u: any) => u && u.userId && !isDemoUserId(u.userId))
+      .map((u: any) =>
+        Array.isArray(u.editHistory) ? { ...u, editHistory: sanitizeEditHistoryArray(u.editHistory) } : u
+      );
   } catch (err) {
     console.warn(`[Users Read Recovery Note] Could not parse ${filePath}:`, err);
     return null;
@@ -558,11 +657,11 @@ function loadUsersFromDisk(): any[] {
 function saveUsersToDisk(users: any[], options: { allowShrink?: boolean } = {}): void {
   try {
     const cleanIncoming = Array.isArray(users)
-      ? users.filter((u: any) => {
-          if (!u || !u.userId || u.isArchived) return false;
-          const idUpper = String(u.userId).toUpperCase();
-          return !DEMO_USER_PREFIXES.some((prefix) => idUpper.startsWith(prefix));
-        })
+      ? users
+          .filter((u: any) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId))
+          .map((u: any) =>
+            Array.isArray(u.editHistory) ? { ...u, editHistory: sanitizeEditHistoryArray(u.editHistory) } : u
+          )
       : [];
 
     const existing = cachedUsersMemory !== null ? cachedUsersMemory : loadUsersFromDisk();
@@ -614,21 +713,25 @@ function saveUsersToDisk(users: any[], options: { allowShrink?: boolean } = {}):
 }
 
 async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: number; error?: string }> {
-  if (!force && Date.now() < firestoreQuotaBlockedUntil) {
-    return { synced: 0, error: "Firestore cooldown active (quota limit protection)" };
-  }
-  if (!force && Date.now() - lastFirestoreHydrationAt < 120_000 && lastFirestoreHydrationAt > 0) {
-    return { synced: loadUsersFromDisk().length };
+  if (force) {
+    firestoreQuotaBlockedUntil = 0;
+  } else {
+    if (Date.now() < firestoreQuotaBlockedUntil) {
+      return { synced: loadUsersFromDisk().length, error: "Firestore cooldown active (quota limit protection)" };
+    }
+    if (Date.now() - lastFirestoreHydrationAt < 120_000 && lastFirestoreHydrationAt > 0) {
+      return { synced: loadUsersFromDisk().length };
+    }
   }
   if (firestoreHydrationPromise && !force) return firestoreHydrationPromise;
 
   firestoreHydrationPromise = (async () => {
     const fsDb = getServerFirestore();
-    if (!fsDb) return { synced: 0, error: "Firestore unavailable" };
+    if (!fsDb) return { synced: loadUsersFromDisk().length, error: "Firestore unavailable" };
     try {
       const snap = await Promise.race([
         getDocs(collection(fsDb, "users")),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore timeout")), 8000)),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore timeout")), 25000)),
       ]);
       lastFirestoreHydrationAt = Date.now();
       const cloudActive: any[] = [];
@@ -636,6 +739,7 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
       snap.forEach((d) => {
         const u = d.data();
         if (!u || !u.userId) return;
+        if (isDemoUserId(u.userId)) return;
         if (u.isArchived) {
           cloudArchived.push(u);
         } else {
@@ -654,11 +758,15 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
         saveUsersToDisk(merged);
       }
 
-      // Backfill any server-only users back to Firestore cleanly
+      // Backfill any server-only users back to Firestore in background without blocking API response
       const cloudIds = new Set(cloudActive.map((u) => String(u.userId).toUpperCase()));
       const missingInCloud = localDisk.filter((u) => u?.userId && !cloudIds.has(String(u.userId).toUpperCase()));
-      for (const m of missingInCloud.slice(0, 25)) {
-        await syncSingleUserToFirestore(m);
+      if (missingInCloud.length > 0) {
+        void (async () => {
+          for (const m of missingInCloud.slice(0, 25)) {
+            await syncSingleUserToFirestore(m);
+          }
+        })();
       }
 
       console.log(`[Server Firestore Hydration] Loaded ${cloudActive.length} cloud users, total merged: ${merged.length}`);
@@ -1258,9 +1366,32 @@ async function startServer() {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  const getTodayServerDateKey = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const LEGACY_PAST_SLIDE_IDS = new Set([
+    "slide-02-dhanteras",
+    "slide-03-diwali",
+    "slide-04-govardhan",
+    "slide-05-bhaidooj",
+    "slide-06-chhath",
+  ]);
+
   // API Route: Home & Dashboard Celebration Popups (Admin 7-Slot Pop Effect System)
   app.get("/api/home-popups", (_req: Request, res: Response) => {
-    const photos = loadJsonArray(HOME_POPUPS_FILE);
+    const todayKey = getTodayServerDateKey();
+    const photos = loadJsonArray(HOME_POPUPS_FILE).filter((item: any) => {
+      if (!item || typeof item !== "object") return false;
+      if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
+        return false;
+      }
+      return true;
+    });
     res.json({ success: true, photos });
   });
 
@@ -1280,7 +1411,13 @@ async function startServer() {
       if (!fs.existsSync(HOME_SLIDERS_FILE)) {
         return res.json({ success: true, slides: null });
       }
-      const slides = loadJsonArray(HOME_SLIDERS_FILE);
+      const todayKey = getTodayServerDateKey();
+      const slides = loadJsonArray(HOME_SLIDERS_FILE).filter((s: any) => {
+        if (!s || typeof s !== "object") return false;
+        if (s.id && LEGACY_PAST_SLIDE_IDS.has(s.id)) return false;
+        if (s.endDate && /^\d{4}-\d{2}-\d{2}$/.test(s.endDate) && s.endDate < todayKey) return false;
+        return true;
+      });
       res.json({ success: true, slides: slides.length > 0 ? slides : null });
     } catch {
       res.json({ success: true, slides: null });
@@ -1435,31 +1572,98 @@ async function startServer() {
     }
   });
 
-  // API Route: Get All Users (Passwords stripped for public privacy; all member details preserved)
+  // API Route: Get All Users (Lightweight directory summary; Admin Full & Profile routes serve heavy media/audit logs)
   app.get("/api/users", (_req: Request, res: Response) => {
     const users = loadUsersFromDisk();
-    const sanitized = users.map((u) => {
-      const { password, ...rest } = u;
-      return rest;
-    });
+    if (users.length <= 1 && !firestoreHydrationPromise && Date.now() >= firestoreQuotaBlockedUntil) {
+      void hydrateServerFromFirestoreOnce(false);
+    }
+    const sanitized = users.map(compactUserForPublicDirectory);
     res.json({ success: true, count: sanitized.length, users: sanitized });
   });
 
-  // API Route: Admin Full Users List + Deleted Archive Vault (Includes passwords & form data for Admin console)
-  app.post("/api/admin/users-full", (req: Request, res: Response) => {
+  // API Route: Fetch Single User Profile (Supports ?self=1 with matching x-session-token for full User Dashboard sync across devices)
+  app.get("/api/users/profile/:userId", async (req: Request, res: Response) => {
+    try {
+      const rawId = String(req.params.userId || "").trim();
+      const cleanUpper = rawId.toUpperCase();
+      const cleanLower = rawId.toLowerCase().replace(/^@/, "");
+      if (!rawId) {
+        return res.status(400).json({ success: false, error: "User ID required" });
+      }
+
+      let users = loadUsersFromDisk();
+      let matched = users.find(
+        (u) =>
+          u &&
+          ((u.userId && String(u.userId).toUpperCase() === cleanUpper) ||
+            (u.username && String(u.username).toLowerCase().replace(/^@/, "") === cleanLower))
+      );
+
+      if (!matched) {
+        matched = (await fetchSingleUserFromFirestore(cleanUpper)) || undefined;
+      }
+      if (!matched) {
+        await hydrateServerFromFirestoreOnce(false);
+        users = loadUsersFromDisk();
+        matched = users.find(
+          (u) =>
+            u &&
+            ((u.userId && String(u.userId).toUpperCase() === cleanUpper) ||
+              (u.username && String(u.username).toLowerCase().replace(/^@/, "") === cleanLower))
+        );
+      }
+
+      if (!matched) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      const tokenHeader = String(req.headers["x-session-token"] || "").trim();
+      const isSelfAuthorized =
+        String(req.query.self || "") === "1" &&
+        (!matched.activeSessionToken || (tokenHeader && tokenHeader === matched.activeSessionToken));
+
+      const allWithdrawals = loadJsonArray(WITHDRAWALS_FILE).filter(
+        (w: any) => w && String(w.userId || "").toUpperCase() === String(matched!.userId).toUpperCase()
+      );
+      const mergedUser =
+        allWithdrawals.length > 0
+          ? mergeUsersNonDestructive([matched], [{ userId: matched.userId, withdrawals: allWithdrawals }])[0]
+          : matched;
+
+      if (isSelfAuthorized) {
+        return res.json({ success: true, user: mergedUser, ...mergedUser });
+      }
+
+      const publicSafe = compactUserForPublicDirectory(mergedUser);
+      return res.json({ success: true, user: publicSafe, ...publicSafe });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to load user profile" });
+    }
+  });
+
+  // API Route: Admin Full Users List + Deleted Archive Vault (Auto-hydrates from Firestore if sparse or stale!)
+  app.post("/api/admin/users-full", async (req: Request, res: Response) => {
     try {
       const { adminPin } = req.body || {};
       const cleanPin = String(adminPin || "").trim().toUpperCase();
       if (cleanPin !== "IOISSYSTEM") {
         return res.status(403).json({ success: false, error: "Unauthorized Admin Access" });
       }
-      const users = loadUsersFromDisk();
+      let users = loadUsersFromDisk();
+      let cloudError: string | undefined;
+      if (users.length <= 1 || Date.now() - lastFirestoreHydrationAt > 120_000) {
+        const hydration = await hydrateServerFromFirestoreOnce(users.length <= 1);
+        cloudError = hydration.error;
+        users = loadUsersFromDisk();
+      }
       const archivedUsers = loadArchivedUsersFromDisk();
       return res.json({
         success: true,
         count: users.length,
         users,
         archivedUsers,
+        cloudError,
         backupInfo: {
           lastBackupAt: lastBackupAtIso || new Date().toISOString(),
           activeCount: users.length,
@@ -1508,7 +1712,7 @@ async function startServer() {
 
       // Ignore already archived accounts unless explicitly restored via /api/users/restore/:userId
       const activeIncoming = incomingUsers.filter(
-        (u: any) => u && u.userId && !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
+        (u: any) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId) && !archivedIds.has(String(u.userId).toUpperCase())
       );
 
       const existingIds = new Set(existingUsers.map((u) => String(u.userId).toUpperCase()));
@@ -1522,10 +1726,7 @@ async function startServer() {
         }
       }
 
-      const sanitizedMerged = merged.map((u) => {
-        const { password, ...rest } = u;
-        return rest;
-      });
+      const sanitizedMerged = merged.map(compactUserForPublicDirectory);
       res.json({ success: true, count: sanitizedMerged.length, users: sanitizedMerged });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
@@ -1613,8 +1814,9 @@ async function startServer() {
   // API Route: Register New User (Strict Uniqueness: No duplicate Mobile or Email allowed)
   // API Route: Validate Sponsor ID (Strict: only official root or existing registered users)
   // API Route: Validate Sponsor ID or Username
-  app.get("/api/users/validate-sponsor", (req: Request, res: Response) => {
+  app.get("/api/users/validate-sponsor", async (req: Request, res: Response) => {
     try {
+      await ensureServerHydratedIfSparse();
       const { sponsorId } = req.query;
       if (!sponsorId || typeof sponsorId !== "string" || !sponsorId.trim()) {
         return res.status(400).json({
@@ -1732,7 +1934,7 @@ async function startServer() {
   });
 
   // API Route: User Registration
-  app.post("/api/users/register", (req: Request, res: Response) => {
+  app.post("/api/users/register", async (req: Request, res: Response) => {
     try {
       const {
         fullName,
@@ -1812,12 +2014,17 @@ async function startServer() {
         }
       }
 
+      await ensureServerHydratedIfSparse();
       const users = loadUsersFromDisk();
 
       // STRICT SPONSOR VALIDATION: No random sponsor ID allowed
       const cleanSponsor = (sponsorId || "IOIS999VK01").trim().toUpperCase();
       const isMasterSponsor = cleanSponsor === "IOIS999VK01" || cleanSponsor === "SWACCDK01";
-      const isExistingSponsor = users.some((u) => u.userId && u.userId.toUpperCase() === cleanSponsor);
+      let isExistingSponsor = users.some((u) => u.userId && u.userId.toUpperCase() === cleanSponsor);
+      if (!isMasterSponsor && !isExistingSponsor) {
+        const cloudSponsor = await fetchSingleUserFromFirestore(cleanSponsor);
+        if (cloudSponsor) isExistingSponsor = true;
+      }
 
       if (!isMasterSponsor && !isExistingSponsor) {
         return res.status(400).json({
@@ -1912,8 +2119,11 @@ async function startServer() {
       users.unshift(newUser);
       saveUsersToDisk(users);
 
-      // Persist immediately to Cloud Firestore in background too
-      void syncSingleUserToFirestore(newUser);
+      // Persist immediately to Cloud Firestore (wait up to 3s cleanly so fast writes confirm before response)
+      await Promise.race([
+        syncSingleUserToFirestore(newUser),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+      ]).catch(() => {});
 
       // Trigger Telegram Alert in background
       sendTelegramRegistrationAlert(newUser, req).catch((e) => {
@@ -1932,7 +2142,7 @@ async function startServer() {
   });
 
   // API Route: User Login (Flexible matching by UserID, @Username, Mobile, or Email + Single Active Device Session)
-  app.post("/api/users/login", (req: Request, res: Response) => {
+  app.post("/api/users/login", async (req: Request, res: Response) => {
     try {
       const { identifier, password, deviceInfo } = req.body;
 
@@ -1943,15 +2153,31 @@ async function startServer() {
       const cleanInput = identifier.trim().toLowerCase().replace(/^@/, "");
       const inputDigits = cleanInput.replace(/\D/g, "");
 
-      const users = loadUsersFromDisk();
+      const findMatchIndex = (list: any[]) =>
+        list.findIndex((u) => {
+          const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
+          const unameMatch = u.username && u.username.toLowerCase().replace(/^@/, "") === cleanInput;
+          const mobileMatch = inputDigits.length >= 10 && (u.mobileNumber || "").replace(/\D/g, "").endsWith(inputDigits.slice(-10));
+          const emailMatch = u.email && u.email.toLowerCase() === cleanInput;
+          return uidMatch || unameMatch || mobileMatch || emailMatch;
+        });
 
-      const userIndex = users.findIndex((u) => {
-        const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
-        const unameMatch = u.username && u.username.toLowerCase().replace(/^@/, "") === cleanInput;
-        const mobileMatch = inputDigits.length >= 10 && (u.mobileNumber || "").replace(/\D/g, "").endsWith(inputDigits.slice(-10));
-        const emailMatch = u.email && u.email.toLowerCase() === cleanInput;
-        return uidMatch || unameMatch || mobileMatch || emailMatch;
-      });
+      let users = loadUsersFromDisk();
+      let userIndex = findMatchIndex(users);
+
+      // Cold container safety: hydrate from Firestore if user not yet on disk
+      if (userIndex === -1) {
+        if (!cleanInput.includes("@") && cleanInput.length >= 4 && inputDigits.length < 10) {
+          await fetchSingleUserFromFirestore(cleanInput.toUpperCase());
+          users = loadUsersFromDisk();
+          userIndex = findMatchIndex(users);
+        }
+        if (userIndex === -1) {
+          await hydrateServerFromFirestoreOnce(users.length <= 1);
+          users = loadUsersFromDisk();
+          userIndex = findMatchIndex(users);
+        }
+      }
 
       if (userIndex === -1) {
         return res.status(404).json({
@@ -1975,13 +2201,21 @@ async function startServer() {
       const nowIso = new Date().toISOString();
       const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "नया डिवाइस / ब्राउज़र";
 
-      users[userIndex] = {
-        ...user,
-        activeSessionToken: sessionToken,
-        lastLoginDevice: loginDevice,
-        lastLoginAt: nowIso,
-      };
+      const allWithdrawals = loadJsonArray(WITHDRAWALS_FILE).filter(
+        (w: any) => w && String(w.userId || "").toUpperCase() === String(user.userId).toUpperCase()
+      );
+
+      users[userIndex] = mergeUsersNonDestructive([user], [
+        {
+          userId: user.userId,
+          activeSessionToken: sessionToken,
+          lastLoginDevice: loginDevice,
+          lastLoginAt: nowIso,
+          ...(allWithdrawals.length > 0 ? { withdrawals: allWithdrawals } : {}),
+        },
+      ])[0];
       saveUsersToDisk(users);
+      void syncSingleUserToFirestore(users[userIndex]);
 
       return res.json({
         success: true,
@@ -2022,7 +2256,7 @@ async function startServer() {
   });
 
   // API Route: Sponsor-Assisted Member Joining (Sponsor stays logged in; New Member must change password on first login)
-  app.post("/api/users/sponsor-register", (req: Request, res: Response) => {
+  app.post("/api/users/sponsor-register", async (req: Request, res: Response) => {
     try {
       const {
         fullName,
@@ -2048,6 +2282,7 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "नए सदस्य का नाम, मोबाइल नंबर, स्पॉन्सर ID, प्लान और अस्थायी पासवर्ड अनिवार्य हैं।" });
       }
 
+      await ensureServerHydratedIfSparse();
       const users = loadUsersFromDisk();
       const cleanSponsor = String(sponsorId).trim().toUpperCase();
       const cleanDigits = String(mobileNumber).replace(/\D/g, "");
@@ -2106,7 +2341,10 @@ async function startServer() {
 
       users.unshift(newMember);
       saveUsersToDisk(users);
-      void syncSingleUserToFirestore(newMember);
+      await Promise.race([
+        syncSingleUserToFirestore(newMember),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+      ]).catch(() => {});
 
       sendTelegramRegistrationAlert(newMember, req).catch(() => {});
 
@@ -2121,7 +2359,7 @@ async function startServer() {
   });
 
   // API Route: Mandatory Password Update (Clears mustChangePassword & rotates sessionToken so sponsor cannot login)
-  app.post("/api/users/force-password-update", (req: Request, res: Response) => {
+  app.post("/api/users/force-password-update", async (req: Request, res: Response) => {
     try {
       const { userId, currentPassword, newPassword, deviceInfo } = req.body;
       if (!userId || !newPassword || String(newPassword).trim().length < 4) {
@@ -2129,8 +2367,14 @@ async function startServer() {
       }
 
       const cleanId = String(userId).trim().toUpperCase();
-      const users = loadUsersFromDisk();
-      const index = users.findIndex((u) => u && u.userId && u.userId.toUpperCase() === cleanId);
+      let users = loadUsersFromDisk();
+      let index = users.findIndex((u) => u && u.userId && u.userId.toUpperCase() === cleanId);
+
+      if (index === -1) {
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        index = users.findIndex((u) => u && u.userId && u.userId.toUpperCase() === cleanId);
+      }
 
       if (index === -1) {
         return res.status(404).json({ success: false, error: "उपयोगकर्ता खाता नहीं मिला।" });
@@ -2168,7 +2412,7 @@ async function startServer() {
   });
 
   // API Route: Secure Recover User ID (Requires matching Mobile AND Email to protect privacy)
-  app.post("/api/users/recover-id", (req: Request, res: Response) => {
+  app.post("/api/users/recover-id", async (req: Request, res: Response) => {
     try {
       const { mobile, email, fullName } = req.body;
       if (!mobile || !email) {
@@ -2182,6 +2426,7 @@ async function startServer() {
       const cleanEmail = String(email).trim().toLowerCase();
       const cleanName = fullName ? String(fullName).trim().toLowerCase() : "";
 
+      await ensureServerHydratedIfSparse();
       const users = loadUsersFromDisk();
 
       const user = users.find((u) => {
@@ -2211,8 +2456,9 @@ async function startServer() {
   });
 
   // API Route: Verify Real Identity (Multi-field security challenge before password reset)
-  app.post("/api/users/verify-identity", (req: Request, res: Response) => {
+  app.post("/api/users/verify-identity", async (req: Request, res: Response) => {
     try {
+      await ensureServerHydratedIfSparse();
       const { identifier, fullName, email, address, sponsorId } = req.body;
       if (!identifier || !fullName || !email) {
         return res.status(400).json({
@@ -2358,26 +2604,29 @@ async function startServer() {
     }
   });
 
-  // API Route: Update User Profile
-  app.put("/api/users/:userId", (req: Request, res: Response) => {
+  // API Route: Update User Profile (Non-Destructive Merge + Auto-Hydration + Upsert Safety)
+  app.put("/api/users/:userId", async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const updates = req.body;
+      const cleanId = String(userId || "").trim().toUpperCase();
+      const updates = req.body || {};
 
-      const users = loadUsersFromDisk();
-      const index = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+      let users = loadUsersFromDisk();
+      let index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
 
       if (index === -1) {
-        return res.status(404).json({ success: false, error: "यूजर नहीं मिला।" });
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
       }
 
       // Check if new mobile or email is already taken by another user
       if (updates.mobileNumber || updates.email) {
-        const checkMobileDigits = updates.mobileNumber ? updates.mobileNumber.trim().replace(/\D/g, "") : "";
-        const checkEmail = updates.email ? updates.email.trim().toLowerCase() : "";
+        const checkMobileDigits = updates.mobileNumber ? String(updates.mobileNumber).trim().replace(/\D/g, "") : "";
+        const checkEmail = updates.email ? String(updates.email).trim().toLowerCase() : "";
 
         const conflictUser = users.find((u) => {
-          if (!u || u.userId.toUpperCase() === userId.toUpperCase()) return false;
+          if (!u || String(u.userId).toUpperCase() === cleanId) return false;
           const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
           const mobileMatch = checkMobileDigits.length >= 10 && uDigits.endsWith(checkMobileDigits.slice(-10));
           const emailMatch = checkEmail.length > 3 && u.email && u.email.trim().toLowerCase() === checkEmail;
@@ -2392,19 +2641,34 @@ async function startServer() {
         }
       }
 
-      users[index] = {
-        ...users[index],
-        ...updates,
-        userId: users[index].userId, // Immutable
-      };
+      if (index === -1) {
+        if (!updates.fullName && !updates.mobileNumber) {
+          return res.status(404).json({ success: false, error: "यूजर नहीं मिला।" });
+        }
+        const upserted = mergeUsersNonDestructive([], [{ ...updates, userId: cleanId, isArchived: false }])[0];
+        users.unshift(upserted);
+        saveUsersToDisk(users);
+        void syncSingleUserToFirestore(upserted);
+        return res.json({
+          success: true,
+          message: "प्रोफ़ाइल सफलतापूर्वक सहेज ली गई!",
+          user: upserted,
+        });
+      }
+
+      // Non-destructive merge guarantees partial payloads or blank strings NEVER erase existing fields
+      const mergedUser = mergeUsersNonDestructive([users[index]], [
+        { ...updates, userId: users[index].userId, isArchived: false },
+      ])[0];
+      users[index] = mergedUser;
 
       saveUsersToDisk(users);
-      void syncSingleUserToFirestore(users[index]);
+      void syncSingleUserToFirestore(mergedUser);
 
       return res.json({
         success: true,
         message: "प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई!",
-        user: users[index],
+        user: mergedUser,
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "अपडेट में त्रुटि आई।" });
@@ -2412,17 +2676,24 @@ async function startServer() {
   });
 
   // API Route: Admin Approve / Reject User
-  app.post("/api/users/:userId/status", (req: Request, res: Response) => {
+  app.post("/api/users/:userId/status", async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
+      const cleanId = String(userId || "").trim().toUpperCase();
       const { status, reason } = req.body;
 
       if (!["approved", "rejected", "pending"].includes(status)) {
         return res.status(400).json({ success: false, error: "अमान्य स्टेटस" });
       }
 
-      const users = loadUsersFromDisk();
-      const index = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+      let users = loadUsersFromDisk();
+      let index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+
+      if (index === -1) {
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      }
 
       if (index === -1) {
         return res.status(404).json({ success: false, error: "यूजर नहीं मिला।" });
@@ -2437,7 +2708,10 @@ async function startServer() {
       }
 
       saveUsersToDisk(users);
-      void syncSingleUserToFirestore(users[index]);
+      await Promise.race([
+        syncSingleUserToFirestore(users[index]),
+        new Promise<void>((resolve) => setTimeout(resolve, 2500)),
+      ]).catch(() => {});
 
       return res.json({
         success: true,
@@ -2446,6 +2720,74 @@ async function startServer() {
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "स्टेटस बदलने में त्रुटि आई।" });
+    }
+  });
+
+  // API Routes: Cross-Device User Withdrawal History Sync
+  app.get("/api/withdrawals/:userId", async (req: Request, res: Response) => {
+    try {
+      const cleanId = String(req.params.userId || "").trim().toUpperCase();
+      if (!cleanId) return res.status(400).json({ success: false, error: "User ID required" });
+
+      const diskList = loadJsonArray(WITHDRAWALS_FILE).filter(
+        (w: any) => w && String(w.userId || "").toUpperCase() === cleanId
+      );
+      let users = loadUsersFromDisk();
+      let user = users.find((u) => u && String(u.userId).toUpperCase() === cleanId);
+      if (!user) {
+        user = (await fetchSingleUserFromFirestore(cleanId)) || undefined;
+      }
+
+      const userList = Array.isArray(user?.withdrawals) ? user.withdrawals : [];
+      const wMap = new Map<string, any>();
+      for (const w of [...diskList, ...userList]) {
+        if (!w || !w.id) continue;
+        wMap.set(w.id, { ...w, userId: cleanId });
+      }
+      const mergedList = Array.from(wMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      return res.json({ success: true, withdrawals: mergedList });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to load withdrawals" });
+    }
+  });
+
+  app.post("/api/withdrawals", async (req: Request, res: Response) => {
+    try {
+      const { userId, withdrawal } = req.body || {};
+      const cleanId = String(userId || withdrawal?.userId || "").trim().toUpperCase();
+      if (!cleanId || !withdrawal || !withdrawal.id) {
+        return res.status(400).json({ success: false, error: "Invalid withdrawal payload" });
+      }
+
+      const record = { ...withdrawal, userId: cleanId };
+      const allDisk = loadJsonArray(WITHDRAWALS_FILE);
+      const filteredDisk = allDisk.filter((w: any) => w && w.id !== record.id);
+      filteredDisk.unshift(record);
+      saveJsonArray(WITHDRAWALS_FILE, filteredDisk);
+
+      // Merge into user profile on disk & Firestore so cross-device user logins inherit withdrawals automatically
+      let users = loadUsersFromDisk();
+      let idx = users.findIndex((u) => u && String(u.userId).toUpperCase() === cleanId);
+      if (idx === -1) {
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        idx = users.findIndex((u) => u && String(u.userId).toUpperCase() === cleanId);
+      }
+      if (idx !== -1) {
+        users[idx] = mergeUsersNonDestructive([users[idx]], [{ userId: cleanId, withdrawals: [record] }])[0];
+        saveUsersToDisk(users);
+        void syncSingleUserToFirestore(users[idx]);
+      }
+
+      const userWithdrawals = filteredDisk
+        .filter((w: any) => w && String(w.userId || "").toUpperCase() === cleanId)
+        .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+      return res.json({ success: true, withdrawal: record, withdrawals: userWithdrawals });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to save withdrawal" });
     }
   });
 
@@ -2634,26 +2976,31 @@ async function startServer() {
     }
   });
 
-  // Admin Update User Profile with Edit History
-  app.put("/api/admin/users/:userId", (req: Request, res: Response) => {
+  // Admin Update User Profile with Edit History (Non-Destructive Merge + Auto-Hydration)
+  app.put("/api/admin/users/:userId", async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const updates = req.body;
+      const updates = req.body || {};
       const cleanId = String(userId).trim().toUpperCase();
 
-      const users = loadUsersFromDisk();
-      const index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      let users = loadUsersFromDisk();
+      let index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      if (index === -1) {
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      }
       if (index === -1) {
         return res.status(404).json({ success: false, error: "उपयोगकर्ता नहीं मिला।" });
       }
 
       const existing = users[index];
       const now = new Date().toISOString();
-      const editLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = existing.editHistory || [];
+      const editLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = Array.isArray(existing.editHistory) ? [...existing.editHistory] : [];
 
       // Track Admin changes
       const fieldLabels: Record<string, string> = {
-        fullName: "सदस्य का नाम (Admin Change)",
+        fullName: "सदस्य का पूरा नाम (Admin Change)",
         password: "लॉगिन पासवर्ड (Admin Reset)",
         mobileNumber: "मोबाइल नंबर",
         email: "ईमेल आईडी",
@@ -2667,30 +3014,34 @@ async function startServer() {
 
       Object.keys(updates).forEach((k) => {
         if (k !== 'editHistory' && k !== 'userId' && updates[k] !== undefined) {
-          const oldV = String(existing[k] || '');
-          const newV = String(updates[k] || '');
-          if (oldV !== newV) {
+          const rawOldV = String(existing[k] || '');
+          const rawNewV = String(updates[k] || '');
+          if (rawOldV !== rawNewV) {
+            const isMedia = k === 'photoUrl' || k === 'paymentScreenshotUrl' || k === 'coverUrl' || rawOldV.startsWith('data:') || rawNewV.startsWith('data:') || rawOldV.length > 500 || rawNewV.length > 500;
             editLogs.unshift({
               field: k,
               fieldLabelHi: fieldLabels[k] || k,
-              oldValue: oldV || '(खाली)',
-              newValue: newV || '(खाली)',
+              oldValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (rawOldV || '(खाली)'),
+              newValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (rawNewV || '(खाली)'),
               timestamp: now,
             });
           }
         }
       });
 
-      users[index] = {
-        ...existing,
-        ...updates,
-        userId: existing.userId, // immutable
-        editHistory: editLogs.slice(0, 100),
-      };
+      const mergedUser = mergeUsersNonDestructive([existing], [
+        {
+          ...updates,
+          userId: existing.userId,
+          editHistory: sanitizeEditHistoryArray(editLogs).slice(0, 100),
+          isArchived: false,
+        },
+      ])[0];
+      users[index] = mergedUser;
 
       saveUsersToDisk(users);
-      void syncSingleUserToFirestore(users[index]);
-      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: users[index] });
+      void syncSingleUserToFirestore(mergedUser);
+      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: mergedUser });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
     }

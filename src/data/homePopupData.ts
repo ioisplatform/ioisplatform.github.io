@@ -16,6 +16,15 @@ export interface HomePopupPhoto {
   createdAt?: string;
   updatedAt?: string;
   aspectRatio?: string;
+  startDate?: string;       // YYYY-MM-DD
+  endDate?: string;         // YYYY-MM-DD (automatically hides after this date)
+  festivalId?: string;
+  festivalName?: string;
+  dateLabel?: string;       // Formatted festival date display
+  shubhMuhurat?: string;
+  isUpcoming?: boolean;
+  daysRemaining?: number;
+  themeGradient?: string;
 }
 
 const STORAGE_HOME_POPUPS_KEY = 'iois_admin_home_popups_v1';
@@ -23,6 +32,25 @@ const IDB_NAME = 'iois_media_store_v1';
 const IDB_STORE = 'kv_store';
 
 let memoryPopupPhotos: HomePopupPhoto[] | null = null;
+
+function getTodayIsoKey(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function isPopupExpiredOrScheduledOut(item: HomePopupPhoto | null | undefined, now: Date = new Date()): boolean {
+  if (!item || typeof item !== 'object') return true;
+  const todayKey = getTodayIsoKey(now);
+  if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
+    return true;
+  }
+  if (item.startDate && /^\d{4}-\d{2}-\d{2}$/.test(item.startDate) && item.startDate > todayKey) {
+    return true;
+  }
+  return false;
+}
 
 function openMediaDb(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !('indexedDB' in window)) {
@@ -75,6 +103,7 @@ async function idbGet<T = any>(key: string): Promise<T | null> {
 
 export const isPopupSlotConfigured = (item: HomePopupPhoto | null | undefined): boolean => {
   if (!item || typeof item !== 'object' || !item.active) return false;
+  if (isPopupExpiredOrScheduledOut(item)) return false;
   const hasPhoto = Boolean(item.imageUrl && item.imageUrl.trim().length > 0);
   const hasHeadline = Boolean(item.celebrationHeadline && item.celebrationHeadline.trim().length > 0);
   const hasTitle = Boolean(item.title && item.title.trim().length > 0);
@@ -125,12 +154,13 @@ export const getAllAdminPopupPhotos = (): HomePopupPhoto[] => {
 };
 
 /**
- * Returns configured & active admin popup items.
- * Defaults to EMPTY array [] so if admin has not uploaded any photo OR set any popup message,
- * NO admin popup appears ("agar mai photo ya koi popup message set na karu to koi pop na aaye").
+ * Returns configured, active, non-expired admin popup items.
  */
 export const getStoredHomePopupPhotos = (location?: 'home' | 'dashboard' | 'global' | 'preview'): HomePopupPhoto[] => {
   const all = getAllAdminPopupPhotos();
+  if (location === 'preview') {
+    return all.filter((item) => item && item.active);
+  }
   return all.filter((item) => isPopupSlotConfigured(item) && matchesPopupTarget(item, location));
 };
 

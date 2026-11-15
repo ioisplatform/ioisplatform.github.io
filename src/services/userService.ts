@@ -1,4 +1,4 @@
-import { UserProfile, HelpTicket, KnowledgeItem, AdminPrivateMessage } from '../types';
+import { UserProfile, HelpTicket, KnowledgeItem, AdminPrivateMessage, WithdrawalRecord } from '../types';
 import { PLANS } from '../data/plansData';
 import { db } from '../lib/firebase';
 import {
@@ -35,6 +35,7 @@ const STORAGE_UNANSWERED_KEY = 'iois_ai_unanswered_v2';
 const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
 const STORAGE_DEVICE_SESSION_TOKEN_KEY = 'iois_device_session_token';
+const STORAGE_PENDING_SYNC_QUEUE_KEY = 'iois_pending_sync_queue_v1';
 
 // NEVER include member database keys in evict list so user data is never wiped on quota pressure
 const BULKY_EVICT_KEYS = [
@@ -60,6 +61,13 @@ export const isFirestoreInQuotaCooldown = (): boolean => {
   } catch {
     return false;
   }
+};
+
+export const clearFirestoreQuotaCooldown = (): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    safeLocalStorageRemove(STORAGE_FIRESTORE_QUOTA_KEY);
+  } catch {}
 };
 
 export const markFirestoreQuotaExhausted = (err?: any): boolean => {
@@ -303,9 +311,34 @@ const sanitizeForFirestore = (obj: any): any => {
   return clean;
 };
 
+const sanitizeAuditVal = (val: any): string => {
+  if (val === undefined || val === null) return '';
+  const str = String(val);
+  if (str.startsWith('data:') || str.length > 500) {
+    return '[फोटो/दस्तावेज अपडेट]';
+  }
+  return str;
+};
+
+const sanitizeEditHistory = (logs: any): any[] => {
+  if (!Array.isArray(logs)) return [];
+  return logs
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      ...item,
+      oldValue: sanitizeAuditVal(item.oldValue),
+      newValue: sanitizeAuditVal(item.newValue),
+    }))
+    .slice(0, 100);
+};
+
 // Prepare a user record so Firestore 1MB document limit NEVER drops a member record
 const prepareUserForFirestore = (user: UserProfile): any => {
-  const clean = sanitizeForFirestore(user);
+  const normalized = {
+    ...user,
+    ...(Array.isArray(user.editHistory) ? { editHistory: sanitizeEditHistory(user.editHistory) } : {}),
+  };
+  const clean = sanitizeForFirestore(normalized);
   try {
     const serialized = JSON.stringify(clean);
     if (serialized.length <= 850_000) return clean;
@@ -339,45 +372,68 @@ export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): 
     for (const u of list) {
       if (!u || !u.userId || u.isArchived) continue;
       const key = u.userId.trim().toUpperCase();
+      if (DEMO_USER_IDS.includes(key)) continue;
+
+      const cleanInput = Array.isArray(u.editHistory)
+        ? { ...u, userId: key, editHistory: sanitizeEditHistory(u.editHistory) }
+        : { ...u, userId: key };
+
       const existing = map.get(key);
 
       if (!existing) {
-        map.set(key, { ...u, userId: key });
+        map.set(key, cleanInput);
       } else {
         const merged: any = { ...existing };
-        for (const [k, val] of Object.entries(u)) {
+        for (const [k, val] of Object.entries(cleanInput)) {
           if (val !== undefined && val !== null && val !== '') {
             merged[k] = val;
           }
         }
 
-        const isApproved = existing.paymentStatus === 'approved' || u.paymentStatus === 'approved';
+        const isApproved = existing.paymentStatus === 'approved' || cleanInput.paymentStatus === 'approved';
         merged.userId = existing.userId || key;
-        merged.paymentStatus = isApproved ? 'approved' : (u.paymentStatus || existing.paymentStatus);
-        merged.photoUrl = u.photoUrl || existing.photoUrl;
-        merged.paymentScreenshotUrl = u.paymentScreenshotUrl || existing.paymentScreenshotUrl;
-        merged.password = (u.password && u.password.trim()) ? u.password : existing.password;
-        merged.verifiedAt = u.verifiedAt || existing.verifiedAt;
-        merged.rejectionReason = u.rejectionReason || existing.rejectionReason;
+        merged.paymentStatus = isApproved ? 'approved' : (cleanInput.paymentStatus || existing.paymentStatus);
+        merged.photoUrl = cleanInput.photoUrl || existing.photoUrl;
+        merged.paymentScreenshotUrl = cleanInput.paymentScreenshotUrl || existing.paymentScreenshotUrl;
+        merged.password = (cleanInput.password && cleanInput.password.trim()) ? cleanInput.password : existing.password;
+        merged.verifiedAt = cleanInput.verifiedAt || existing.verifiedAt;
+        merged.rejectionReason = cleanInput.rejectionReason || existing.rejectionReason;
         merged.registrationFormData =
-          existing.registrationFormData || u.registrationFormData
-            ? { ...(existing.registrationFormData || {}), ...(u.registrationFormData || {}) }
+          existing.registrationFormData || cleanInput.registrationFormData
+            ? { ...(existing.registrationFormData || {}), ...(cleanInput.registrationFormData || {}) }
             : undefined;
-        merged.friends = Array.from(new Set([...(existing.friends || []), ...(u.friends || [])]));
-        merged.profileLikes = Array.from(new Set([...(existing.profileLikes || []), ...(u.profileLikes || [])]));
-        merged.profileViews = Math.max(Number(existing.profileViews || 0), Number(u.profileViews || 0));
+        merged.friends = Array.from(new Set([...(existing.friends || []), ...(cleanInput.friends || [])]));
+        merged.profileLikes = Array.from(new Set([...(existing.profileLikes || []), ...(cleanInput.profileLikes || [])]));
+        merged.profileViews = Math.max(Number(existing.profileViews || 0), Number(cleanInput.profileViews || 0));
 
-        if (Array.isArray(existing.editHistory) || Array.isArray(u.editHistory)) {
-          const hist = [...(u.editHistory || []), ...(existing.editHistory || [])];
+        if (Array.isArray(existing.editHistory) || Array.isArray(cleanInput.editHistory)) {
+          const hist = [...(cleanInput.editHistory || []), ...(existing.editHistory || [])];
           const seen = new Set<string>();
-          merged.editHistory = hist
-            .filter((item) => {
+          merged.editHistory = sanitizeEditHistory(
+            hist.filter((item) => {
               const sig = `${item.field}|${item.timestamp}|${item.newValue}`;
               if (seen.has(sig)) return false;
               seen.add(sig);
               return true;
             })
-            .slice(0, 100);
+          );
+        }
+
+        if (Array.isArray(existing.withdrawals) || Array.isArray(cleanInput.withdrawals)) {
+          const wMap = new Map<string, WithdrawalRecord>();
+          for (const w of [...(existing.withdrawals || []), ...(cleanInput.withdrawals || [])]) {
+            if (!w || !w.id) continue;
+            const prev = wMap.get(w.id);
+            if (!prev) {
+              wMap.set(w.id, w);
+            } else {
+              const rank = (s?: string) => (s === 'approved' ? 3 : s === 'rejected' ? 2 : 1);
+              wMap.set(w.id, rank(w.status) >= rank(prev.status) ? { ...prev, ...w } : { ...w, ...prev });
+            }
+          }
+          merged.withdrawals = Array.from(wMap.values()).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
         }
 
         map.set(key, merged as UserProfile);
@@ -389,17 +445,116 @@ export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): 
 };
 
 /**
+ * DURABLE PENDING-SYNC RETRY QUEUE (Zero Data Loss Across Unstable Networks)
+ */
+interface PendingUserSyncItem {
+  userId: string;
+  user: UserProfile;
+  reason: string;
+  updatedAt: string;
+}
+
+const getPendingSyncQueue = async (): Promise<PendingUserSyncItem[]> => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const idbList = await idbGet<PendingUserSyncItem[]>(STORAGE_PENDING_SYNC_QUEUE_KEY);
+    if (Array.isArray(idbList) && idbList.length > 0) return idbList;
+  } catch {}
+  try {
+    const raw = safeLocalStorageGet(STORAGE_PENDING_SYNC_QUEUE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+};
+
+const savePendingSyncQueue = async (queue: PendingUserSyncItem[]): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  void idbSet(STORAGE_PENDING_SYNC_QUEUE_KEY, queue);
+  try {
+    if (queue.length === 0) {
+      safeLocalStorageRemove(STORAGE_PENDING_SYNC_QUEUE_KEY);
+    } else {
+      const compact = queue.map((item) => ({
+        ...item,
+        user: stripOversizedDataUrls(item.user, 4096),
+      }));
+      safeLocalStorageSet(STORAGE_PENDING_SYNC_QUEUE_KEY, JSON.stringify(compact), {
+        evictKeysOnQuota: BULKY_EVICT_KEYS,
+      });
+    }
+  } catch {}
+};
+
+export const enqueuePendingUserSync = async (user: UserProfile, reason = 'update'): Promise<void> => {
+  if (typeof window === 'undefined' || !user?.userId) return;
+  try {
+    const cleanId = user.userId.trim().toUpperCase();
+    const queue = await getPendingSyncQueue();
+    const filtered = queue.filter((q) => q?.userId?.toUpperCase() !== cleanId);
+    filtered.push({ userId: cleanId, user, reason, updatedAt: new Date().toISOString() });
+    await savePendingSyncQueue(filtered);
+  } catch {}
+};
+
+let isFlushingPendingSyncs = false;
+export const flushPendingUserSyncsAsync = async (): Promise<number> => {
+  if (typeof window === 'undefined' || isFlushingPendingSyncs) return 0;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+  isFlushingPendingSyncs = true;
+  let flushed = 0;
+  try {
+    const queue = await getPendingSyncQueue();
+    if (queue.length === 0) return 0;
+
+    const remaining: PendingUserSyncItem[] = [];
+    for (const item of queue) {
+      if (!item?.user?.userId) continue;
+      let serverOk = false;
+      try {
+        const res = await fetch('/api/users/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: [item.user] }),
+        });
+        if (res.ok) serverOk = true;
+      } catch {}
+
+      let fsOk = true;
+      if (db && !isFirestoreInQuotaCooldown()) {
+        fsOk = await syncUserToFirestore(item.user);
+      }
+
+      if (serverOk || fsOk) {
+        flushed++;
+      }
+      if (!serverOk || (db && !isFirestoreInQuotaCooldown() && !fsOk)) {
+        remaining.push(item);
+      }
+    }
+    await savePendingSyncQueue(remaining);
+    return flushed;
+  } finally {
+    isFlushingPendingSyncs = false;
+  }
+};
+
+/**
  * FIRESTORE SYNC & PERSISTENCE HELPERS
  */
-export const syncUserToFirestore = async (user: UserProfile): Promise<void> => {
+export const syncUserToFirestore = async (user: UserProfile): Promise<boolean> => {
   try {
-    if (!db || !user.userId || isFirestoreInQuotaCooldown()) return;
+    if (!db || !user.userId || isFirestoreInQuotaCooldown()) return false;
     const userRef = doc(db, 'users', user.userId.trim().toUpperCase());
     const cleanData = prepareUserForFirestore(user);
     await setDoc(userRef, cleanData, { merge: true });
+    return true;
   } catch (e) {
     markFirestoreQuotaExhausted(e);
     console.warn('Firestore syncUser warning:', e);
+    return false;
   }
 };
 
@@ -426,7 +581,7 @@ export const subscribeToFirestoreUsers = (onUpdate: (users: UserProfile[]) => vo
       const liveUsers: UserProfile[] = [];
       snapshot.forEach((docSnap) => {
         const u = docSnap.data() as UserProfile;
-        if (u && u.userId && !u.isArchived) {
+        if (u && u.userId && !u.isArchived && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) {
           liveUsers.push(u);
         }
       });
@@ -761,12 +916,7 @@ const hydrateUsersFromIdb = (): Promise<void> => {
         if (!memoryCurrentUser) {
           memoryCurrentUser = idbCur;
         } else if (memoryCurrentUser.userId?.toUpperCase() === idbCur.userId.toUpperCase()) {
-          memoryCurrentUser = {
-            ...idbCur,
-            ...memoryCurrentUser,
-            photoUrl: memoryCurrentUser.photoUrl || idbCur.photoUrl,
-            paymentScreenshotUrl: memoryCurrentUser.paymentScreenshotUrl || idbCur.paymentScreenshotUrl,
-          };
+          memoryCurrentUser = mergeUserLists([idbCur], [memoryCurrentUser])[0] || memoryCurrentUser;
         }
       }
 
@@ -1622,15 +1772,19 @@ export const fetchUsersFromServer = async (
   options?: { skipFirestore?: boolean; forceCloud?: boolean }
 ): Promise<UserProfile[]> => {
   await hydrateUsersFromIdb();
+  void flushPendingUserSyncsAsync();
+  if (options?.forceCloud) {
+    clearFirestoreQuotaCooldown();
+  }
   const localUsers = getAllUsers();
   const firestoreUsers: UserProfile[] = [];
   let serverUsers: UserProfile[] = [];
   let firestoreSucceededCleanly = false;
 
-  // 1. FAST PATH: Fetch from backend server with 5000ms timeout
+  // 1. FAST PATH: Fetch from backend server with 12000ms timeout
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     const res = await fetch('/api/users', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
@@ -1643,11 +1797,11 @@ export const fetchUsersFromServer = async (
     console.warn('Server users fetch note, falling back to local/cloud cache:', err);
   }
 
-  // 2. Quota-protected Firestore read (skipped during polling or 3-min cache window unless forced/sparse server)
+  // 2. Quota-protected Firestore read (allows 20s timeout when forced or sparse server so slow 4G connections finish)
   const shouldQueryFirestore =
     Boolean(db) &&
     !options?.skipFirestore &&
-    !isFirestoreInQuotaCooldown() &&
+    (options?.forceCloud || !isFirestoreInQuotaCooldown()) &&
     (options?.forceCloud ||
       serverUsers.length <= 1 ||
       Date.now() - lastClientFirestoreFetchAt > 180_000);
@@ -1660,20 +1814,22 @@ export const fetchUsersFromServer = async (
         setTimeout(() => {
           timedOut = true;
           resolve();
-        }, 6000)
+        }, 20000)
       );
       const fetchPromise = (async () => {
         const snap = await getDocs(col);
         snap.forEach((d) => {
           const u = d.data() as UserProfile;
-          if (u && u.userId) firestoreUsers.push(u);
+          if (u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) {
+            firestoreUsers.push(u);
+          }
         });
         lastClientFirestoreFetchAt = Date.now();
         firestoreSucceededCleanly = true;
       })();
       await Promise.race([fetchPromise, timeoutPromise]);
       if (timedOut) {
-        console.warn('Firestore fetch timeout after 6000ms');
+        console.warn('Firestore fetch timeout after 20000ms');
       }
     } catch (e) {
       markFirestoreQuotaExhausted(e);
@@ -1787,10 +1943,11 @@ export const registerNewUserAsync = async (
     createdAt: new Date().toISOString(),
   };
 
-  // 3. Contact backend server with 4000ms timeout
+  // 3. Contact backend server with generous 20000ms timeout (for photo/screenshot uploads on mobile 4G)
+  let serverSaved = false;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
     const serverRes = await fetch('/api/users/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1808,9 +1965,24 @@ export const registerNewUserAsync = async (
       err.maskedEmail = serverData.maskedEmail || dupCheck.maskedEmail;
       throw err;
     }
+    if (serverRes.ok) {
+      serverSaved = true;
+    }
   } catch (err: any) {
     if (err.alreadyExists) throw err;
     console.warn('Server registration endpoint note:', err);
+  }
+
+  // Fallback sync if /api/users/register timed out or had transient error
+  if (!serverSaved) {
+    try {
+      const syncRes = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ users: [newUser] }),
+      });
+      if (syncRes.ok) serverSaved = true;
+    } catch {}
   }
 
   // 4. Save immediately to local device vault & active session
@@ -1818,11 +1990,15 @@ export const registerNewUserAsync = async (
   saveUsers(updatedList);
   setCurrentUser(newUser);
 
-  // 5. Cloud Firestore persistence (await up to 2500ms so registration does not drop on fast tab close)
-  await Promise.race([
+  // 5. Cloud Firestore persistence (await up to 12000ms so registration is safely persisted across devices)
+  const firestoreSaved = await Promise.race([
     syncUserToFirestore(newUser),
-    new Promise<void>((resolve) => setTimeout(resolve, 2500)),
-  ]).catch(() => {});
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
+  ]).catch(() => false);
+
+  if (!serverSaved || !firestoreSaved) {
+    void enqueuePendingUserSync(newUser, 'register');
+  }
 
   return newUser;
 };
@@ -2007,11 +2183,18 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
       const oldVal = (existingUser[key] as string) || '';
       const newVal = (updatedProfile[key] as string) || '';
       if (oldVal !== newVal && (oldVal || newVal)) {
+        const isMedia =
+          key === 'photoUrl' ||
+          key === 'paymentScreenshotUrl' ||
+          oldVal.startsWith('data:') ||
+          newVal.startsWith('data:') ||
+          oldVal.length > 500 ||
+          newVal.length > 500;
         newLogs.push({
           field: String(key),
           fieldLabelHi: label,
-          oldValue: oldVal || '(रिक्त)',
-          newValue: newVal || '(रिक्त)',
+          oldValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (oldVal || '(रिक्त)'),
+          newValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (newVal || '(रिक्त)'),
           timestamp: now,
         });
       }
@@ -2019,17 +2202,18 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   }
 
   const existingLogs = existingUser?.editHistory || [];
-  const combinedLogs = [...newLogs, ...existingLogs].slice(0, 50); // Keep last 50 edits
+  const combinedLogs = sanitizeEditHistory([...newLogs, ...existingLogs]).slice(0, 50);
 
   let finalizedUser: UserProfile;
   if (index !== -1) {
-    finalizedUser = {
-      ...users[index],
-      ...updatedProfile,
-      payoutUpi: sanitizedUpi,
-      userId: users[index].userId, // Strictly immutable User ID
-      editHistory: combinedLogs,
-    };
+    finalizedUser = mergeUserLists([users[index]], [
+      {
+        ...updatedProfile,
+        payoutUpi: sanitizedUpi,
+        userId: users[index].userId, // Strictly immutable User ID
+        editHistory: combinedLogs,
+      },
+    ])[0];
     users[index] = finalizedUser;
   } else {
     finalizedUser = {
@@ -2049,13 +2233,34 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     setCurrentUser(finalizedUser);
   }
 
-  // Sync with Firestore and server
-  syncUserToFirestore(finalizedUser).catch(() => {});
-  fetch(`/api/users/${encodeURIComponent(finalizedUser.userId)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(finalizedUser),
-  }).catch((e) => console.warn('Background update sync note:', e));
+  // Reliable dual sync to Firestore & Server with automatic fallback + retry queue
+  void (async () => {
+    const fsOk = await syncUserToFirestore(finalizedUser);
+    let srvOk = false;
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(finalizedUser.userId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalizedUser),
+      });
+      if (res.ok) srvOk = true;
+    } catch {}
+
+    if (!srvOk) {
+      try {
+        const syncRes = await fetch('/api/users/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: [finalizedUser] }),
+        });
+        if (syncRes.ok) srvOk = true;
+      } catch {}
+    }
+
+    if (!srvOk || !fsOk) {
+      await enqueuePendingUserSync(finalizedUser, 'update');
+    }
+  })();
 
   return finalizedUser;
 };
@@ -2200,11 +2405,12 @@ export const loginUserAsync = async (
 
   let matchedUser: UserProfile | null = null;
   let issuedToken = '';
+  let fromServer = false;
 
-  // 1. Try Server API Login FIRST so single-device sessionToken rotates reliably on server & notifies old device
+  // 1. Try Server API Login FIRST (12s timeout) so single-device sessionToken rotates reliably & cold containers finish hydrating
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     const res = await fetch('/api/users/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2217,6 +2423,7 @@ export const loginUserAsync = async (
     if (res.ok && data.success && data.user) {
       matchedUser = data.user;
       issuedToken = data.sessionToken || data.user.activeSessionToken || createClientSessionToken();
+      fromServer = true;
     } else if (res.status === 401) {
       return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
     }
@@ -2224,23 +2431,33 @@ export const loginUserAsync = async (
     // Fallback to Firestore / local cache if server endpoint unreachable
   }
 
-  // 2. Targeted Firestore query fallback (only when not in quota cooldown)
-  if (!matchedUser && db && !isFirestoreInQuotaCooldown()) {
+  // 2. Targeted Firestore query fallback (clear cooldown on explicit user login attempt)
+  if (!matchedUser && db) {
     try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+      clearFirestoreQuotaCooldown();
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000));
       const firestorePromise = (async (): Promise<UserProfile | null> => {
-        if (cleanId.length >= 4 && !cleanId.startsWith('@')) {
+        if (cleanId.length >= 4 && !cleanId.startsWith('@') && !cleanId.includes('@')) {
           const docRef = doc(db, 'users', cleanUpper);
           const snap = await getDoc(docRef);
           if (snap.exists()) return snap.data() as UserProfile;
         }
+        const col = collection(db, 'users');
         if (digits.length >= 10) {
-          const col = collection(db, 'users');
-          const q = query(col, where('mobileNumber', '==', digits.slice(-10)), limit(1));
+          const last10 = digits.slice(-10);
+          const q = query(col, where('mobileNumber', '==', last10), limit(1));
           const snap = await getDocs(q);
           if (!snap.empty) return snap.docs[0].data() as UserProfile;
+
+          const qPrefixed = query(col, where('mobileNumber', '==', `+91${last10}`), limit(1));
+          const snapPref = await getDocs(qPrefixed);
+          if (!snapPref.empty) return snapPref.docs[0].data() as UserProfile;
         }
-        const col = collection(db, 'users');
+        if (cleanLower.includes('@') && !cleanId.startsWith('@')) {
+          const qEmail = query(col, where('email', '==', cleanLower), limit(1));
+          const snapE = await getDocs(qEmail);
+          if (!snapE.empty) return snapE.docs[0].data() as UserProfile;
+        }
         const qUname = query(col, where('username', '==', cleanLower), limit(1));
         const snapU = await getDocs(qUname);
         if (!snapU.empty) return snapU.docs[0].data() as UserProfile;
@@ -2255,6 +2472,7 @@ export const loginUserAsync = async (
 
   // 3. Local device cache fallback
   if (!matchedUser) {
+    await hydrateUsersFromIdb();
     const users = getAllUsers();
     matchedUser = users.find(
       (u) =>
@@ -2276,12 +2494,15 @@ export const loginUserAsync = async (
     }
   }
 
-  // Ensure sessionToken is set and synced to Firestore for real-time cross-device invalidation
+  // Ensure sessionToken is set and synced to Firestore + server for real-time cross-device invalidation
   if (!issuedToken) {
     issuedToken = createClientSessionToken();
   }
+  const existingLocal = findUserById(matchedUser.userId);
+  const mergedBase = existingLocal ? mergeUserLists([existingLocal], [matchedUser])[0] : matchedUser;
+
   const updatedUser: UserProfile = {
-    ...matchedUser,
+    ...mergedBase,
     activeSessionToken: issuedToken,
     lastLoginDevice: matchedUser.lastLoginDevice || deviceInfo,
     lastLoginAt: matchedUser.lastLoginAt || new Date().toISOString(),
@@ -2289,12 +2510,20 @@ export const loginUserAsync = async (
 
   setDeviceSessionToken(issuedToken);
   const all = getAllUsers();
-  const merged = mergeUserLists([updatedUser], all, INITIAL_DEMO_USERS);
+  const merged = mergeUserLists(all, [updatedUser], INITIAL_DEMO_USERS);
   saveUsers(merged);
   setCurrentUser(updatedUser);
 
   // Sync updated activeSessionToken to Firestore so old devices receive instant logout signal
-  syncUserToFirestore(updatedUser).catch(() => {});
+  void syncUserToFirestore(updatedUser);
+  // If user came from Firestore/local rather than server, push full record back to server disk
+  if (!fromServer) {
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: [updatedUser] }),
+    }).catch(() => {});
+  }
 
   return { success: true, user: updatedUser, sessionToken: issuedToken };
 };
@@ -2366,18 +2595,32 @@ export const getCurrentUser = (): UserProfile | null => {
 
 export const setCurrentUser = (user: UserProfile | null): void => {
   if (typeof window === 'undefined') return;
-  memoryCurrentUser = user;
   if (!user) {
+    memoryCurrentUser = null;
     safeLocalStorageRemove(STORAGE_CURRENT_USER_KEY);
     void idbRemove(STORAGE_CURRENT_USER_KEY);
     return;
   }
 
+  // Non-destructive session preservation: never let a compacted directory copy wipe full existing user details
+  const cleanId = user.userId?.trim().toUpperCase();
+  const memMatch = memoryUsers?.find((u) => u.userId?.trim().toUpperCase() === cleanId);
+  const prevSame =
+    memoryCurrentUser && memoryCurrentUser.userId?.trim().toUpperCase() === cleanId
+      ? memoryCurrentUser
+      : undefined;
+  const enrichedUser =
+    prevSame || memMatch
+      ? mergeUserLists(prevSame ? [prevSame] : [], memMatch ? [memMatch] : [], [user])[0]
+      : user;
+
+  memoryCurrentUser = enrichedUser;
+
   // Always save full user record to IndexedDB
-  void idbSet(STORAGE_CURRENT_USER_KEY, user);
+  void idbSet(STORAGE_CURRENT_USER_KEY, enrichedUser);
 
   try {
-    const serialized = JSON.stringify(user);
+    const serialized = JSON.stringify(enrichedUser);
     if (
       serialized.length <= 1_200_000 &&
       safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, serialized, {
@@ -2389,11 +2632,13 @@ export const setCurrentUser = (user: UserProfile | null): void => {
 
     // Fallback 1: omit large paymentScreenshotUrl in localStorage session copy (rarely needed in active session header)
     const withoutReceipt: UserProfile = {
-      ...user,
+      ...enrichedUser,
       paymentScreenshotUrl:
-        user.paymentScreenshotUrl && user.paymentScreenshotUrl.startsWith('data:') && user.paymentScreenshotUrl.length > 4096
+        enrichedUser.paymentScreenshotUrl &&
+        enrichedUser.paymentScreenshotUrl.startsWith('data:') &&
+        enrichedUser.paymentScreenshotUrl.length > 4096
           ? ''
-          : user.paymentScreenshotUrl,
+          : enrichedUser.paymentScreenshotUrl,
     };
     const withoutReceiptJson = JSON.stringify(withoutReceipt);
     if (
@@ -2406,7 +2651,7 @@ export const setCurrentUser = (user: UserProfile | null): void => {
     }
 
     // Fallback 2: strip any huge inline data URLs in localStorage session copy while memoryCurrentUser & IDB retain them
-    const compactUser = stripOversizedDataUrls(user, 4096);
+    const compactUser = stripOversizedDataUrls(enrichedUser, 4096);
     safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, JSON.stringify(compactUser), {
       evictKeysOnQuota: BULKY_EVICT_KEYS,
     });
@@ -2418,6 +2663,193 @@ export const setCurrentUser = (user: UserProfile | null): void => {
 export const logoutUser = (): void => {
   setCurrentUser(null);
   clearDeviceSessionToken();
+};
+
+/**
+ * Fetch 100% full details of the logged-in user across devices (Server + Firestore + IDB)
+ * Ensures registrationFormData, paymentScreenshotUrl, withdrawals, profileFrameId, status never miss on 2nd device.
+ */
+export const refreshCurrentUserFullAsync = async (userId: string): Promise<UserProfile | null> => {
+  await hydrateUsersFromIdb();
+  if (!userId) return null;
+  const cleanId = userId.trim().toUpperCase();
+  const cur = getCurrentUser();
+  const localMatch = findUserById(cleanId);
+  let serverFull: UserProfile | null = null;
+  let fsDocUser: UserProfile | null = null;
+
+  try {
+    const token = getDeviceSessionToken();
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(`/api/users/profile/${encodeURIComponent(cleanId)}?self=1`, {
+      headers: token ? { 'x-session-token': token } : {},
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const candidate = data?.user || data;
+      if (candidate && candidate.userId) {
+        serverFull = candidate as UserProfile;
+      }
+    }
+  } catch {}
+
+  if (db && !isFirestoreInQuotaCooldown()) {
+    try {
+      const snap = await Promise.race([
+        getDoc(doc(db, 'users', cleanId)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]);
+      if (snap && snap.exists()) {
+        const d = snap.data() as UserProfile;
+        if (d && d.userId && !d.isArchived) {
+          fsDocUser = d;
+        }
+      }
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
+  }
+
+  const candidates = [
+    ...(cur && cur.userId?.toUpperCase() === cleanId ? [cur] : []),
+    ...(localMatch ? [localMatch] : []),
+    ...(fsDocUser ? [fsDocUser] : []),
+    ...(serverFull ? [serverFull] : []),
+  ];
+  if (candidates.length === 0) return null;
+
+  const merged = mergeUserLists(...candidates.map((c) => [c]))[0];
+  if (!merged) return null;
+
+  // Save enriched full record to local vault + session
+  const all = getAllUsers();
+  saveUsers(mergeUserLists(all, [merged]));
+  setCurrentUser(merged);
+
+  // If server was missing this user or any rich fields, push back cleanly
+  if (!serverFull) {
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: [merged] }),
+    }).catch(() => {});
+  }
+
+  if (typeof window !== 'undefined' && Array.isArray(merged.withdrawals) && merged.withdrawals.length > 0) {
+    try {
+      const existingRaw = safeLocalStorageGet(`iois_withdrawals_${cleanId}`);
+      const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+      const wMap = new Map<string, WithdrawalRecord>();
+      for (const w of [...(Array.isArray(existingList) ? existingList : []), ...merged.withdrawals]) {
+        if (w?.id) wMap.set(w.id, w);
+      }
+      const unified = Array.from(wMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      safeLocalStorageSet(`iois_withdrawals_${cleanId}`, JSON.stringify(unified));
+      window.dispatchEvent(new CustomEvent('iois_withdrawals_updated', { detail: { userId: cleanId, withdrawals: unified } }));
+    } catch {}
+  }
+
+  return merged;
+};
+
+/**
+ * CROSS-DEVICE WITHDRAWAL SYNC HELPERS
+ */
+export const getLocalWithdrawals = (userId: string): WithdrawalRecord[] => {
+  if (typeof window === 'undefined' || !userId) return [];
+  const cleanId = userId.trim().toUpperCase();
+  const wMap = new Map<string, WithdrawalRecord>();
+  try {
+    const raw = safeLocalStorageGet(`iois_withdrawals_${cleanId}`) || localStorage.getItem(`iois_withdrawals_${userId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const w of parsed) if (w?.id) wMap.set(w.id, w);
+      }
+    }
+  } catch {}
+  const userObj = findUserById(cleanId) || (getCurrentUser()?.userId?.toUpperCase() === cleanId ? getCurrentUser() : null);
+  if (userObj && Array.isArray(userObj.withdrawals)) {
+    for (const w of userObj.withdrawals) if (w?.id) wMap.set(w.id, w);
+  }
+  return Array.from(wMap.values()).sort(
+    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
+};
+
+export const fetchUserWithdrawalsAsync = async (userId: string): Promise<WithdrawalRecord[]> => {
+  await hydrateUsersFromIdb();
+  const cleanId = userId.trim().toUpperCase();
+  const wMap = new Map<string, WithdrawalRecord>();
+  for (const w of getLocalWithdrawals(cleanId)) wMap.set(w.id, w);
+
+  try {
+    const res = await fetch(`/api/withdrawals/${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.withdrawals)) {
+        for (const w of data.withdrawals) if (w?.id) wMap.set(w.id, w);
+      }
+    }
+  } catch {}
+
+  if (db && !isFirestoreInQuotaCooldown()) {
+    try {
+      const snap = await getDoc(doc(db, 'users', cleanId));
+      if (snap.exists()) {
+        const d = snap.data() as UserProfile;
+        if (Array.isArray(d?.withdrawals)) {
+          for (const w of d.withdrawals) if (w?.id) wMap.set(w.id, w);
+        }
+      }
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
+  }
+
+  const unified = Array.from(wMap.values()).sort(
+    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
+  try {
+    safeLocalStorageSet(`iois_withdrawals_${cleanId}`, JSON.stringify(unified));
+  } catch {}
+  return unified;
+};
+
+export const saveUserWithdrawalAsync = async (
+  userId: string,
+  withdrawal: WithdrawalRecord
+): Promise<WithdrawalRecord[]> => {
+  const cleanId = userId.trim().toUpperCase();
+  const record: WithdrawalRecord = { ...withdrawal, userId: cleanId };
+  const current = getLocalWithdrawals(cleanId).filter((w) => w.id !== record.id);
+  const updated = [record, ...current];
+
+  try {
+    safeLocalStorageSet(`iois_withdrawals_${cleanId}`, JSON.stringify(updated));
+  } catch {}
+
+  // Persist inside user profile (syncs to Server + Firestore + pending retry queue automatically)
+  const targetUser = findUserById(cleanId) || getCurrentUser();
+  if (targetUser && targetUser.userId?.toUpperCase() === cleanId) {
+    updateUserProfile({ ...targetUser, withdrawals: updated });
+  }
+
+  fetch('/api/withdrawals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: cleanId, withdrawal: record }),
+  }).catch(() => {});
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('iois_withdrawals_updated', { detail: { userId: cleanId, withdrawals: updated } }));
+  }
+  return updated;
 };
 
 export interface SessionValidityResult {
@@ -2639,12 +3071,17 @@ export const registerMemberBySponsorAsync = async (
   };
 
   let createdUser = draftUser;
+  let serverSaved = false;
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 20000);
     const res = await fetch('/api/users/sponsor-register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(draftUser),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'पंजीकरण सर्वर पर सहेजा नहीं जा सका।');
@@ -2652,16 +3089,35 @@ export const registerMemberBySponsorAsync = async (
     if (data.user) {
       createdUser = data.user;
     }
+    serverSaved = true;
   } catch (err: any) {
     if (err?.message && (err.message.includes('पंजीकृत') || err.message.includes('यूजरनेम'))) {
       throw err;
     }
   }
 
+  if (!serverSaved) {
+    try {
+      const syncRes = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ users: [createdUser] }),
+      });
+      if (syncRes.ok) serverSaved = true;
+    } catch {}
+  }
+
   // Update local directory cache & Firestore WITHOUT changing getCurrentUser() or device session token
-  const merged = mergeUserLists([createdUser], users, INITIAL_DEMO_USERS);
+  const merged = mergeUserLists(users, [createdUser], INITIAL_DEMO_USERS);
   saveUsers(merged);
-  syncUserToFirestore(createdUser).catch(() => {});
+  const fsOk = await Promise.race([
+    syncUserToFirestore(createdUser),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
+  ]).catch(() => false);
+
+  if (!serverSaved || !fsOk) {
+    void enqueuePendingUserSync(createdUser, 'sponsor-register');
+  }
 
   return createdUser;
 };
@@ -2781,20 +3237,40 @@ export const setPaymentStatus = (
     } else {
       users[index].rejectionReason = reason || 'Payment screenshot or UTR invalid';
     }
+    const targetUser = { ...users[index] };
     saveUsers(users);
 
     const current = getCurrentUser();
     if (current && current.userId.toUpperCase() === userId.toUpperCase()) {
-      setCurrentUser(users[index]);
+      setCurrentUser(targetUser);
     }
 
-    // Call Firestore and server to persist status change permanently
-    syncUserToFirestore(users[index]);
-    fetch(`/api/users/${encodeURIComponent(userId)}/status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, reason }),
-    }).catch((e) => console.warn('Background status sync note:', e));
+    // Call Firestore and server to persist status change permanently with fallback & retry queue
+    void (async () => {
+      const fsOk = await syncUserToFirestore(targetUser);
+      let srvOk = false;
+      try {
+        const res = await fetch(`/api/users/${encodeURIComponent(userId)}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, reason }),
+        });
+        if (res.ok) srvOk = true;
+      } catch {}
+      if (!srvOk) {
+        try {
+          const syncRes = await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ users: [targetUser] }),
+          });
+          if (syncRes.ok) srvOk = true;
+        } catch {}
+      }
+      if (!srvOk || !fsOk) {
+        await enqueuePendingUserSync(targetUser, 'status');
+      }
+    })();
   }
 };
 
@@ -3202,36 +3678,61 @@ export const adminUpdateUserProfileAsync = async (
       const oldV = String((existing as any)[k] || '');
       const newV = String((updates as any)[k] || '');
       if (oldV !== newV) {
+        const isMedia = k === 'photoUrl' || k === 'paymentScreenshotUrl' || k === 'coverUrl' || oldV.startsWith('data:') || newV.startsWith('data:') || oldV.length > 500 || newV.length > 500;
         newLogs.push({
           field: k,
           fieldLabelHi: fieldLabels[k] || k,
-          oldValue: oldV || '(खाली)',
-          newValue: newV || '(खाली)',
+          oldValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (oldV || '(खाली)'),
+          newValue: isMedia ? '[फोटो/दस्तावेज अपडेट]' : (newV || '(खाली)'),
           timestamp: now,
         });
       }
     }
   });
 
-  const updatedUser: UserProfile = {
-    ...existing,
-    ...updates,
-    userId: existing.userId,
-    editHistory: [...newLogs, ...existingHistory].slice(0, 50),
-  };
+  const nonEmptyUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, v]) => v !== undefined && v !== '')
+  ) as Partial<UserProfile>;
+
+  const updatedUser: UserProfile = mergeUserLists([existing], [
+    {
+      ...existing,
+      ...nonEmptyUpdates,
+      userId: existing.userId,
+      editHistory: sanitizeEditHistory([...newLogs, ...existingHistory]).slice(0, 50),
+    },
+  ])[0];
 
   users[index] = updatedUser;
   saveUsers(users);
 
-  // Sanitized + quota-protected Firestore sync
-  void syncUserToFirestore(updatedUser);
-
-  // Server API sync
-  fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  }).catch(() => {});
+  // Sanitized + quota-protected Firestore + Server sync with retry queue
+  void (async () => {
+    clearFirestoreQuotaCooldown();
+    const fsOk = await syncUserToFirestore(updatedUser);
+    let srvOk = false;
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) srvOk = true;
+    } catch {}
+    if (!srvOk) {
+      try {
+        const syncRes = await fetch('/api/users/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: [updatedUser] }),
+        });
+        if (syncRes.ok) srvOk = true;
+      } catch {}
+    }
+    if (!srvOk || !fsOk) {
+      await enqueuePendingUserSync(updatedUser, 'admin-update');
+    }
+  })();
 
   return updatedUser;
 };
@@ -3249,25 +3750,31 @@ export interface AdminBackupInfo {
 
 export const fetchAdminFullUsersAsync = async (
   adminPin = 'IOISSYSTEM'
-): Promise<{ users: UserProfile[]; archivedUsers: UserProfile[]; backupInfo?: AdminBackupInfo }> => {
+): Promise<{ users: UserProfile[]; archivedUsers: UserProfile[]; backupInfo?: AdminBackupInfo; cloudError?: string }> => {
   await hydrateUsersFromIdb();
   const localUsers = getAllUsers();
   let serverFull: UserProfile[] = [];
   let serverArchived: UserProfile[] = [];
   let backupInfo: AdminBackupInfo | undefined;
+  let cloudError: string | undefined;
 
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 25000);
     const res = await fetch('/api/admin/users-full', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ adminPin }),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
       if (data?.success) {
         serverFull = Array.isArray(data.users) ? data.users : [];
         serverArchived = Array.isArray(data.archivedUsers) ? data.archivedUsers : [];
         backupInfo = data.backupInfo;
+        cloudError = data.cloudError;
       }
     }
   } catch {}
@@ -3293,7 +3800,7 @@ export const fetchAdminFullUsersAsync = async (
     }).catch(() => {});
   }
 
-  return { users: merged, archivedUsers: memoryArchivedUsers, backupInfo };
+  return { users: merged, archivedUsers: memoryArchivedUsers, backupInfo, cloudError };
 };
 
 export const fetchArchivedUsersAsync = async (): Promise<UserProfile[]> => {
@@ -3365,21 +3872,32 @@ export const triggerAdminCloudSyncAsync = async (
   adminPin = 'IOISSYSTEM'
 ): Promise<{ users: UserProfile[]; cloudError?: string }> => {
   await hydrateUsersFromIdb();
+  clearFirestoreQuotaCooldown();
   let cloudError: string | undefined;
+  let serverCloudUsers: UserProfile[] = [];
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 25000);
     const res = await fetch('/api/admin/cloud-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ adminPin }),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
       cloudError = data?.cloudError;
+      if (Array.isArray(data?.users)) {
+        serverCloudUsers = data.users;
+      }
     }
   } catch {}
 
-  const users = await fetchUsersFromServer({ forceCloud: true });
-  return { users, cloudError };
+  const clientUsers = await fetchUsersFromServer({ forceCloud: true });
+  const merged = mergeUserLists(serverCloudUsers, clientUsers);
+  if (merged.length > 0) saveUsers(merged);
+  return { users: merged, cloudError };
 };
 
 export const importUsersBackupAsync = async (

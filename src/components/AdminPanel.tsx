@@ -24,7 +24,8 @@ import {
   restoreArchivedUserAsync,
   triggerAdminCloudSyncAsync,
   importUsersBackupAsync,
-  isFirestoreInQuotaCooldown
+  isFirestoreInQuotaCooldown,
+  clearFirestoreQuotaCooldown
 } from '../services/userService';
 import { AiKnowledgeManager } from './AiKnowledgeManager';
 import { InterviewListManager } from './InterviewListManager';
@@ -283,10 +284,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const reloadData = async (withCloud = false) => {
     setIsRefreshing(true);
     try {
-      await fetchUsersFromServer({ skipFirestore: !withCloud, forceCloud: withCloud });
+      if (withCloud) {
+        clearFirestoreQuotaCooldown();
+      }
+      // Step 1: Fast authoritative Admin Vault from server (auto-hydrates from Cloud Firestore if server disk was empty/sparse)
       const adminFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
-      setUsersList(adminFull.users);
+      if (adminFull.users.length > 0) {
+        setUsersList(adminFull.users);
+      }
       setArchivedUsers(adminFull.archivedUsers);
+
+      // Step 2: Cross-check client Firestore & merge if cloud sync requested or records are still sparse
+      if (withCloud || adminFull.users.length <= 1) {
+        await fetchUsersFromServer({ skipFirestore: false, forceCloud: withCloud });
+        let latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
+        if (latestFull.users.length <= 1) {
+          const cloudSyncRes = await triggerAdminCloudSyncAsync('IOISSYSTEM');
+          latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
+          if (cloudSyncRes.cloudError && cloudSyncRes.cloudError.includes('resource-exhausted')) {
+            showVaultNotice(
+              'info',
+              `⚠️ क्लाउड रीड कोटा अस्थायी रूप से सीमित है। वर्तमान में ${latestFull.users.length} सदस्य दिख रहे हैं — आप JSON बैकअप से भी तुरंत रिस्टोर कर सकते हैं।`
+            );
+          }
+        }
+        setUsersList(latestFull.users);
+        setArchivedUsers(latestFull.archivedUsers);
+      }
+
       const liveTickets = await fetchTicketsFromServer({ skipFirestore: !withCloud });
       setTicketsList(liveTickets);
     } catch (e) {
@@ -418,15 +443,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     }
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Admin password exclusively set to IOISSYSTEM
     const cleanPin = adminPin.trim();
     if (cleanPin === 'IOISSYSTEM' || cleanPin === 'ioissystem') {
+      clearFirestoreQuotaCooldown();
       setAdminSession(true);
       setIsAdminAuth(true);
       setPinError('');
-      await reloadData(true);
     } else {
       setPinError('गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।');
     }
@@ -1160,8 +1185,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      कोई यूजर रिकॉर्ड नहीं मिला।
+                    <td colSpan={8} className="py-12 text-center text-slate-400 space-y-3">
+                      {isRefreshing ? (
+                        <div className="flex flex-col items-center gap-2 text-amber-300 font-bold">
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span>क्लाउड और सर्वर वॉल्ट से सभी सदस्यों का डेटा लोड हो रहा है...</span>
+                        </div>
+                      ) : usersList.length > 0 ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <span>वर्तमान खोज या फ़िल्टर से कोई सदस्य मेल नहीं खाया (कुल {usersList.length} सदस्य उपलब्ध हैं)।</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery('');
+                              setStatusFilter('all');
+                              setDateFilter('all');
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
+                          >
+                            सभी फ़िल्टर रीसेट करें
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <span>कोई यूजर रिकॉर्ड नहीं मिला। क्लाउड से सिंक करने के लिए नीचे क्लिक करें।</span>
+                          <button
+                            type="button"
+                            onClick={handleManualCloudSync}
+                            className="px-3.5 py-1.5 rounded-xl bg-sky-500 text-white font-black text-xs cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>अभी क्लाउड सिंक करें</span>
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (

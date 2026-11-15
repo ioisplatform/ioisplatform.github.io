@@ -1,9 +1,4 @@
 import smartSavingsImg from '../assets/images/smart_savings_growth_1794240843133.jpg';
-import dhanterasImg from '../assets/images/dhanteras_celebration_1794240857116.jpg';
-import diwaliImg from '../assets/images/diwali_deepavali_festival_1794240871441.jpg';
-import govardhanImg from '../assets/images/govardhan_puja_annakoot_1794240899737.jpg';
-import bhaidoojImg from '../assets/images/bhai_dooj_celebration_1794240914243.jpg';
-import chhathImg from '../assets/images/chhath_puja_arghya_1794240884890.jpg';
 import missionImg from '../assets/images/national_youth_mission_1794240929346.jpg';
 
 export interface HomeSliderItem {
@@ -14,6 +9,11 @@ export interface HomeSliderItem {
   category: 'savings' | 'festival' | 'plan' | 'mission';
   description: string;
   festivalName?: string;
+  festivalId?: string;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+  isUpcoming?: boolean;
+  daysRemaining?: number;
   bgGradient: string;
   badgeText: string;
   badgeColor: string;
@@ -27,14 +27,43 @@ export interface HomeSliderItem {
   order: number;
 }
 
+// Legacy static Nov 2026 festival IDs that must always be superseded by real-time festival engine
+const LEGACY_STATIC_FESTIVAL_IDS = new Set([
+  'slide-02-dhanteras',
+  'slide-03-diwali',
+  'slide-04-govardhan',
+  'slide-05-bhaidooj',
+  'slide-06-chhath',
+]);
+
+export function toLocalIsoDateKey(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function isSliderItemExpired(item: Partial<HomeSliderItem> | null | undefined, now: Date = new Date()): boolean {
+  if (!item || typeof item !== 'object') return true;
+  if (item.id && LEGACY_STATIC_FESTIVAL_IDS.has(item.id)) return true;
+  if (item.id && item.id.startsWith('dynamic-festive-')) return true;
+
+  const todayKey = toLocalIsoDateKey(now);
+  if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
+    return true;
+  }
+  return false;
+}
+
+// Evergreen IOIS India Mission & Savings Sliders (Festivals are injected dynamically in real time)
 export const INITIAL_SLIDES: HomeSliderItem[] = [
   {
     id: 'slide-01-smart-savings',
-    title: 'लोग यहाँ-वहाँ फालतू खर्चा करते हैं — IOIS में सही उपयोग से स्वावलंबी बनें!',
+    title: 'लोग यहाँ-वहाँ फालतू खर्चा करते हैं — IOIS INDIA में सही उपयोग से स्वावलंबी बनें!',
     subtitle: 'मात्र ₹10 से ₹49 की छोटी सी बचत से शुरू करें अपना सुरक्षित डिजिटल भविष्य।',
-    tag: '💡 समझदार बचत व आत्मनिर्भर भारत',
+    tag: 'समझदार बचत व आत्मनिर्भर भारत',
     category: 'savings',
-    description: 'बाजार के अनावश्यक खर्चों को रोकें। IOIS में एक बार मात्र ₹10 से ₹49 लगाकर आपको मिलता है डिजिटल ID कार्ड, NCERT नोट्स, सरकारी योजना गाइड और प्रत्येक रेफरल पर 50% से 70% तुरंत UPI पेआउट।',
+    description: 'बाजार के अनावश्यक खर्चों को रोकें। IOIS INDIA में एक बार मात्र ₹10 से ₹49 लगाकर आपको मिलता है डिजिटल ID कार्ड, NCERT नोट्स, सरकारी योजना गाइड और प्रत्येक रेफरल पर 50% से 70% तुरंत UPI पेआउट।',
     bgGradient: 'from-amber-600/30 via-slate-950 to-emerald-600/30',
     badgeText: 'स्मार्ट बचत से सीधी कमाई',
     badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
@@ -45,131 +74,32 @@ export const INITIAL_SLIDES: HomeSliderItem[] = [
     highlightText: '50% से 70% दैनिक इंसेंटिव',
     imageUrl: smartSavingsImg,
     active: true,
-    order: 1
-  },
-  {
-    id: 'slide-02-dhanteras',
-    title: '✨ धनतेरस महापर्व की हार्दिक शुभकामनाएं ✨',
-    subtitle: 'भगवान धन्वंतरि व मां महालक्ष्मी आपके जीवन में सुख, समृद्धि और अखंड धन-धान्य का वरदान दें।',
-    tag: '🪙 शुभ धनतेरस 2026',
-    category: 'festival',
-    festivalName: 'Dhanteras',
-    description: 'सोने-चांदी सी चमक और आर्थिक स्वावलंबन के साथ मनाएं धनतेरस। IOIS परिवार की ओर से देश के सभी सदस्यों, विद्यार्थियों और परिवारों को पावन धनतेरस की अनंत मंगलकामनाएं।',
-    bgGradient: 'from-amber-500/35 via-yellow-950/40 to-slate-950',
-    badgeText: 'धन व आरोग्य समृद्धि 🌟',
-    badgeColor: 'bg-amber-500/25 text-amber-300 border-amber-400',
-    iconName: 'Sparkles',
-    ctaText: 'धनतेरस स्पेशल प्लान देखें ➔',
-    ctaAction: 'plans',
-    ctaPlanId: 3,
-    highlightText: 'शुभ महालक्ष्मी कृपा',
-    imageUrl: dhanterasImg,
-    active: true,
-    order: 2
-  },
-  {
-    id: 'slide-03-diwali',
-    title: '🪔 शुभ दीपावली — हर घर ज्ञान का दीप, हर हाथ स्वावलंबन 🪔',
-    subtitle: 'अंधकार पर प्रकाश की विजय — अपने परिवार को दें डिजिटल शिक्षा, पहचान व सम्मान।',
-    tag: '🎆 प्रकाशोत्सव महालक्ष्मी पर्व',
-    category: 'festival',
-    festivalName: 'Diwali',
-    description: 'इस पावन दीपावली पर सिर्फ पटाखों में पैसे न जलाएं, अपने बच्चों और मित्रों को दें IOIS डिजिटल ID कार्ड और वेरिफिकेशन पास, ताकि वे आत्मनिर्भर भारत के सशक्त भागीदार बन सकें।',
-    bgGradient: 'from-red-600/30 via-amber-600/20 to-slate-950',
-    badgeText: 'दीपावली महालक्ष्मी उत्सव 🪔',
-    badgeColor: 'bg-orange-500/25 text-amber-200 border-orange-400',
-    iconName: 'Flame',
-    ctaText: 'दिवाली स्पेशल 7 प्लान्स देखें',
-    ctaAction: 'plans',
-    ctaPlanId: 7,
-    highlightText: 'घर-घर शिक्षा व उजाला',
-    imageUrl: diwaliImg,
-    active: true,
-    order: 3
-  },
-  {
-    id: 'slide-04-govardhan',
-    title: '🌾 गोवर्धन पूजा व अन्नकूट महापर्व की हार्दिक बधाई 🌾',
-    subtitle: 'प्रकृति प्रेम, गोधन संवर्धन और स्वावलंबी ग्रामीण भारत का पावन संकल्प।',
-    tag: '🐄 गोवर्धन पूजा व अन्नकूट 2026',
-    category: 'festival',
-    festivalName: 'Govardhan Puja',
-    description: 'भगवान श्रीकृष्ण द्वारा गोवर्धन पर्वत धारण कर प्रकृति रक्षा का संदेश हमें आत्मनिर्भरता और एकता सिखाता है। IOIS से जुड़कर अपने गांव और समाज को डिजिटल बनाएं।',
-    bgGradient: 'from-emerald-600/30 via-green-950/40 to-slate-950',
-    badgeText: 'प्रकृति व स्वावलंबन वंदन 🌿',
-    badgeColor: 'bg-emerald-500/25 text-emerald-300 border-emerald-400',
-    iconName: 'Sun',
-    ctaText: 'ज्वाइन करें / Register Now',
-    ctaAction: 'register',
-    ctaPlanId: 2,
-    highlightText: 'प्रकृति रक्षा व आत्मनिर्भरता',
-    imageUrl: govardhanImg,
-    active: true,
-    order: 4
-  },
-  {
-    id: 'slide-05-bhaidooj',
-    title: '🌸 भाई दूज महापर्व — भाई-बहन के अटूट स्नेह का उत्सव 🌸',
-    subtitle: 'बहन को दें स्वावलंबन का उपहार, भाई को मिले डिजिटल पहचान और उज्ज्वल भविष्य का आशीर्वाद।',
-    tag: '🤝 भाई-बहन का पावन स्नेह',
-    category: 'festival',
-    festivalName: 'Bhai Dooj',
-    description: 'इस भाई दूज पर पारंपरिक मिठाई के साथ अपनी बहन या भाई को उपहार में दें IOIS डिजिटल ID कार्ड व अर्निंग पास, जिससे वे पढ़ाई के साथ-साथ सम्मानपूर्वक आत्मनिर्भर बन सकें।',
-    bgGradient: 'from-pink-600/30 via-rose-950/40 to-slate-950',
-    badgeText: 'स्नेह, सुरक्षा व सम्मान 💖',
-    badgeColor: 'bg-pink-500/25 text-pink-300 border-pink-400',
-    iconName: 'Heart',
-    ctaText: 'गिफ्ट डिजिटल ID कार्ड',
-    ctaAction: 'idcard',
-    highlightText: 'सदा सलामत रहे यह प्यार',
-    imageUrl: bhaidoojImg,
-    active: true,
-    order: 5
-  },
-  {
-    id: 'slide-06-chhath',
-    title: '☀️ लोक आस्था का महापर्व छठ पूजा — नहाय-खाय से उषा अर्घ्य तक ☀️',
-    subtitle: 'भगवान सूर्य देव व छठी मैया की असीम अनुकंपा से आपका जीवन मंगलमय, निरोगी और समृद्ध हो।',
-    tag: '🙏 जय छठी मैया 2026',
-    category: 'festival',
-    festivalName: 'Chhath Puja',
-    description: 'पवित्रता, कठोर साधना, स्वच्छता और सामाजिक समरसता का विश्वविख्यात महापर्व छठ। IOIS परिवार देश और दुनिया के सभी व्रतियों और श्रद्धालुओं के चरणों में श्रद्धापूर्वक नमन करता है।',
-    bgGradient: 'from-orange-600/35 via-amber-950/40 to-slate-950',
-    badgeText: 'सूर्य देव व छठी मैया कृपा ☀️',
-    badgeColor: 'bg-orange-500/25 text-amber-200 border-orange-400',
-    iconName: 'Sun',
-    ctaText: 'छठ पूजा विशेष ऑफर देखें',
-    ctaAction: 'plans',
-    ctaPlanId: 6,
-    highlightText: 'उगते व अस्ताचल सूर्य को अर्घ्य',
-    imageUrl: chhathImg,
-    active: true,
-    order: 6
+    order: 10
   },
   {
     id: 'slide-07-mission',
-    title: '🇮🇳 राष्ट्रीय युवा व छात्र स्वावलंबन मिशन 2026-27 🇮🇳',
+    title: 'IOIS INDIA राष्ट्रीय युवा व छात्र स्वावलंबन मिशन 2026-27',
     subtitle: 'Class 1 से 12 तक NCERT नोट्स, सरकारी RTPS सेवाएं व सीधा 50% से 70% पेआउट।',
-    tag: '🚀 विकसित भारत स्वावलंबन मिशन',
+    tag: 'विकसित भारत स्वावलंबन मिशन',
     category: 'mission',
     description: 'बिना किसी धोखाधड़ी या मासिक शुल्क के देश का सबसे विश्वसनीय डिजिटल सहयोग प्लेटफॉर्म। एक क्लिक में अपना ID कार्ड पाएं और सुरक्षित रूप से अपनी आय शुरू करें।',
     bgGradient: 'from-blue-600/30 via-slate-950 to-amber-600/30',
-    badgeText: '100% पारदर्शी व सुरक्षित 🛡️',
+    badgeText: '100% पारदर्शी व सुरक्षित',
     badgeColor: 'bg-blue-500/25 text-sky-300 border-blue-400',
     iconName: 'ShieldCheck',
-    ctaText: 'अभी सदस्य बनें ➔',
+    ctaText: 'अभी सदस्य बनें',
     ctaAction: 'register',
     ctaPlanId: 1,
     highlightText: 'डिजिटल भारत का आधार',
     imageUrl: missionImg,
     active: true,
-    order: 7
+    order: 20
   }
 ];
 
 export const DEFAULT_HOME_SLIDERS: HomeSliderItem[] = INITIAL_SLIDES;
 
-const STORAGE_SLIDERS_KEY = 'iois_home_sliders_v4';
+const STORAGE_SLIDERS_KEY = 'iois_home_sliders_v5';
 const IDB_NAME = 'iois_media_store_v1';
 const IDB_STORE = 'kv_store';
 
@@ -230,15 +160,20 @@ function normalizeSliderItem(item: any, idx: number): HomeSliderItem {
     id: item.id || `slide-custom-${idx + 1}`,
     title: item.title || fallback?.title || '',
     subtitle: item.subtitle || fallback?.subtitle || '',
-    tag: item.tag || item.badge || fallback?.tag || '✨ IOIS विशेष बैनर',
+    tag: item.tag || item.badge || fallback?.tag || 'IOIS INDIA विशेष बैनर',
     category: item.category || fallback?.category || 'mission',
     description: item.description || item.subtitle || fallback?.description || '',
     festivalName: item.festivalName || fallback?.festivalName,
+    festivalId: item.festivalId,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    isUpcoming: Boolean(item.isUpcoming),
+    daysRemaining: typeof item.daysRemaining === 'number' ? item.daysRemaining : undefined,
     bgGradient: item.bgGradient || fallback?.bgGradient || 'from-amber-600/30 via-slate-950 to-emerald-600/30',
-    badgeText: item.badgeText || item.badge || fallback?.badgeText || 'IOIS अपडेट',
+    badgeText: item.badgeText || item.badge || fallback?.badgeText || 'IOIS INDIA अपडेट',
     badgeColor: item.badgeColor || fallback?.badgeColor || 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     iconName: item.iconName || fallback?.iconName || 'Sparkles',
-    ctaText: item.ctaText || fallback?.ctaText || 'अभी देखें ➔',
+    ctaText: item.ctaText || fallback?.ctaText || 'अभी देखें',
     ctaAction: item.ctaAction || fallback?.ctaAction || 'plans',
     ctaPlanId: item.ctaPlanId ?? fallback?.ctaPlanId,
     highlightText: item.highlightText || fallback?.highlightText || 'IOIS डिजिटल मिशन',
@@ -246,6 +181,15 @@ function normalizeSliderItem(item: any, idx: number): HomeSliderItem {
     active: typeof item.active === 'boolean' ? item.active : (typeof item.isActive === 'boolean' ? item.isActive : true),
     order: typeof item.order === 'number' ? item.order : idx + 1,
   };
+}
+
+function sanitizeStoredSliders(rawList: any[]): HomeSliderItem[] {
+  const now = new Date();
+  const valid = rawList
+    .filter((item): item is HomeSliderItem => Boolean(item && typeof item === 'object'))
+    .filter((item) => !isSliderItemExpired(item, now))
+    .map((item, idx) => normalizeSliderItem(item, idx));
+  return valid.length > 0 ? valid : INITIAL_SLIDES;
 }
 
 function trySafeSliderLocalStorage(slides: HomeSliderItem[]): void {
@@ -267,9 +211,13 @@ function trySafeSliderLocalStorage(slides: HomeSliderItem[]): void {
 export const getStoredSliders = (): HomeSliderItem[] => {
   if (typeof window === 'undefined') return INITIAL_SLIDES;
   if (memorySliders !== null && memorySliders.length > 0) {
-    return memorySliders;
+    return sanitizeStoredSliders(memorySliders);
   }
   try {
+    // Purge legacy v4 slider cache so stale past festival slides are immediately removed
+    try {
+      localStorage.removeItem('iois_home_sliders_v4');
+    } catch {}
     const raw = localStorage.getItem(STORAGE_SLIDERS_KEY);
     if (!raw) {
       trySafeSliderLocalStorage(INITIAL_SLIDES);
@@ -278,11 +226,9 @@ export const getStoredSliders = (): HomeSliderItem[] => {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const normalized = parsed
-        .filter((item): item is HomeSliderItem => Boolean(item && typeof item === 'object'))
-        .map((item, idx) => normalizeSliderItem(item, idx));
-      memorySliders = normalized;
-      return normalized;
+      const sanitized = sanitizeStoredSliders(parsed);
+      memorySliders = sanitized;
+      return sanitized;
     }
     return INITIAL_SLIDES;
   } catch {
@@ -297,24 +243,22 @@ export const fetchStoredSlidersFromServer = async (): Promise<HomeSliderItem[]> 
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.slides) && data.slides.length > 0) {
-        const normalized = data.slides
-          .filter((item: any) => Boolean(item && typeof item === 'object'))
-          .map((item: any, idx: number) => normalizeSliderItem(item, idx));
-        memorySliders = normalized;
-        await idbSetSliders(normalized);
-        trySafeSliderLocalStorage(normalized);
+        const sanitized = sanitizeStoredSliders(data.slides);
+        memorySliders = sanitized;
+        await idbSetSliders(sanitized);
+        trySafeSliderLocalStorage(sanitized);
         window.dispatchEvent(new Event('iois_sliders_updated'));
-        return normalized;
+        return sanitized;
       }
     }
   } catch {}
 
   const idb = await idbGetSliders();
   if (Array.isArray(idb) && idb.length > 0) {
-    const normalized = idb.map((item, idx) => normalizeSliderItem(item, idx));
-    memorySliders = normalized;
+    const sanitized = sanitizeStoredSliders(idb);
+    memorySliders = sanitized;
     window.dispatchEvent(new Event('iois_sliders_updated'));
-    return normalized;
+    return sanitized;
   }
 
   return getStoredSliders();
