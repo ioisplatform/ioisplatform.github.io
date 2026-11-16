@@ -1115,25 +1115,51 @@ export const saveUsers = (users: UserProfile[], options?: { allowShrink?: boolea
       }
     }
 
-    // Fallback 2: keep full member metadata in localStorage (all core member fields, zero photos)
-    const metaUsers = cleanUsers.map((u) => ({
-      userId: u.userId,
-      username: u.username,
-      fullName: u.fullName,
-      mobileNumber: u.mobileNumber,
-      email: u.email,
-      sponsorId: u.sponsorId,
-      selectedPlanId: u.selectedPlanId,
-      paymentUtr: u.paymentUtr,
-      payoutUpi: u.payoutUpi,
-      paymentStatus: u.paymentStatus,
-      createdAt: u.createdAt,
-      verifiedAt: u.verifiedAt,
-      role: u.role,
-      address: u.address,
-      state: u.state,
-      district: u.district,
-    }));
+    // Fallback 2: keep complete member text/credential/form metadata in localStorage (all non-photo fields preserved)
+    const metaUsers = cleanUsers.map((u) => {
+      const compactForm = u.registrationFormData
+        ? {
+            ...u.registrationFormData,
+            ...(typeof u.registrationFormData.paymentScreenshotUrl === 'string' &&
+            u.registrationFormData.paymentScreenshotUrl.length > 2048
+              ? { paymentScreenshotUrl: '' }
+              : {}),
+          }
+        : undefined;
+      return {
+        userId: u.userId,
+        username: u.username,
+        fullName: u.fullName,
+        fatherOrHusbandName: u.fatherOrHusbandName,
+        motherName: u.motherName,
+        dob: u.dob,
+        gender: u.gender,
+        qualification: u.qualification,
+        aadhaarNumber: u.aadhaarNumber,
+        mobileNumber: u.mobileNumber,
+        email: u.email,
+        sponsorId: u.sponsorId,
+        selectedPlanId: u.selectedPlanId,
+        paymentMode: u.paymentMode,
+        paymentUtr: u.paymentUtr,
+        payoutUpi: u.payoutUpi,
+        paymentStatus: u.paymentStatus,
+        rejectionReason: u.rejectionReason,
+        telegramUsername: u.telegramUsername,
+        emergencyContact: u.emergencyContact,
+        createdAt: u.createdAt,
+        verifiedAt: u.verifiedAt,
+        role: u.role,
+        address: u.address,
+        state: u.state,
+        district: u.district,
+        pincode: u.pincode,
+        password: u.password,
+        registrationFormData: compactForm,
+        withdrawals: Array.isArray(u.withdrawals) ? u.withdrawals.slice(0, 20) : undefined,
+        editHistory: Array.isArray(u.editHistory) ? sanitizeEditHistory(u.editHistory).slice(0, 15) : undefined,
+      };
+    });
     safeLocalStorageSet(STORAGE_USERS_KEY, JSON.stringify(metaUsers), {
       evictKeysOnQuota: BULKY_EVICT_KEYS,
     });
@@ -3748,36 +3774,89 @@ export interface AdminBackupInfo {
   firestoreQuotaCooldown: boolean;
 }
 
+export const fetchUserMediaAsync = async (
+  userId: string
+): Promise<{ photoUrl?: string; paymentScreenshotUrl?: string } | null> => {
+  if (!userId) return null;
+  try {
+    const cleanId = encodeURIComponent(userId.trim().toUpperCase());
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`/api/users/${cleanId}/media`, { signal: controller.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.success) {
+      return {
+        photoUrl: data.photoUrl || undefined,
+        paymentScreenshotUrl: data.paymentScreenshotUrl || undefined,
+      };
+    }
+  } catch {}
+  return null;
+};
+
 export const fetchAdminFullUsersAsync = async (
-  adminPin = 'IOISSYSTEM'
-): Promise<{ users: UserProfile[]; archivedUsers: UserProfile[]; backupInfo?: AdminBackupInfo; cloudError?: string }> => {
+  adminPin = 'IOISSYSTEM',
+  options: { includeMedia?: boolean; forceCloud?: boolean } = {}
+): Promise<{
+  users: UserProfile[];
+  archivedUsers: UserProfile[];
+  backupInfo?: AdminBackupInfo;
+  cloudError?: string;
+  serverReachable: boolean;
+  errorMessage?: string;
+}> => {
   await hydrateUsersFromIdb();
   const localUsers = getAllUsers();
   let serverFull: UserProfile[] = [];
   let serverArchived: UserProfile[] = [];
   let backupInfo: AdminBackupInfo | undefined;
   let cloudError: string | undefined;
+  let serverReachable = false;
+  let errorMessage: string | undefined;
 
-  try {
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 25000);
-    const res = await fetch('/api/admin/users-full', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminPin }),
-      signal: controller.signal,
-    });
-    clearTimeout(tid);
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.success) {
-        serverFull = Array.isArray(data.users) ? data.users : [];
-        serverArchived = Array.isArray(data.archivedUsers) ? data.archivedUsers : [];
-        backupInfo = data.backupInfo;
-        cloudError = data.cloudError;
+  const includeMedia = options.includeMedia !== false;
+  const timeoutMs = includeMedia ? 45000 : 15000;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch('/api/admin/users-full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPin,
+          includeMedia,
+          forceCloud: Boolean(options.forceCloud),
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(tid);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success) {
+          serverFull = Array.isArray(data.users) ? data.users : [];
+          serverArchived = Array.isArray(data.archivedUsers) ? data.archivedUsers : [];
+          backupInfo = data.backupInfo;
+          cloudError = data.cloudError;
+          serverReachable = true;
+          errorMessage = undefined;
+          break;
+        } else {
+          errorMessage = data?.error || 'सर्वर से एडमिन डेटा अस्वीकार हुआ।';
+        }
+      } else {
+        errorMessage = `सर्वर HTTP त्रुटि (${res.status})`;
       }
+    } catch (err: any) {
+      errorMessage =
+        err?.name === 'AbortError'
+          ? 'सर्वर से डेटा डाउनलोड में समय अधिक लगा (Timeout) — कृपया पुनः प्रयास करें।'
+          : err?.message || 'नेटवर्क त्रुटि: सर्वर से संपर्क नहीं हो पाया।';
     }
-  } catch {}
+  }
 
   const archivedMap = new Map<string, UserProfile>();
   for (const a of [...memoryArchivedUsers, ...serverArchived]) {
@@ -3792,7 +3871,7 @@ export const fetchAdminFullUsersAsync = async (
   );
 
   saveUsers(merged);
-  if (merged.length > serverFull.length) {
+  if (serverReachable && merged.length > serverFull.length) {
     fetch('/api/users/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3800,7 +3879,14 @@ export const fetchAdminFullUsersAsync = async (
     }).catch(() => {});
   }
 
-  return { users: merged, archivedUsers: memoryArchivedUsers, backupInfo, cloudError };
+  return {
+    users: merged,
+    archivedUsers: memoryArchivedUsers,
+    backupInfo,
+    cloudError,
+    serverReachable,
+    errorMessage,
+  };
 };
 
 export const fetchArchivedUsersAsync = async (): Promise<UserProfile[]> => {

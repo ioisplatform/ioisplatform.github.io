@@ -69,12 +69,28 @@
         "completedAt": { "type": "string", "description": "Submission timestamp" }
       },
       "required": ["id", "candidateName", "totalScore", "completedAt"]
+    },
+    "UserMedia": {
+      "title": "UserMedia",
+      "description": "High-resolution profile photos and payment screenshot receipts split from main user docs",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Normalized uppercase User ID" },
+        "photoUrl": { "type": "string", "description": "Profile photo data URI or URL" },
+        "paymentScreenshotUrl": { "type": "string", "description": "Payment proof data URI or URL" },
+        "updatedAt": { "type": "string", "description": "Last sync timestamp" }
+      },
+      "required": ["userId"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Public and private user registrations and membership passes"
+    },
+    "/user_media/{userId}": {
+      "schema": { "$ref": "#/entities/UserMedia" },
+      "description": "Profile photos and payment screenshot receipts for members"
     },
     "/tickets/{ticketId}": {
       "schema": { "$ref": "#/entities/HelpTicket" },
@@ -87,6 +103,10 @@
     "/interviews/{interviewId}": {
       "schema": { "$ref": "#/entities/InterviewRecord" },
       "description": "Assessment interview submissions by candidates"
+    },
+    "/private_messages/{messageId}": {
+      "schema": { "type": "object" },
+      "description": "Private support messages between admin and members"
     }
   }
 }

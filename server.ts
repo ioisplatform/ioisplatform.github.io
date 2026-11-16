@@ -1,10 +1,15 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import zlib from "zlib";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  computeDailyRashifalForDate,
+  computeVedicJanamKundli,
+} from "./src/services/vedicAstrologyEngine";
 import {
   getFirestore,
   collection,
@@ -372,6 +377,59 @@ function sanitizeDocForFirestore(obj: any): any {
   return clean;
 }
 
+function sendJsonCompressed(req: Request, res: Response, payload: any): Response | void {
+  try {
+    const jsonStr = JSON.stringify(payload);
+    const acceptEnc = String(req.headers["accept-encoding"] || "");
+    if (jsonStr.length > 4096 && /\bgzip\b/i.test(acceptEnc)) {
+      const gz = zlib.gzipSync(Buffer.from(jsonStr, "utf-8"));
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Vary", "Accept-Encoding");
+      return res.send(gz);
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.send(jsonStr);
+  } catch (err) {
+    return res.json(payload);
+  }
+}
+
+function stripUserMediaForMetadata(u: any): any {
+  const clean: any = { ...u };
+  const hasPhoto = Boolean(clean.photoUrl && String(clean.photoUrl).trim().length > 10);
+  const hasReceipt = Boolean(
+    (clean.paymentScreenshotUrl && String(clean.paymentScreenshotUrl).trim().length > 10) ||
+      (clean.registrationFormData?.paymentScreenshotUrl &&
+        String(clean.registrationFormData.paymentScreenshotUrl).trim().length > 10)
+  );
+  if (typeof clean.photoUrl === "string" && clean.photoUrl.startsWith("data:") && clean.photoUrl.length > 4096) {
+    clean.photoUrl = "";
+  }
+  if (
+    typeof clean.paymentScreenshotUrl === "string" &&
+    clean.paymentScreenshotUrl.startsWith("data:") &&
+    clean.paymentScreenshotUrl.length > 4096
+  ) {
+    clean.paymentScreenshotUrl = "";
+  }
+  if (
+    clean.registrationFormData &&
+    typeof clean.registrationFormData === "object" &&
+    typeof clean.registrationFormData.paymentScreenshotUrl === "string" &&
+    clean.registrationFormData.paymentScreenshotUrl.startsWith("data:") &&
+    clean.registrationFormData.paymentScreenshotUrl.length > 4096
+  ) {
+    clean.registrationFormData = {
+      ...clean.registrationFormData,
+      paymentScreenshotUrl: "",
+    };
+  }
+  clean.hasPhoto = hasPhoto;
+  clean.hasPaymentScreenshot = hasReceipt;
+  return clean;
+}
+
 function prepareUserForFirestore(user: any): any {
   const normalized = {
     ...user,
@@ -382,19 +440,19 @@ function prepareUserForFirestore(user: any): any {
   try {
     const size = Buffer.byteLength(JSON.stringify(clean), "utf-8");
     if (size <= 850_000) return clean;
-    // Keep all member details, only trim massive >250KB raw data URIs so Firestore 1MB limit never rejects write
+    // Keep all member details, only trim massive >200KB raw data URIs so Firestore 1MB limit never rejects write
     const trimmed: Record<string, any> = { ...clean, hasServerMedia: true };
     if (
       typeof trimmed.paymentScreenshotUrl === "string" &&
       trimmed.paymentScreenshotUrl.startsWith("data:") &&
-      trimmed.paymentScreenshotUrl.length > 250_000
+      trimmed.paymentScreenshotUrl.length > 200_000
     ) {
       trimmed.paymentScreenshotUrl = "";
     }
     if (
       typeof trimmed.photoUrl === "string" &&
       trimmed.photoUrl.startsWith("data:") &&
-      trimmed.photoUrl.length > 250_000
+      trimmed.photoUrl.length > 200_000
     ) {
       trimmed.photoUrl = "";
     }
@@ -403,7 +461,7 @@ function prepareUserForFirestore(user: any): any {
       typeof trimmed.registrationFormData === "object" &&
       typeof trimmed.registrationFormData.paymentScreenshotUrl === "string" &&
       trimmed.registrationFormData.paymentScreenshotUrl.startsWith("data:") &&
-      trimmed.registrationFormData.paymentScreenshotUrl.length > 250_000
+      trimmed.registrationFormData.paymentScreenshotUrl.length > 200_000
     ) {
       trimmed.registrationFormData = {
         ...trimmed.registrationFormData,
@@ -416,6 +474,83 @@ function prepareUserForFirestore(user: any): any {
   }
 }
 
+async function syncUserMediaToFirestore(fsDb: Firestore, cleanId: string, user: any): Promise<void> {
+  try {
+    const photoUrl = typeof user?.photoUrl === "string" && user.photoUrl.startsWith("data:") ? user.photoUrl : "";
+    const receiptUrl =
+      typeof user?.paymentScreenshotUrl === "string" && user.paymentScreenshotUrl.startsWith("data:")
+        ? user.paymentScreenshotUrl
+        : typeof user?.registrationFormData?.paymentScreenshotUrl === "string" &&
+            user.registrationFormData.paymentScreenshotUrl.startsWith("data:")
+          ? user.registrationFormData.paymentScreenshotUrl
+          : "";
+    if (!photoUrl && !receiptUrl) return;
+    if (photoUrl.length <= 200_000 && receiptUrl.length <= 200_000) return;
+
+    const totalLen = photoUrl.length + receiptUrl.length;
+    if (totalLen <= 820_000) {
+      await setDoc(
+        doc(fsDb, "user_media", cleanId),
+        {
+          userId: cleanId,
+          ...(photoUrl ? { photoUrl } : {}),
+          ...(receiptUrl ? { paymentScreenshotUrl: receiptUrl } : {}),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } else {
+      if (photoUrl && photoUrl.length <= 850_000) {
+        await setDoc(
+          doc(fsDb, "user_media", cleanId),
+          { userId: cleanId, photoUrl, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+      }
+      if (receiptUrl && receiptUrl.length <= 850_000) {
+        await setDoc(
+          doc(fsDb, "user_media", `${cleanId}__RECEIPT`),
+          { userId: cleanId, paymentScreenshotUrl: receiptUrl, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+      }
+    }
+  } catch {
+    // Non-fatal: server disk & rolling backups hold full images
+  }
+}
+
+async function hydrateUserMediaFromFirestore(fsDb: Firestore, user: any): Promise<any> {
+  if (!user || !user.userId) return user;
+  const cleanId = String(user.userId).trim().toUpperCase();
+  const needsPhoto = !user.photoUrl;
+  const needsReceipt = !user.paymentScreenshotUrl;
+  if (!user.hasServerMedia && !needsPhoto && !needsReceipt) return user;
+  try {
+    const [mediaSnap, receiptSnap] = await Promise.all([
+      getDoc(doc(fsDb, "user_media", cleanId)),
+      needsReceipt ? getDoc(doc(fsDb, "user_media", `${cleanId}__RECEIPT`)) : Promise.resolve(null),
+    ]);
+    let next = { ...user };
+    if (mediaSnap && mediaSnap.exists()) {
+      const md: any = mediaSnap.data();
+      if (md?.photoUrl && !next.photoUrl) next.photoUrl = md.photoUrl;
+      if (md?.paymentScreenshotUrl && !next.paymentScreenshotUrl) {
+        next.paymentScreenshotUrl = md.paymentScreenshotUrl;
+      }
+    }
+    if (receiptSnap && receiptSnap.exists()) {
+      const rd: any = receiptSnap.data();
+      if (rd?.paymentScreenshotUrl && !next.paymentScreenshotUrl) {
+        next.paymentScreenshotUrl = rd.paymentScreenshotUrl;
+      }
+    }
+    return next;
+  } catch {
+    return user;
+  }
+}
+
 async function syncSingleUserToFirestore(user: any): Promise<boolean> {
   if (!user || !user.userId) return false;
   if (Date.now() < firestoreQuotaBlockedUntil) return false;
@@ -425,6 +560,7 @@ async function syncSingleUserToFirestore(user: any): Promise<boolean> {
     const cleanId = String(user.userId).trim().toUpperCase();
     const payload = prepareUserForFirestore(user);
     await setDoc(doc(fsDb, "users", cleanId), payload, { merge: true });
+    await syncUserMediaToFirestore(fsDb, cleanId, user);
     return true;
   } catch (err: any) {
     if (isQuotaOrResourceExhaustedError(err)) {
@@ -549,8 +685,9 @@ async function fetchSingleUserFromFirestore(userId: string): Promise<any | null>
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore doc timeout")), 8000)),
     ]);
     if (snap.exists()) {
-      const data = snap.data();
+      let data = snap.data();
       if (data && data.userId && !data.isArchived && !isDemoUserId(data.userId)) {
+        data = await hydrateUserMediaFromFirestore(fsDb, data);
         const merged = mergeUsersNonDestructive(loadUsersFromDisk(), [data]);
         saveUsersToDisk(merged);
         return merged.find((u) => String(u.userId).toUpperCase() === cleanId) || data;
@@ -754,17 +891,35 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
       }
 
       const localDisk = loadUsersFromDisk();
-      const merged = mergeUsersNonDestructive(cloudActive, localDisk);
+
+      // Restore split high-res media for any cloud users whose disk record is absent or lacks media
+      const localById = new Map<string, any>();
+      for (const lu of localDisk) {
+        if (lu?.userId) localById.set(String(lu.userId).toUpperCase(), lu);
+      }
+      const hydratedCloudActive: any[] = [];
+      for (const cu of cloudActive) {
+        const key = String(cu.userId).toUpperCase();
+        const localRec = localById.get(key);
+        const alreadyHasMedia = Boolean(localRec?.photoUrl && localRec?.paymentScreenshotUrl);
+        if (!alreadyHasMedia && (cu.hasServerMedia || !cu.photoUrl || !cu.paymentScreenshotUrl)) {
+          hydratedCloudActive.push(await hydrateUserMediaFromFirestore(fsDb, cu));
+        } else {
+          hydratedCloudActive.push(cu);
+        }
+      }
+
+      const merged = mergeUsersNonDestructive(hydratedCloudActive, localDisk);
       if (merged.length > 0) {
         saveUsersToDisk(merged);
       }
 
-      // Backfill any server-only users back to Firestore in background without blocking API response
+      // Backfill any server-only users cleanly to Firestore in background without blocking API response
       const cloudIds = new Set(cloudActive.map((u) => String(u.userId).toUpperCase()));
       const missingInCloud = localDisk.filter((u) => u?.userId && !cloudIds.has(String(u.userId).toUpperCase()));
       if (missingInCloud.length > 0) {
         void (async () => {
-          for (const m of missingInCloud.slice(0, 25)) {
+          for (const m of missingInCloud) {
             await syncSingleUserToFirestore(m);
           }
         })();
@@ -1241,11 +1396,24 @@ function cleanBotReply(raw: string): string {
 }
 
 function cleanSearchQuery(text: string): string {
-  let q = text
-    .replace(/(के बारे में|बताओ|बताइए|कब है|क्या है|कहा है|कहाँ है|किसे कहते हैं|की जानकारी|जानकारी दो|जानकारी दीजिए|कब मनाया जाता है|what is|tell me about|who is|when is)/gi, "")
+  const q = text
+    .replace(/(के बारे में|संक्षेप में|विस्तार से|बताओ|बताइए|कब है|क्या है|कहा है|कहाँ है|किसे कहते हैं|की जानकारी|जानकारी दो|जानकारी दीजिए|कब मनाया जाता है|what is|tell me about|who is|when is|briefly|in short)/gi, "")
     .replace(/[?।!,]/g, "")
     .trim();
   return q || text.replace(/[?।!,]/g, "").trim();
+}
+
+function isRelevantWikiResult(query: string, title: string, extract: string): boolean {
+  const stop = new Set(["के", "की", "का", "में", "से", "को", "पर", "और", "एवं", "प्रमुख", "मुख्य", "बारे", "एक", "the", "of", "in", "and", "for", "to", "a", "an"]);
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3 && !stop.has(w));
+  if (words.length === 0) return true;
+  const hay = `${title} ${extract.slice(0, 220)}`.toLowerCase();
+  const titleLower = title.toLowerCase();
+  return words.some((w) => titleLower.includes(w)) || words.filter((w) => hay.includes(w)).length >= Math.min(2, words.length);
 }
 
 async function performLiveWebResearch(rawQuery: string): Promise<{
@@ -1269,7 +1437,7 @@ async function performLiveWebResearch(rawQuery: string): Promise<{
         const sumRes = await fetch(sumUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
         if (sumRes.ok) {
           const sumData: any = await sumRes.json();
-          if (sumData.extract && sumData.extract.length > 25) {
+          if (sumData.extract && sumData.extract.length > 25 && isRelevantWikiResult(cleanQ, sumData.title || hit.title, sumData.extract)) {
             const rawSentences = sumData.extract.split(". ").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
             let formatted = `${rawSentences[0]}.`;
             if (rawSentences.length > 1) {
@@ -1307,7 +1475,7 @@ async function performLiveWebResearch(rawQuery: string): Promise<{
         const sumRes = await fetch(sumUrl, { headers: { "User-Agent": "IOIS-LiveResearch/1.0 (ioisplatform@gmail.com)" } });
         if (sumRes.ok) {
           const sumData: any = await sumRes.json();
-          if (sumData.extract && sumData.extract.length > 25) {
+          if (sumData.extract && sumData.extract.length > 25 && isRelevantWikiResult(cleanQ, sumData.title || hit.title, sumData.extract)) {
             const rawSentences = sumData.extract.split(". ").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
             let formatted = `${rawSentences[0]}.`;
             if (rawSentences.length > 1) {
@@ -1709,14 +1877,47 @@ async function startServer() {
     });
   });
 
-  // API Route: Get All Users (Lightweight directory summary; Admin Full & Profile routes serve heavy media/audit logs)
-  app.get("/api/users", (_req: Request, res: Response) => {
+  // API Route: Get All Users (Lightweight directory summary; compressed for fast transfer)
+  app.get("/api/users", (req: Request, res: Response) => {
     const users = loadUsersFromDisk();
     if (users.length <= 1 && !firestoreHydrationPromise && Date.now() >= firestoreQuotaBlockedUntil) {
       void hydrateServerFromFirestoreOnce(false);
     }
     const sanitized = users.map(compactUserForPublicDirectory);
-    res.json({ success: true, count: sanitized.length, users: sanitized });
+    return sendJsonCompressed(req, res, { success: true, count: sanitized.length, users: sanitized });
+  });
+
+  // API Route: On-demand Member High-Res Media (Photo & Payment Receipt)
+  app.get("/api/users/:userId/media", async (req: Request, res: Response) => {
+    try {
+      const cleanUpper = String(req.params.userId || "").trim().toUpperCase();
+      if (!cleanUpper) {
+        return res.status(400).json({ success: false, error: "User ID required" });
+      }
+      const users = loadUsersFromDisk();
+      let matched = users.find((u) => u && String(u.userId || "").toUpperCase() === cleanUpper);
+      if (!matched) {
+        matched = (await fetchSingleUserFromFirestore(cleanUpper)) || undefined;
+      }
+      if (!matched) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+      if ((!matched.photoUrl || !matched.paymentScreenshotUrl) && Date.now() >= firestoreQuotaBlockedUntil) {
+        const fsDb = getServerFirestore();
+        if (fsDb) {
+          matched = await hydrateUserMediaFromFirestore(fsDb, matched);
+        }
+      }
+      return sendJsonCompressed(req, res, {
+        success: true,
+        userId: matched.userId,
+        photoUrl: matched.photoUrl || "",
+        paymentScreenshotUrl:
+          matched.paymentScreenshotUrl || matched.registrationFormData?.paymentScreenshotUrl || "",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Media fetch failed" });
+    }
   });
 
   // API Route: Fetch Single User Profile (Supports ?self=1 with matching x-session-token for full User Dashboard sync across devices)
@@ -1779,27 +1980,40 @@ async function startServer() {
     }
   });
 
-  // API Route: Admin Full Users List + Deleted Archive Vault (Auto-hydrates from Firestore if sparse or stale!)
+  // API Route: Admin Full Users List + Deleted Archive Vault (Instant non-blocking response + gzip compression)
   app.post("/api/admin/users-full", async (req: Request, res: Response) => {
     try {
-      const { adminPin } = req.body || {};
+      const { adminPin, includeMedia = true, forceCloud = false } = req.body || {};
       const cleanPin = String(adminPin || "").trim().toUpperCase();
       if (cleanPin !== "IOISSYSTEM") {
         return res.status(403).json({ success: false, error: "Unauthorized Admin Access" });
       }
       let users = loadUsersFromDisk();
       let cloudError: string | undefined;
-      if (users.length <= 1 || Date.now() - lastFirestoreHydrationAt > 120_000) {
-        const hydration = await hydrateServerFromFirestoreOnce(users.length <= 1);
+
+      // Never stall HTTP 25s when disk already holds members: wait at most 5s when empty or forceCloud, otherwise refresh in background
+      if (users.length <= 1 || forceCloud) {
+        const hydration = await Promise.race([
+          hydrateServerFromFirestoreOnce(Boolean(forceCloud) && users.length <= 1),
+          new Promise<{ synced: number; error?: string }>((resolve) =>
+            setTimeout(() => resolve({ synced: users.length, error: "cloud-background-sync" }), 5000)
+          ),
+        ]);
         cloudError = hydration.error;
         users = loadUsersFromDisk();
+      } else if (Date.now() - lastFirestoreHydrationAt > 120_000 && Date.now() >= firestoreQuotaBlockedUntil) {
+        void hydrateServerFromFirestoreOnce(false);
       }
+
       const archivedUsers = loadArchivedUsersFromDisk();
-      return res.json({
+      const responseUsers = includeMedia === false ? users.map(stripUserMediaForMetadata) : users;
+
+      return sendJsonCompressed(req, res, {
         success: true,
-        count: users.length,
-        users,
+        count: responseUsers.length,
+        users: responseUsers,
         archivedUsers,
+        includeMedia: includeMedia !== false,
         cloudError,
         backupInfo: {
           lastBackupAt: lastBackupAtIso || new Date().toISOString(),
@@ -1823,7 +2037,7 @@ async function startServer() {
       }
       const result = await hydrateServerFromFirestoreOnce(true);
       const users = loadUsersFromDisk();
-      return res.json({
+      return sendJsonCompressed(req, res, {
         success: true,
         count: users.length,
         users,
@@ -1834,7 +2048,7 @@ async function startServer() {
     }
   });
 
-  // API Route: Bulk User Sync (Non-Destructive Merge + Auto-Archive Awareness)
+  // API Route: Bulk User Sync (Non-Destructive Merge + Cloud Firestore Sync)
   app.post("/api/users/sync", (req: Request, res: Response) => {
     try {
       const incomingUsers = req.body.users;
@@ -1852,21 +2066,26 @@ async function startServer() {
         (u: any) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId) && !archivedIds.has(String(u.userId).toUpperCase())
       );
 
-      const existingIds = new Set(existingUsers.map((u) => String(u.userId).toUpperCase()));
       const merged = mergeUsersNonDestructive(existingUsers, activeIncoming);
       saveUsersToDisk(merged);
 
-      // Queue any newly discovered users for Firestore backup in background
-      for (const u of activeIncoming) {
-        if (!existingIds.has(String(u.userId).toUpperCase())) {
-          void syncSingleUserToFirestore(u);
-        }
+      // Sync new or updated incoming records cleanly to Firestore in background
+      if (activeIncoming.length > 0 && Date.now() >= firestoreQuotaBlockedUntil) {
+        const mergedById = new Map<string, any>(
+          merged.map((m) => [String(m.userId).toUpperCase(), m])
+        );
+        void (async () => {
+          for (const u of activeIncoming.slice(0, 30)) {
+            const fullRecord = mergedById.get(String(u.userId).toUpperCase()) || u;
+            await syncSingleUserToFirestore(fullRecord);
+          }
+        })();
       }
 
       const sanitizedMerged = merged.map(compactUserForPublicDirectory);
-      res.json({ success: true, count: sanitizedMerged.length, users: sanitizedMerged });
+      return sendJsonCompressed(req, res, { success: true, count: sanitizedMerged.length, users: sanitizedMerged });
     } catch (e: any) {
-      res.status(500).json({ success: false, error: e.message });
+      return res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -4259,6 +4478,361 @@ async function startServer() {
         });
       }
 
+      // 0.01 Free Complete Vedic Janam Kundli Generator + AI Interpretation
+      const recentContextText = Array.isArray(history)
+        ? history.slice(-4).map((m: any) => m?.content || "").join("\n")
+        : "";
+      const isKundliQuery =
+        /(kundli|kundali|janam\s*patri|janmapatri|janma?\s*kundli|birth\s*chart|कुंडली|कुण्डली|जन्मपत्री|जन्म\s*कुंडली|लग्न\s*कुंडली)/i.test(
+          trimmedMsg
+        ) ||
+        (/(\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b|\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b)/.test(trimmedMsg) &&
+          /(कुंडली|कुण्डली|kundli|kundali|जन्म|dob|लग्न|राशि)/i.test(recentContextText));
+
+      if (isKundliQuery) {
+        const combinedSource = `${recentContextText}\n${trimmedMsg}`;
+        const dateMatch =
+          trimmedMsg.match(/\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b/) ||
+          trimmedMsg.match(/\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/) ||
+          combinedSource.match(/\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b/) ||
+          combinedSource.match(/\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/);
+
+        const timeMatch =
+          trimmedMsg.match(/(?:समय|time)[:\s-]*(\d{1,2}(?::\d{2})?\s*(?:am|pm|बजे)?)/i) ||
+          trimmedMsg.match(/\b(\d{1,2}[:.]\d{2}\s*(?:am|pm|AM|PM|बजे)?)\b/) ||
+          trimmedMsg.match(/\b(\d{1,2}\s*(?:am|pm|AM|PM|बजे))\b/);
+
+        const nameMatch = trimmedMsg.match(/(?:नाम|name|jaatak|जातक)[:\s-]+([^\n,|]+?)(?=,|\n|जन्म|dob|तिथि|समय|time|स्थान|place|$)/i);
+        const placeMatch = trimmedMsg.match(/(?:स्थान|place|city|शहर|जिला)[:\s-]+([^\n,|]+?)(?=,|\n|जन्म|dob|समय|time|कुंडली|kundli|$)/i);
+
+        let detectedPlace = placeMatch ? placeMatch[1].trim() : "";
+        if (!detectedPlace) {
+          const cityHints = [
+            "पटना", "patna", "गया", "gaya", "दिल्ली", "delhi", "लखनऊ", "lucknow", "वाराणसी", "varanasi",
+            "रांची", "ranchi", "कोलकाता", "kolkata", "मुंबई", "mumbai", "जयपुर", "jaipur", "भोपाल", "bhopal",
+            "बिहार", "bihar", "मुजफ्फरपुर", "muzaffarpur", "दरभंगा", "darbhanga", "भागलपुर", "bhagalpur",
+            "पूर्णिया", "purnia", "कानपुर", "kanpur", "प्रयागराज", "prayagraj", "आरा", "arrah", "सिवान", "siwan",
+            "छपरा", "chhapra", "समस्तीपुर", "samastipur", "बेगूसराय", "begusarai", "मोतिहारी", "motihari",
+            "नोएडा", "noida", "बेंगलुरु", "bengaluru", "हैदराबाद", "hyderabad", "पुणे", "pune", "अहमदाबाद", "ahmedabad"
+          ];
+          const foundHint = cityHints.find((c) => lower.includes(c.toLowerCase()) || trimmedMsg.includes(c));
+          if (foundHint) detectedPlace = foundHint;
+        }
+
+        const rawNameParsed = nameMatch ? nameMatch[1].trim().replace(/\s+(?:है|हूँ|हैं|था|थी|h|hai|hoon)$/i, "").trim() : "";
+        const kundli = dateMatch
+          ? computeVedicJanamKundli({
+              name: rawNameParsed || "आदरणीय जातक",
+              dob: dateMatch[1],
+              birthTime: timeMatch ? timeMatch[1].trim() : undefined,
+              birthPlace: detectedPlace || undefined,
+            })
+          : null;
+
+        if (!kundli) {
+          const askDetailsReply = `निःशुल्क संपूर्ण वैदिक जन्म कुंडली (Free Complete Janam Kundli) तैयार करने के लिए कृपया अपना जन्म विवरण भेजें।
+
+आप नीचे दिए गए '🔮 फ्री कुंडली फॉर्म' बटन को दबाकर 1-क्लिक में विवरण भर सकते हैं, या चैट में इस प्रकार लिखें:
+• नाम: आपका पूरा नाम
+• जन्म तिथि: DD-MM-YYYY (जैसे 15-08-1998)
+• जन्म समय: HH:MM AM/PM (जैसे 08:30 AM)
+• जन्म स्थान: शहर / जिला (जैसे पटना, बिहार)
+
+विवरण मिलते ही आपको लग्न, चंद्र राशि, नक्षत्र, चरण, नामाक्षर, नवग्रह 12-भाव तालिका, मांगलिक/कालसर्प/साढ़ेसाती स्थिति, वर्तमान महादशा-अंतर्दशा और वैदिक उपाय 100% निःशुल्क प्राप्त होंगे।
+
+[[NAV:page:panchang-rashifal|वैदिक पंचांग व 12 राशिफल खोलें]]`;
+
+          return res.json({
+            reply: cleanBotReply(askDetailsReply),
+            grounded: true,
+            searchQueries: ["मुफ्त संपूर्ण वैदिक जन्म कुंडली निर्माण"],
+          });
+        }
+
+        let extraInsight = "";
+        const aiForKundli = getGenAI();
+        if (aiForKundli) {
+          try {
+            const kResp = await aiForKundli.models.generateContent({
+              model: "gemini-4-hydrogen",
+              contents: `जातक ${kundli.name} की वैदिक कुंडली तैयार हुई है:
+लग्न: ${kundli.lagnaHi}, चंद्र राशि: ${kundli.chandraRashiHi}, नक्षत्र: ${kundli.nakshatra} (चरण ${kundli.pada}), वर्तमान महादशा: ${kundli.currentMahadasha}, अंतर्दशा: ${kundli.currentAntardasha}, मांगलिक स्थिति: ${kundli.manglikStatus}।
+कृपया इस जातक के लिए सरल, सकारात्मक और व्यावहारिक हिंदी में 4 से 5 पंक्तियों का विशेष व्यक्तिगत ज्योतिषीय मार्गदर्शन (करियर, आर्थिक उन्नति, पारिवारिक सुख व सफलता टिप्स) लिखें। कोई भी तारांक (*) या # चिह्न न लगाएं।`,
+            });
+            if (kResp?.text) {
+              extraInsight = `\n\nविशेष AI वैदिक ज्योतिषीय विश्लेषण:\n${cleanBotReply(kResp.text)}`;
+            }
+          } catch {}
+        }
+
+        const fullKundliReply = `${kundli.formattedTextHi}${extraInsight}
+
+[[NAV:page:panchang-rashifal|आज का वैदिक पंचांग व 12 राशिफल खोलें]]`;
+
+        return res.json({
+          reply: cleanBotReply(fullKundliReply),
+          grounded: true,
+          searchQueries: [`वैदिक जन्म कुंडली ${kundli.dobFormatted} ${kundli.birthPlace}`],
+          sources: [
+            {
+              title: "IOIS श्री वैदिक पंचांग एवं लाहिड़ी अयनांश कुंडली गणना इंजन",
+              uri: "https://iois.in/#panchang-rashifal",
+            },
+          ],
+        });
+      }
+
+      // 0.02 Live Daily-Changing Rashifal Query Handler
+      const rashiMatchers: Array<{ id: string; keys: string[] }> = [
+        { id: "mesh", keys: ["मेष", "mesh", "aries"] },
+        { id: "vrishabh", keys: ["वृषभ", "vrishabh", "vrishabha", "taurus"] },
+        { id: "mithun", keys: ["मिथुन", "mithun", "gemini"] },
+        { id: "kark", keys: ["कर्क", "kark", "cancer"] },
+        { id: "singh", keys: ["सिंह", "singh", "leo"] },
+        { id: "kanya", keys: ["कन्या", "kanya", "virgo"] },
+        { id: "tula", keys: ["तुला", "tula", "libra"] },
+        { id: "vrishchik", keys: ["वृश्चिक", "vrishchik", "scorpio"] },
+        { id: "dhanu", keys: ["धनु", "dhanu", "sagittarius"] },
+        { id: "makar", keys: ["मकर", "makar", "capricorn"] },
+        { id: "kumbh", keys: ["कुंभ", "कुम्भ", "kumbh", "aquarius"] },
+        { id: "meen", keys: ["मीन", "meen", "pisces"] },
+      ];
+      const matchedRashiObj = rashiMatchers.find((rm) =>
+        rm.keys.some((k) => lower.includes(k) || trimmedMsg.includes(k))
+      );
+      const isRashifalQuery =
+        /(राशिफल|rashifal|horoscope|aaj ki rashi|आज की राशि|दैनिक राशि)/i.test(lower) ||
+        Boolean(matchedRashiObj && /(राशि|rashi|आज|today|फल|भविष्य|luck|शुभ)/i.test(lower));
+
+      if (isRashifalQuery) {
+        const todayForecasts = computeDailyRashifalForDate(matchedRashiObj?.id, new Date());
+        const target = todayForecasts[0];
+        let rashifalReply = "";
+
+        if (matchedRashiObj && target) {
+          rashifalReply = `आज का लाइव दैनिक राशिफल (${target.forecastDateHi})
+
+• राशि: ${target.nameHindi} (${target.nameEnglish})
+• राशि स्वामी: ${target.swami} | तत्व: ${target.element}
+• भाग्य रेटिंग: ${target.rating}/5
+• शुभ रंग: ${target.luckyColor} | शुभ अंक: ${target.luckyNumber}
+• श्रेष्ठ शुभ समय: ${target.luckyTime}
+
+आज का फल एवं मार्गदर्शन:
+• समग्र दिन: ${target.overview}
+• कैरियर व धन: ${target.careerFinance}
+• स्वास्थ्य: ${target.healthWellness}
+• प्रेम व परिवार: ${target.loveFamily}
+• आज का अचूक वैदिक उपाय: ${target.remedy}
+
+[[NAV:page:panchang-rashifal|सभी 12 राशियों का विस्तृत लाइव पंचांग व राशिफल देखें]]`;
+        } else {
+          const all12 = computeDailyRashifalForDate(undefined, new Date());
+          const dateLabel = all12[0]?.forecastDateHi || "";
+          const summaryLines = all12
+            .map(
+              (r) =>
+                `• ${r.nameHindi.split(" (")[0]}: अंक ${r.luckyNumber}, रंग ${r.luckyColor.split(" (")[0]} — ${r.overview}`
+            )
+            .join("\n");
+
+          rashifalReply = `आज का लाइव 12 राशिफल (${dateLabel})
+
+${summaryLines}
+
+किसी विशेष राशि (जैसे "मेष राशि का आज का राशिफल") के बारे में पूछें या नीचे क्लिक करें:
+
+[[NAV:page:panchang-rashifal|विस्तृत 12 राशिफल व शुभ मुहूर्त खोलें]]`;
+        }
+
+        return res.json({
+          reply: cleanBotReply(rashifalReply),
+          grounded: true,
+          searchQueries: [`दैनिक राशिफल ${matchedRashiObj?.id || "12 राशियां"}`],
+          sources: [
+            {
+              title: "IOIS लाइव दैनिक वैदिक राशिफल (IST समय अनुसार)",
+              uri: "https://iois.in/#panchang-rashifal",
+            },
+          ],
+        });
+      }
+
+      // 0.03 Live Weather Lookup via Open-Meteo Real-Time Satellite API
+      const isWeatherQuery =
+        /(मौसम|weather|mausam|barish|बारिश|rain|temperature|तापमान|garmi|गर्मी|sardi|सर्दी|मौसमी)/i.test(lower) &&
+        !/(plan|प्ला|payout|रजिस्टर|register|rtps)/i.test(lower);
+
+      if (isWeatherQuery) {
+        const cityHiToEn: Record<string, { name: string; labelHi: string }> = {
+          "पटना": { name: "Patna", labelHi: "पटना (बिहार)" },
+          "patna": { name: "Patna", labelHi: "पटना (बिहार)" },
+          "गया": { name: "Gaya", labelHi: "गया (बिहार)" },
+          "gaya": { name: "Gaya", labelHi: "गया (बिहार)" },
+          "मुजफ्फरपुर": { name: "Muzaffarpur", labelHi: "मुजफ्फरपुर (बिहार)" },
+          "muzaffarpur": { name: "Muzaffarpur", labelHi: "मुजफ्फरपुर (बिहार)" },
+          "दरभंगा": { name: "Darbhanga", labelHi: "दरभंगा (बिहार)" },
+          "darbhanga": { name: "Darbhanga", labelHi: "दरभंगा (बिहार)" },
+          "भागलपुर": { name: "Bhagalpur", labelHi: "भागलपुर (बिहार)" },
+          "bhagalpur": { name: "Bhagalpur", labelHi: "भागलपुर (बिहार)" },
+          "पूर्णिया": { name: "Purnia", labelHi: "पूर्णिया (बिहार)" },
+          "purnia": { name: "Purnia", labelHi: "पूर्णिया (बिहार)" },
+          "सिवान": { name: "Siwan", labelHi: "सिवान (बिहार)" },
+          "siwan": { name: "Siwan", labelHi: "सिवान (बिहार)" },
+          "छपरा": { name: "Chapra", labelHi: "छपरा (सारण)" },
+          "chhapra": { name: "Chapra", labelHi: "छपरा (सारण)" },
+          "आरा": { name: "Arrah", labelHi: "आरा (भोजपुर)" },
+          "arrah": { name: "Arrah", labelHi: "आरा (भोजपुर)" },
+          "समस्तीपुर": { name: "Samastipur", labelHi: "समस्तीपुर (बिहार)" },
+          "samastipur": { name: "Samastipur", labelHi: "समस्तीपुर (बिहार)" },
+          "बेगूसराय": { name: "Begusarai", labelHi: "बेगूसराय (बिहार)" },
+          "begusarai": { name: "Begusarai", labelHi: "बेगूसराय (बिहार)" },
+          "मोतिहारी": { name: "Motihari", labelHi: "मोतिहारी (पूर्वी चंपारण)" },
+          "motihari": { name: "Motihari", labelHi: "मोतिहारी (पूर्वी चंपारण)" },
+          "हाजीपुर": { name: "Hajipur", labelHi: "हाजीपुर (वैशाली)" },
+          "hajipur": { name: "Hajipur", labelHi: "हाजीपुर (वैशाली)" },
+          "सासाराम": { name: "Sasaram", labelHi: "सासाराम (रोहतास)" },
+          "sasaram": { name: "Sasaram", labelHi: "सासाराम (रोहतास)" },
+          "दिल्ली": { name: "New Delhi", labelHi: "नई दिल्ली" },
+          "delhi": { name: "New Delhi", labelHi: "नई दिल्ली" },
+          "लखनऊ": { name: "Lucknow", labelHi: "लखनऊ (उ.प्र.)" },
+          "lucknow": { name: "Lucknow", labelHi: "लखनऊ (उ.प्र.)" },
+          "वाराणसी": { name: "Varanasi", labelHi: "वाराणसी (उ.प्र.)" },
+          "varanasi": { name: "Varanasi", labelHi: "वाराणसी (उ.प्र.)" },
+          "प्रयागराज": { name: "Prayagraj", labelHi: "प्रयागराज (उ.प्र.)" },
+          "prayagraj": { name: "Prayagraj", labelHi: "प्रयागराज (उ.प्र.)" },
+          "कानपुर": { name: "Kanpur", labelHi: "कानपुर (उ.प्र.)" },
+          "kanpur": { name: "Kanpur", labelHi: "कानपुर (उ.प्र.)" },
+          "गोरखपुर": { name: "Gorakhpur", labelHi: "गोरखपुर (उ.प्र.)" },
+          "gorakhpur": { name: "Gorakhpur", labelHi: "गोरखपुर (उ.प्र.)" },
+          "रांची": { name: "Ranchi", labelHi: "रांची (झारखंड)" },
+          "ranchi": { name: "Ranchi", labelHi: "रांची (झारखंड)" },
+          "धनबाद": { name: "Dhanbad", labelHi: "धनबाद (झारखंड)" },
+          "dhanbad": { name: "Dhanbad", labelHi: "धनबाद (झारखंड)" },
+          "कोलकाता": { name: "Kolkata", labelHi: "कोलकाता (प. बंगाल)" },
+          "kolkata": { name: "Kolkata", labelHi: "कोलकाता (प. बंगाल)" },
+          "मुंबई": { name: "Mumbai", labelHi: "मुंबई (महाराष्ट्र)" },
+          "mumbai": { name: "Mumbai", labelHi: "मुंबई (महाराष्ट्र)" },
+          "जयपुर": { name: "Jaipur", labelHi: "जयपुर (राजस्थान)" },
+          "jaipur": { name: "Jaipur", labelHi: "जयपुर (राजस्थान)" },
+          "भोपाल": { name: "Bhopal", labelHi: "भोपाल (म.प्र.)" },
+          "bhopal": { name: "Bhopal", labelHi: "भोपाल (म.प्र.)" },
+          "पटना बिहार": { name: "Patna", labelHi: "पटना (बिहार)" },
+        };
+
+        let queryCity = "Patna";
+        let displayCityHi = "पटना (बिहार)";
+        for (const [k, v] of Object.entries(cityHiToEn)) {
+          if (lower.includes(k) || trimmedMsg.includes(k)) {
+            queryCity = v.name;
+            displayCityHi = v.labelHi;
+            break;
+          }
+        }
+        if (queryCity === "Patna" && !lower.includes("patna") && !trimmedMsg.includes("पटना")) {
+          const customCityMatch =
+            trimmedMsg.match(/(?:in|of|at|का|की|के|में)\s+([A-Za-z]{3,24})(?:\s+weather|\s*का\s*मौसम|$)/i) ||
+            trimmedMsg.match(/^([A-Za-z]{3,24})\s+(?:weather|mausam)/i);
+          if (customCityMatch?.[1] && !/live|today|aaj|live|alert/i.test(customCityMatch[1])) {
+            queryCity = customCityMatch[1].trim();
+            displayCityHi = queryCity;
+          }
+        }
+
+        const wmoToHindi = (code: number): string => {
+          if (code === 0) return "साफ आसमान (Clear Sky)";
+          if (code >= 1 && code <= 3) return "आंशिक बादल (Partly Cloudy)";
+          if (code === 45 || code === 48) return "कोहरा व धुंध (Fog/Mist)";
+          if (code >= 51 && code <= 57) return "हल्की फुहारें (Drizzle)";
+          if (code >= 61 && code <= 67) return "वर्षा / बारिश (Rain)";
+          if (code >= 71 && code <= 77) return "बर्फबारी (Snow)";
+          if (code >= 80 && code <= 82) return "तेज बौछारें (Rain Showers)";
+          if (code >= 95) return "आंधी व गरज के साथ बारिश (Thunderstorm)";
+          return "सामान्य मौसम";
+        };
+
+        try {
+          let lat = 25.5941;
+          let lon = 85.1376;
+          let resolvedName = displayCityHi;
+
+          const geoCtrl = new AbortController();
+          const geoTid = setTimeout(() => geoCtrl.abort(), 5000);
+          const geoRes = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(queryCity)}&count=1&language=en&format=json`,
+            { signal: geoCtrl.signal }
+          );
+          clearTimeout(geoTid);
+          if (geoRes.ok) {
+            const geoJson: any = await geoRes.json();
+            const first = geoJson?.results?.[0];
+            if (first && typeof first.latitude === "number" && typeof first.longitude === "number") {
+              lat = first.latitude;
+              lon = first.longitude;
+              if (displayCityHi === queryCity) {
+                resolvedName = `${first.name}${first.admin1 ? `, ${first.admin1}` : ""}`;
+              }
+            }
+          }
+
+          const wxCtrl = new AbortController();
+          const wxTid = setTimeout(() => wxCtrl.abort(), 5000);
+          const wxRes = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FKolkata&forecast_days=3`,
+            { signal: wxCtrl.signal }
+          );
+          clearTimeout(wxTid);
+
+          if (wxRes.ok) {
+            const wx: any = await wxRes.json();
+            const cur = wx.current || {};
+            const daily = wx.daily || {};
+            const liveClock = getLiveIndianTimeAndDate();
+            const daysList = Array.isArray(daily.time)
+              ? daily.time
+                  .slice(0, 3)
+                  .map((d: string, i: number) => {
+                    const maxT = daily.temperature_2m_max?.[i] ?? "-";
+                    const minT = daily.temperature_2m_min?.[i] ?? "-";
+                    const rainP = daily.precipitation_probability_max?.[i] ?? 0;
+                    const cond = wmoToHindi(Number(daily.weather_code?.[i] ?? 0));
+                    return `• ${d}: न्यूनतम ${minT}°C / अधिकतम ${maxT}°C | बारिश संभावना ${rainP}% (${cond})`;
+                  })
+                  .join("\n")
+              : "";
+
+            const weatherReply = `लाइव मौसम रिपोर्ट — ${resolvedName}
+अपडेट समय: ${liveClock.dateHi}, ${liveClock.timeStr} (IST)
+
+वर्तमान स्थिति:
+• तापमान: ${cur.temperature_2m ?? "-"}°C (महसूस होने वाला: ${cur.apparent_temperature ?? "-"}°C)
+• मौसम स्थिति: ${wmoToHindi(Number(cur.weather_code ?? 0))}
+• नमी (Humidity): ${cur.relative_humidity_2m ?? "-"}%
+• हवा की गति: ${cur.wind_speed_10m ?? "-"} km/h
+• वर्तमान वर्षा: ${cur.precipitation ?? 0} mm
+
+आगामी 3 दिनों का पूर्वानुमान:
+${daysList}
+
+आप किसी भी शहर का नाम लिखकर भी लाइव मौसम पूछ सकते हैं (जैसे: "गया का मौसम बताओ" या "दिल्ली का मौसम")।
+
+[[NAV:page:weather|लाइव उपग्रह मौसम रडार व 7-दिन अलर्ट खोलें]]`;
+
+            return res.json({
+              reply: cleanBotReply(weatherReply),
+              grounded: true,
+              searchQueries: [`${resolvedName} live weather forecast`],
+              sources: [
+                {
+                  title: "Open-Meteo लाइव सैटेलाइट मौसम केंद्र (IST)",
+                  uri: "https://open-meteo.com/",
+                },
+              ],
+            });
+          }
+        } catch {}
+      }
+
       let ai = getGenAI();
 
       if (ai) {
@@ -4291,15 +4865,14 @@ async function startServer() {
         let searchQueries: string[] = [];
         let sources: Array<{ title: string; uri: string }> = [];
 
-        // Attempt 1: Gemini 3.8 Flash with Google Search Grounding
+        // Attempt 1: Gemini 4 Hydrogen with Google Search Grounding (no deprecated sampling params)
         try {
           response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: "gemini-4-hydrogen",
             contents: formattedContents,
             config: {
               systemInstruction: IOIS_SYSTEM_INSTRUCTION + liveTimeContext + dynamicKnowledge,
               tools: [{ googleSearch: {} }],
-              temperature: 0.6,
             },
           });
 
@@ -4311,14 +4884,13 @@ async function startServer() {
           isGrounded = searchQueries.length > 0 || sources.length > 0;
         } catch (searchToolErr) {
           console.warn("Search tool call failed, falling back to direct Gemini generation:", searchToolErr);
-          // Attempt 2: Direct Gemini without search tool
+          // Attempt 2: Direct Gemini 4 Hydrogen without search tool
           try {
             response = await ai.models.generateContent({
-              model: "gemini-3.8-flash",
+              model: "gemini-4-hydrogen",
               contents: formattedContents,
               config: {
                 systemInstruction: IOIS_SYSTEM_INSTRUCTION + liveTimeContext + dynamicKnowledge,
-                temperature: 0.7,
               },
             });
           } catch (directErr) {

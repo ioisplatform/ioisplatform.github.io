@@ -5,6 +5,7 @@ import {
   syncUnansweredToFirestore,
   INITIAL_KNOWLEDGE
 } from '../services/userService';
+import { computeDailyRashifalForDate, computeVedicJanamKundli } from '../services/vedicAstrologyEngine';
 import { 
   Sparkles, 
   Send, 
@@ -34,7 +35,9 @@ import {
   MicOff,
   Copy,
   Check,
-  HelpCircle
+  HelpCircle,
+  Calendar,
+  CloudSun
 } from 'lucide-react';
 
 interface AIChatBotProps {
@@ -207,6 +210,13 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
   const [faqCategory, setFaqCategory] = useState<string>('सभी');
   const [navSuccessMessage, setNavSuccessMessage] = useState<string | null>(null);
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(INITIAL_KNOWLEDGE);
+
+  // Inline Free Janam Kundli Form State
+  const [showKundliForm, setShowKundliForm] = useState<boolean>(false);
+  const [kundliName, setKundliName] = useState<string>('');
+  const [kundliDob, setKundliDob] = useState<string>('');
+  const [kundliTime, setKundliTime] = useState<string>('08:30');
+  const [kundliPlace, setKundliPlace] = useState<string>('पटना, बिहार');
 
   // Audio Speech and Voice Recognition State
   const [isListening, setIsListening] = useState<boolean>(false);
@@ -548,7 +558,7 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
         return;
       }
 
-      // 2. Query server chat API (with Gemini 3.8 Flash + Search Grounding)
+      // 2. Query server chat API (with Gemini 4 Hydrogen + Free Kundli + Live Weather & Rashifal)
       const historyPayload = messages
         .filter((m) => m.id !== 'msg-welcome')
         .map((m) => ({ role: m.role, content: m.content }));
@@ -621,8 +631,50 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
           replyContent = `IOIS के सभी 7 प्लान्स का संक्षिप्त विवरण:\n\n1. Plan 01 (₹10): ₹7 इंस्टेंट पेआउट (70%)\n2. Plan 02 (₹49): ₹34 इंस्टेंट पेआउट (70%)\n3. Plan 03 (₹99): ₹64 इंस्टेंट पेआउट (65%)\n4. Plan 04 (₹199): ₹119 इंस्टेंट पेआउट (60%)\n5. Plan 05 (₹299): ₹179 इंस्टेंट पेआउट (60%)\n6. Plan 06 (₹499): ₹274 इंस्टेंट पेआउट (55%)\n7. Plan 07 (₹999): ₹499 इंस्टेंट पेआउट (50%)\n\n[[NAV:page:plans|7 मास्टर प्लांस विवरण देखें]]\n[[NAV:page:register|नया रजिस्ट्रेशन करें]]`;
         } else if (lower.includes('payout') || lower.includes('पेआउट') || lower.includes('पैसे') || lower.includes('कमाई')) {
           replyContent = `IOIS में स्मार्ट इंस्टेंट पेआउट प्रोटोकॉल है। जब भी आपके रेफरल से कोई यूजर वेरिफाई होता है, उसका पैसा (₹7 से ₹499) तुरंत आपके खाते/वॉलेट में ट्रांसफर कर दिया जाता है।\n\n[[NAV:page:calculator|पेआउट व आय कैलकुलेटर खोलें]]`;
+        } else if (
+          lower.includes('kundli') ||
+          lower.includes('kundali') ||
+          lower.includes('कुंडली') ||
+          lower.includes('कुण्डली') ||
+          lower.includes('जन्मपत्री') ||
+          lower.includes('janam') ||
+          lower.includes('horoscope chart')
+        ) {
+          const dobMatch = messageContent.match(/(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})/);
+          if (dobMatch) {
+            const nameMatch = messageContent.match(/(?:नाम|name)\s*[:\-=]?\s*([^\n,;]+)/i);
+            const timeMatch = messageContent.match(/(\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?)/);
+            const placeMatch = messageContent.match(/(?:स्थान|place|शहर|city)\s*[:\-=]?\s*([^\n,;]+)/i);
+            const offlineKundli = computeVedicJanamKundli({
+              name: nameMatch ? nameMatch[1].trim() : currentUser?.name || 'आदरणीय जातक',
+              dob: dobMatch[1],
+              birthTime: timeMatch ? timeMatch[1] : '12:00 PM',
+              birthPlace: placeMatch ? placeMatch[1].trim() : 'भारत',
+            });
+            if (offlineKundli) {
+              replyContent = `${offlineKundli.formattedTextHi}\n\n[[NAV:page:panchang-rashifal|🪐 दैनिक पंचांग व 12 राशिफल देखें]]`;
+            }
+          }
+          if (!replyContent) {
+            replyContent = `🔮 फ्री संपूर्ण वैदिक जन्म कुंडली जनरेटर\n\nनिःशुल्क संपूर्ण जन्म कुंडली (लग्न, चंद्र/सूर्य राशि, नक्षत्र व चरण, महादशा, मंगल/कालसर्प/साढ़ेसाती व उपाय) प्राप्त करने के लिए नीचे '🔮 फ्री जन्म कुंडली' बटन पर क्लिक कर फॉर्म भरें या सीधे लिखें:\nउदाहरण: मेरा नाम राहुल कुमार है, जन्म तिथि 15-08-1998, समय 08:30 AM, स्थान पटना बिहार - मेरी पूरी फ्री कुंडली बताइए।\n\n[[NAV:page:panchang-rashifal|🪐 दैनिक पंचांग व 12 राशिफल खोलें]]`;
+          }
         } else if (lower.includes('rashifal') || lower.includes('राशिफल') || lower.includes('rashi') || lower.includes('राशि') || lower.includes('horoscope')) {
-          replyContent = `🌟 दैनिक 12 राशिफल (Daily Horoscope) — IOIS प्लेटफॉर्म\n\nहमारे प्लेटफॉर्म पर सभी 12 राशियों (मेष, वृषभ, मिथुन, कर्क, सिंह, कन्या, तुला, वृश्चिक, धनु, मकर, कुंभ, मीन) का प्रामाणिक दैनिक भविष्यफल, अनुकूल रंग, भाग्यशाली अंक और वैदिक ज्योतिषीय उपाय 24x7 उपलब्ध हैं।\n\nआप किसी भी समय अपने दिन की शुभ शुरुआत के लिए लाइव राशिफल पॉपअप देख सकते हैं।\n\n[[NAV:page:panchang-rashifal|दैनिक 12 राशिफल व पंचांग खोलें]]`;
+          const dailyList = computeDailyRashifalForDate(undefined, new Date());
+          const matched = dailyList.find(
+            (r) =>
+              lower.includes(r.id) ||
+              lower.includes(r.nameEnglish.toLowerCase()) ||
+              lower.includes(r.nameHindi.replace(/\s*\(.*?\)/g, '').trim())
+          );
+          if (matched) {
+            replyContent = `🪐 आज का लाइव दैनिक राशिफल (${matched.forecastDateHi})\n\n${matched.symbol} ${matched.nameHindi} (${matched.nameEnglish}) | स्वामी: ${matched.swami}\n• सामान्य भविष्यफल: ${matched.overview}\n• करियर व धन: ${matched.careerFinance}\n• स्वास्थ्य: ${matched.healthWellness}\n• प्रेम व परिवार: ${matched.loveFamily}\n• शुभ रंग: ${matched.luckyColor} | शुभ अंक: ${matched.luckyNumber} | शुभ समय: ${matched.luckyTime}\n• आज का उपाय: ${matched.remedy}\n\n[[NAV:page:panchang-rashifal|सभी 12 राशियों का पंचांग व राशिफल देखें]]`;
+          } else {
+            const firstDate = dailyList[0]?.forecastDateHi || new Date().toLocaleDateString('hi-IN');
+            const summaryLines = dailyList
+              .map((r) => `${r.symbol} ${r.nameHindi}: ${r.overview} (शुभ रंग: ${r.luckyColor}, अंक: ${r.luckyNumber})`)
+              .join('\n');
+            replyContent = `🪐 आज का लाइव 12 दैनिक राशिफल (${firstDate}):\n\n${summaryLines}\n\n[[NAV:page:panchang-rashifal|संपूर्ण पंचांग व विस्तृत राशिफल खोलें]]`;
+          }
         } else if (lower.includes('job') || lower.includes('जॉब') || lower.includes('नौकरी') || lower.includes('vacancy') || lower.includes('भर्ती') || lower.includes('alert')) {
           replyContent = `💼 लाइव जॉब व करियर अलर्ट्स (Job Alerts Hub)\n\nIOIS प्लेटफॉर्म पर केंद्र व राज्य सरकारों की नवीनतम रिक्तियां (SSC, Railway, Banking, Police, Teaching, UPSC, BPSC), निजी कंपनियां, एडमिट कार्ड, परीक्षा तिथियां और सिलेबस की सत्यापित जानकारी 100% निःशुल्क उपलब्ध है।\n\n[[NAV:page:jobs|नवीनतम जॉब अलर्ट्स पोर्टल खोलें]]`;
         } else if (lower.includes('weather') || lower.includes('मौसम') || lower.includes('mausam') || lower.includes('rain') || lower.includes('barish') || lower.includes('तापमान')) {
@@ -1115,12 +1167,109 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
             </div>
           )}
 
+          {/* Inline Collapsible Free Janam Kundli Form */}
+          {showKundliForm && (
+            <div className="px-3.5 py-3 bg-slate-900 border-t border-amber-500/40 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] font-black text-amber-300">🔮 फ्री संपूर्ण वैदिक जन्म कुंडली फॉर्म</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowKundliForm(false)}
+                  className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800 cursor-pointer"
+                >
+                  बंद करें ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-0.5">पूरा नाम</label>
+                  <input
+                    type="text"
+                    value={kundliName}
+                    onChange={(e) => setKundliName(e.target.value)}
+                    placeholder={currentUser?.name || 'उदा. राहुल कुमार'}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-0.5">जन्म तिथि (DOB)</label>
+                  <input
+                    type="date"
+                    value={kundliDob}
+                    onChange={(e) => setKundliDob(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-0.5">जन्म समय</label>
+                  <input
+                    type="time"
+                    value={kundliTime}
+                    onChange={(e) => setKundliTime(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-400 font-bold mb-0.5">जन्म स्थान (शहर/जिला)</label>
+                  <input
+                    type="text"
+                    value={kundliPlace}
+                    onChange={(e) => setKundliPlace(e.target.value)}
+                    placeholder="पटना, बिहार"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!kundliDob || isLoading}
+                onClick={() => {
+                  if (!kundliDob) return;
+                  const finalName = (kundliName || currentUser?.name || 'आदरणीय जातक').trim();
+                  const finalPlace = (kundliPlace || 'पटना, बिहार').trim();
+                  const finalTime = (kundliTime || '12:00').trim();
+                  const prompt = `मेरा नाम ${finalName} है, जन्म तिथि ${kundliDob}, जन्म समय ${finalTime}, जन्म स्थान ${finalPlace} - मेरी पूरी फ्री वैदिक जन्म कुंडली, लग्न, चंद्र राशि, नक्षत्र, 12 भाव ग्रह स्थिति, महादशा, योग/दोष और अचूक उपाय बताइए।`;
+                  setShowKundliForm(false);
+                  if (showNavigator) setShowNavigator(false);
+                  if (showFaq) setShowFaq(false);
+                  handleSendMessage(prompt);
+                }}
+                className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-[11px] shadow-md disabled:opacity-50 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>🔮 फ्री संपूर्ण जन्म कुंडली बनाएं (100% निःशुल्क)</span>
+              </button>
+            </div>
+          )}
+
           {/* Quick Preset Questions Chips */}
           <div className="px-3 py-2 bg-slate-900/95 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             <button
+              type="button"
+              onClick={() => {
+                setShowKundliForm((prev) => !prev);
+                setShowFaq(false);
+                setShowNavigator(false);
+              }}
+              className={`text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border font-black shadow-sm flex items-center gap-1 ${
+                showKundliForm
+                  ? 'bg-purple-500 text-white border-purple-300'
+                  : 'bg-gradient-to-r from-purple-600/90 to-indigo-600/90 text-white border-purple-400/50 hover:from-purple-500 hover:to-indigo-500'
+              }`}
+            >
+              <Calendar className="w-3 h-3" />
+              <span>🔮 फ्री जन्म कुंडली</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 setShowFaq(true);
                 setShowNavigator(false);
+                setShowKundliForm(false);
               }}
               className="text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black border-amber-300 shadow-sm flex items-center gap-1"
             >
@@ -1128,7 +1277,22 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
               <span>अक्सर पूछे जाने वाले सवाल (FAQ)</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                if (showNavigator) setShowNavigator(false);
+                if (showFaq) setShowFaq(false);
+                setShowKundliForm(false);
+                handleSendMessage('🌦️ पटना और भारत का आज का लाइव मौसम व तापमान बताइए');
+              }}
+              className="text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border bg-sky-950/90 hover:bg-sky-900 border-sky-400/40 text-sky-300 font-bold flex items-center gap-1"
+            >
+              <CloudSun className="w-3 h-3" />
+              <span>आज का लाइव मौसम</span>
+            </button>
+
             {[
+              '🪐 आज का लाइव 12 राशिफल बताइए',
               '📅 आज कौन सा दिन व तारीख है?',
               '💰 पैसे विथड्रॉ कैसे करें?',
               '🎨 दुकान पोस्टर कैसे बनाएं?',
@@ -1137,7 +1301,6 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
               '📖 बाल विकास Plan 01 (₹10)',
               '🏛️ जाति, आय, निवास प्रमाण पत्र (RTPS)',
               '🌾 मंडी भाव व सोना-चांदी दरें',
-              '🌦️ लाइव मौसम व बारिश अलर्ट',
               '📞 व्हाट्सएप हेल्पलाइन +91 8877490845'
             ].map((chip, idx) => (
               <button
@@ -1145,6 +1308,7 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({
                 onClick={() => {
                   if (showNavigator) setShowNavigator(false);
                   if (showFaq) setShowFaq(false);
+                  setShowKundliForm(false);
                   handleSendMessage(chip);
                 }}
                 className="text-[10px] px-2.5 py-1 rounded-full shrink-0 transition cursor-pointer border bg-slate-950 hover:bg-slate-800 border-amber-500/30 text-amber-300"

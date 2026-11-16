@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   calculateLiveVedicPanchang, 
   getDetailedRashiHoroscope, 
@@ -7,7 +7,7 @@ import {
 } from '../services/festivalPanchangService';
 import { DailyFestivalWelcomeModal } from './DailyFestivalWelcomeModal';
 import { DailyRashifalModal } from './DailyRashifalModal';
-import { RashiForecast } from '../types';
+import { DailyRashiForecast } from '../services/vedicAstrologyEngine';
 import { 
   Clock, 
   Sun, 
@@ -29,11 +29,25 @@ import {
   BookOpen
 } from 'lucide-react';
 
+function getIstDateKey(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
 export const PanchangRashifalPage: React.FC = () => {
   const [time, setTime] = useState<Date>(new Date());
   const [panchang, setPanchang] = useState<LivePanchangDetails>(() => calculateLiveVedicPanchang());
   const [selectedRashiId, setSelectedRashiId] = useState<string>('all');
-  const [rashifalList] = useState<RashiForecast[]>(() => getDetailedRashiHoroscope());
+  const [rashifalList, setRashifalList] = useState<DailyRashiForecast[]>(() => getDetailedRashiHoroscope());
+  const lastIstDayRef = useRef<string>(getIstDateKey());
   
   // Modals state
   const [isFestivalModalOpen, setIsFestivalModalOpen] = useState<boolean>(false);
@@ -44,13 +58,15 @@ export const PanchangRashifalPage: React.FC = () => {
     const timer = setInterval(() => {
       const now = new Date();
       setTime(now);
-      // Recalculate daily panchang if date changes
-      if (now.getDate() !== time.getDate()) {
+      const nextIstDay = getIstDateKey(now);
+      if (nextIstDay !== lastIstDayRef.current) {
+        lastIstDayRef.current = nextIstDay;
         setPanchang(calculateLiveVedicPanchang(now));
+        setRashifalList(getDetailedRashiHoroscope(undefined, now));
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [time]);
+  }, []);
 
   const hours = time.getHours();
   const minutes = time.getMinutes();
@@ -371,12 +387,15 @@ export const PanchangRashifalPage: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
-            <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 flex-wrap">
               <Sparkles className="w-5 h-5 text-amber-400" />
-              <span>दैनिक 12 राशि भविष्य (12 Zodiac Daily Horoscope 2026)</span>
+              <span>दैनिक 12 राशि भविष्य (Live Daily Horoscope)</span>
+              <span className="text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+                {rashifalList[0]?.forecastDateHi || panchang.englishDate}
+              </span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              अपनी राशि चुनें और जानें आज का लकी कलर, लकी नंबर, शुभ समय व कैरियर मार्गदर्शन।
+              प्रतिदिन बदलने वाला सटीक राशिफल — अपनी राशि चुनें और जानें आज का लकी कलर, लकी नंबर, शुभ समय व कैरियर मार्गदर्शन।
             </p>
           </div>
 

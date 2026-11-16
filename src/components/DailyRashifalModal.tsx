@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Sparkles, 
@@ -14,7 +14,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { getDetailedRashiHoroscope } from '../services/festivalPanchangService';
-import { RashiForecast } from '../types';
+import { DailyRashiForecast } from '../services/vedicAstrologyEngine';
 
 interface DailyRashifalModalProps {
   isOpen: boolean;
@@ -25,13 +25,31 @@ interface DailyRashifalModalProps {
 
 const RASHI_STORAGE_KEY = 'iois_saved_user_rashi';
 
+function getIstDateKey(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
 export const DailyRashifalModal: React.FC<DailyRashifalModalProps> = ({
   isOpen,
   onClose,
   defaultRashiId,
   userName
 }) => {
-  const [allRashis] = useState<RashiForecast[]>(() => getDetailedRashiHoroscope());
+  const [todayKey, setTodayKey] = useState<string>(() => getIstDateKey());
+  const allRashis = useMemo<DailyRashiForecast[]>(
+    () => getDetailedRashiHoroscope(undefined, new Date()),
+    [todayKey]
+  );
+
   const [selectedRashiId, setSelectedRashiId] = useState<string>(() => {
     if (defaultRashiId) return defaultRashiId;
     if (typeof window !== 'undefined') {
@@ -42,6 +60,20 @@ export const DailyRashifalModal: React.FC<DailyRashifalModalProps> = ({
   });
 
   const [copiedShare, setCopiedShare] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const syncDate = () => {
+      const nextKey = getIstDateKey();
+      setTodayKey((prev) => (prev !== nextKey ? nextKey : prev));
+    };
+    syncDate();
+    if (defaultRashiId) {
+      setSelectedRashiId(defaultRashiId);
+    }
+    const timer = setInterval(syncDate, 30000);
+    return () => clearInterval(timer);
+  }, [isOpen, defaultRashiId]);
 
   // Sync preference to localStorage
   const handleSelectRashi = (id: string) => {
@@ -54,15 +86,21 @@ export const DailyRashifalModal: React.FC<DailyRashifalModalProps> = ({
   if (!isOpen) return null;
 
   const currentRashi = allRashis.find(r => r.id === selectedRashiId) || allRashis[0];
+  const liveDateLabelHi = currentRashi?.forecastDateHi || new Date().toLocaleDateString('hi-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   const handleShareOnWhatsApp = () => {
-    const text = `🔮 *दैनिक राशिफल 2026: ${currentRashi.nameHindi}* 🔮\n✨ लकी नंबर: ${currentRashi.luckyNumber} | शुभ रंग: ${currentRashi.luckyColor}\n⏰ शुभ समय: ${currentRashi.luckyTime}\n\n🌟 *आज का फल:* ${currentRashi.overview}\n\n💼 *कैरियर व धन:* ${currentRashi.careerFinance}\n\n🌿 *आज का उपाय:* ${currentRashi.remedy}\n\n👉 अपनी राशि का दैनिक भविष्यफल देखें: ${window.location.origin}`;
+    const text = `🔮 *दैनिक राशिफल (${liveDateLabelHi}): ${currentRashi.nameHindi}* 🔮\n✨ लकी नंबर: ${currentRashi.luckyNumber} | शुभ रंग: ${currentRashi.luckyColor}\n⏰ शुभ समय: ${currentRashi.luckyTime}\n\n🌟 *आज का फल:* ${currentRashi.overview}\n\n💼 *कैरियर व धन:* ${currentRashi.careerFinance}\n\n🌿 *आज का उपाय:* ${currentRashi.remedy}\n\n👉 अपनी राशि का दैनिक भविष्यफल देखें: ${window.location.origin}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleCopyText = () => {
-    const text = `${currentRashi.nameHindi} - दैनिक राशिफल\nलकी नंबर: ${currentRashi.luckyNumber} | शुभ रंग: ${currentRashi.luckyColor}\n\n${currentRashi.overview}\n\nउपाय: ${currentRashi.remedy}\n\nIOIS: ${window.location.origin}`;
+    const text = `${currentRashi.nameHindi} - दैनिक राशिफल (${liveDateLabelHi})\nलकी नंबर: ${currentRashi.luckyNumber} | शुभ रंग: ${currentRashi.luckyColor}\n\n${currentRashi.overview}\n\nउपाय: ${currentRashi.remedy}\n\nIOIS: ${window.location.origin}`;
     navigator.clipboard.writeText(text);
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2000);
@@ -82,14 +120,14 @@ export const DailyRashifalModal: React.FC<DailyRashifalModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-xl">🔮</span>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5 flex-wrap">
                 <span>दैनिक राशिफल पॉपअप (12 राशियां)</span>
                 <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  LIVE 2026
+                  LIVE • {liveDateLabelHi}
                 </span>
               </h3>
               <p className="text-[10.5px] text-slate-400">
-                अपनी राशि चुनें — सिस्टम आपकी पसंदीदा राशि को हमेशा याद रखेगा
+                {userName ? `${userName} जी, अपनी राशि चुनें` : 'अपनी राशि चुनें'} — प्रतिदिन नया लाइव वैदिक राशिफल (IST समय अनुसार)
               </p>
             </div>
           </div>

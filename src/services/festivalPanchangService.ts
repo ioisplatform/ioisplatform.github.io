@@ -1,6 +1,7 @@
 import { RashiForecast } from '../types';
 import { HomeSliderItem, toLocalIsoDateKey } from '../data/homeSliderData';
 import { HomePopupPhoto } from '../data/homePopupData';
+import { computeDailyRashifalForDate, DailyRashiForecast } from './vedicAstrologyEngine';
 
 // Verified festival artworks (all existing + newly generated high-resolution banners)
 import smartSavingsImg from '../assets/images/smart_savings_growth_1794240843133.jpg';
@@ -831,8 +832,8 @@ export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LiveP
     sunset: '05:26 PM',
     moonrise: '08:45 AM',
     moonset: '07:15 PM',
-    suryaRashi: 'वृश्चिक / तुला संक्रांति',
-    chandraRashi: 'मकर / वृश्चिक राशि (चंद्र देव)',
+    suryaRashi: `${['धनु / मकर', 'मकर / कुंभ', 'कुंभ / मीन', 'मीन / मेष', 'मेष / वृषभ', 'वृषभ / मिथुन', 'मिथुन / कर्क', 'कर्क / सिंह', 'सिंह / कन्या', 'कन्या / तुला', 'तुला / वृश्चिक', 'वृश्चिक / धनु'][month] || 'सूर्य'} संक्रांति`,
+    chandraRashi: `${['मेष', 'वृषभ', 'मिथुन', 'कर्क', 'सिंह', 'कन्या', 'तुला', 'वृश्चिक', 'धनु', 'मकर', 'कुंभ', 'मीन'][Math.floor((Math.floor(targetDate.getTime() / 86400000) + 3) / 2.25) % 12]} राशि (चंद्र देव)`,
     brahmaMuhurat: '04:48 AM - 05:36 AM (अमृत बेला)',
     abhijitMuhurat: '11:44 AM - 12:28 PM (सर्वश्रेष्ठ शुभ समय)',
     godhuliMuhurat: '05:22 PM - 05:48 PM (संध्या वंदन काल)',
@@ -896,232 +897,10 @@ export function getFestivalForDate(date: Date = new Date()): DayFestivalInfo {
 }
 
 /**
- * 12 Rashis with comprehensive personalized Dainik Rashifal
+ * 12 Rashis with live IST daily-changing Dainik Rashifal (automatically updates every day)
  */
-export function getDetailedRashiHoroscope(rashiId?: string): RashiForecast[] {
-  const allRashis: RashiForecast[] = [
-    {
-      id: 'mesh',
-      nameHindi: 'मेष राशि (Mesh)',
-      nameEnglish: 'Aries',
-      symbol: '♈',
-      dateRange: '21 मार्च - 19 अप्रैल',
-      element: 'अग्नि (Fire)',
-      luckyColor: 'लाल व सिंदूरी (Red)',
-      luckyColorHex: '#EF4444',
-      luckyNumber: 9,
-      luckyTime: '08:00 AM - 10:30 AM',
-      rating: 5,
-      overview: 'आज ग्रहों की स्थिति आपके पक्ष में है। आत्मविश्वास में जबरदस्त वृद्धि होगी और लंबे समय से रुका हुआ सरकारी या निजी काम पूरा होगा। आर्थिक मामलों में नई गति मिलेगी।',
-      careerFinance: 'कारोबार में अप्रत्याशित लाभ होगा। ऑनलाइन काम और कमीशन/रेफरल से नई कमाई होगी। नए लोगों से संपर्क लाभकारी रहेगा।',
-      healthWellness: 'ऊर्जा का स्तर उच्च रहेगा। सिरदर्द या थकान से राहत मिलेगी। योग व प्राणायाम से लाभ होगा।',
-      loveFamily: 'परिवार में भाई-बहन और जीवनसाथी का पूर्ण सहयोग मिलेगा। शाम को किसी मांगलिक या उत्सव कार्यक्रम में शामिल हो सकते हैं।',
-      remedy: 'प्रातः सूर्य देव को तांबे के पात्र से जल अर्पित करें और ॐ सूर्याय नमः का 11 बार जप करें।'
-    },
-    {
-      id: 'vrishabh',
-      nameHindi: 'वृषभ राशि (Vrishabh)',
-      nameEnglish: 'Taurus',
-      symbol: '♉',
-      dateRange: '20 अप्रैल - 20 मई',
-      element: 'पृथ्वी (Earth)',
-      luckyColor: 'सफेद व क्रीम (White)',
-      luckyColorHex: '#F1F5F9',
-      luckyNumber: 6,
-      luckyTime: '11:15 AM - 01:45 PM',
-      rating: 4,
-      overview: 'आज भौतिक सुख-साधनों में वृद्धि होगी। धन आगमन के योग बन रहे हैं। वाणी की मधुरता से बिगड़े हुए रिश्ते सुधरेंगे और मान-सम्मान में वृद्धि होगी।',
-      careerFinance: 'व्यापार में नए साझेदार मिल सकते हैं। ऑनलाइन डिजिटल प्लेटफॉर्म से अतिरिक्त आमदनी होगी। निवेश के लिए समय अनुकूल है।',
-      healthWellness: 'खान-पान में संतुलन बनाए रखें। अधिक मीठे के सेवन से बचें। स्वास्थ्य सामान्य रहेगा।',
-      loveFamily: 'दांपत्य जीवन सुखमय रहेगा। बहन या माता का विशेष स्नेह व आशीर्वाद प्राप्त होगा।',
-      remedy: 'मां महालक्ष्मी को सफेद पुष्प और खीर का भोग लगाएं और श्रीं ह्रीं क्लीं मंत्र का स्मरण करें।'
-    },
-    {
-      id: 'mithun',
-      nameHindi: 'मिथुन राशि (Mithun)',
-      nameEnglish: 'Gemini',
-      symbol: '♊',
-      dateRange: '21 मई - 20 जून',
-      element: 'वायु (Air)',
-      luckyColor: 'हरा व तोतिया (Green)',
-      luckyColorHex: '#10B981',
-      luckyNumber: 5,
-      luckyTime: '03:30 PM - 05:45 PM',
-      rating: 5,
-      overview: 'बुद्धि और वाक्पटुता से आज आप कठिन से कठिन चुनौती को हल कर लेंगे। विद्यार्थियों के लिए आज का दिन विशेष अध्ययन व परीक्षा में सफलता दिलाने वाला रहेगा।',
-      careerFinance: 'कम्युनिकेशन, मार्केटिंग और आईटी क्षेत्र से जुड़े लोगों को बड़ा अवसर मिलेगा। रेफरल आय में 70% तक लाभ मिलेगा।',
-      healthWellness: 'मानसिक तनाव से मुक्ति मिलेगी। ताजगी का अनुभव होगा। शाम को टहलना लाभकारी रहेगा।',
-      loveFamily: 'मित्रों और सहपाठियों के साथ संबंध मधुर रहेंगे। संतान पक्ष से शुभ समाचार मिल सकता है।',
-      remedy: 'गणेश जी को दूर्वा घास और मोदक/लड्डू अर्पित करें और ॐ गं गणपतये नमः बोलें।'
-    },
-    {
-      id: 'kark',
-      nameHindi: 'कर्क राशि (Kark)',
-      nameEnglish: 'Cancer',
-      symbol: '♋',
-      dateRange: '21 जून - 22 जुलाई',
-      element: 'जल (Water)',
-      luckyColor: 'सिल्वर व दूधिया (Silver)',
-      luckyColorHex: '#E2E8F0',
-      luckyNumber: 2,
-      luckyTime: '07:30 AM - 09:15 AM',
-      rating: 4,
-      overview: 'आज मन में सकारात्मक विचार रहेंगे। घर-परिवार में खुशी का माहौल रहेगा। किसी आध्यात्मिक कार्य या धार्मिक आयोजन में मन लगेगा।',
-      careerFinance: 'नौकरीपेशा लोगों को उच्चाधिकारियों से सराहना मिलेगी। व्यापार में पुरानी देनदारियां वसूल होंगी।',
-      healthWellness: 'माता के स्वास्थ्य में सुधार होगा। स्वयं को हाइड्रेटेड रखें और पर्याप्त नींद लें।',
-      loveFamily: 'भाई-बहन के बीच स्नेह बढ़ेगा। पारिवारिक यात्रा या उत्सव की योजना बनेगी।',
-      remedy: 'शिवलिंग पर कच्चा दूध व जल चढ़ाएं और ॐ नमः शिवाय का 21 बार जप करें।'
-    },
-    {
-      id: 'singh',
-      nameHindi: 'सिंह राशि (Singh)',
-      nameEnglish: 'Leo',
-      symbol: '♌',
-      dateRange: '23 जुलाई - 22 अगस्त',
-      element: 'अग्नि (Fire)',
-      luckyColor: 'सुनहरा व नारंगी (Golden)',
-      luckyColorHex: '#F59E0B',
-      luckyNumber: 1,
-      luckyTime: '09:00 AM - 11:30 AM',
-      rating: 5,
-      overview: 'सिंह राशि वालों का तेज और प्रभाव आज चरम पर रहेगा। सरकारी कार्यों में अटकी फाइलें आगे बढ़ेंगी। समाज में आपका प्रभाव और दबदबा बढ़ेगा।',
-      careerFinance: 'नेतृत्व क्षमता के दम पर नए प्रोजेक्ट मिलेंगे। आय के नए स्रोत खुलेंगे। दैनिक इंसेंटिव में वृद्धि होगी।',
-      healthWellness: 'ऊर्जावान और तरोताजा रहेंगे। पुरानी किसी शारीरिक समस्या में राहत मिलेगी।',
-      loveFamily: 'पिता व वरिष्ठ जनों का आशीर्वाद मिलेगा। जीवनसाथी के साथ सामंजस्य बेहतरीन रहेगा।',
-      remedy: 'आदित्य हृदय स्तोत्र का पाठ करें या गायत्री मंत्र का 11 बार मन ही मन जप करें।'
-    },
-    {
-      id: 'kanya',
-      nameHindi: 'कन्या राशि (Kanya)',
-      nameEnglish: 'Virgo',
-      symbol: '♍',
-      dateRange: '23 अगस्त - 22 सितंबर',
-      element: 'पृथ्वी (Earth)',
-      luckyColor: 'गहरा हरा व पन्ना (Emerald)',
-      luckyColorHex: '#059669',
-      luckyNumber: 7,
-      luckyTime: '01:00 PM - 03:00 PM',
-      rating: 4,
-      overview: 'बारीकी से किए गए कार्यों में आज बड़ी सफलता मिलेगी। हिसाब-किताब और डिजिटल लेन-देन में लाभ होगा। योजनाबद्ध काम करने से हर लक्ष्य पूरा होगा।',
-      careerFinance: 'अकाउंटिंग, डेटा, रिसर्च और स्टडी मटेरियल के काम में उन्नति। रेफरल से नियमित आय होगी।',
-      healthWellness: 'पेट का ध्यान रखें। हल्का और सुपाच्य भोजन लें। नियमित व्यायाम करें।',
-      loveFamily: 'रिश्तेदारों के साथ संवाद अच्छा रहेगा। बहनों को उपहार देने से भाग्य में वृद्धि होगी।',
-      remedy: 'गौ माता को हरी घास या पालक खिलाएं और गणेश जी को प्रणाम करें।'
-    },
-    {
-      id: 'tula',
-      nameHindi: 'तुला राशि (Tula)',
-      nameEnglish: 'Libra',
-      symbol: '♎',
-      dateRange: '23 सितंबर - 22 अक्टूबर',
-      element: 'वायु (Air)',
-      luckyColor: 'गुलाबी व आसमानी (Pink/Sky)',
-      luckyColorHex: '#EC4899',
-      luckyNumber: 6,
-      luckyTime: '12:00 PM - 02:30 PM',
-      rating: 5,
-      overview: 'तुला राशि वालों के लिए आज का दिन अत्यंत शुभ और संतुलित रहेगा। सौंदर्य, कला और रचनात्मक कार्यों में विशेष रुचि रहेगी। भाग्य का पूरा साथ मिलेगा।',
-      careerFinance: 'व्यापार में नई डील फाइनल हो सकती है। ऑनलाइन बिक्री और सहयोग में तेजी आएगी। रुका हुआ पैसा मिलेगा।',
-      healthWellness: 'मानसिक प्रसन्नता और शारीरिक ऊर्जा बनी रहेगी। स्किन और हेयर केयर में ध्यान दें।',
-      loveFamily: 'प्रेम संबंधों में प्रगाढ़ता आएगी। भाई-बहन का अटूट साथ मिलेगा।',
-      remedy: 'मां दुर्गा की आराधना करें और कन्याओं को मिष्ठान या फल भेंट करें।'
-    },
-    {
-      id: 'vrishchik',
-      nameHindi: 'वृश्चिक राशि (Vrishchik)',
-      nameEnglish: 'Scorpio',
-      symbol: '♏',
-      dateRange: '23 अक्टूबर - 21 नवंबर',
-      element: 'जल (Water)',
-      luckyColor: 'गहरा लाल व महरून (Maroon)',
-      luckyColorHex: '#991B1B',
-      luckyNumber: 8,
-      luckyTime: '02:45 PM - 04:30 PM',
-      rating: 4,
-      overview: 'साहस और पराक्रम से आज आप विरोधियों को परास्त करेंगे। गूढ़ ज्ञान और नई तकनीक सीखने के लिए आज का दिन बेहद अनुकूल है। गुप्त चिंताएं समाप्त होंगी।',
-      careerFinance: 'प्रॉपर्टी, जमीन और सरकारी योजनाओं से लाभ होगा। ऑनलाइन काम से तुरंत पेआउट आएगा।',
-      healthWellness: 'जोड़ों या घुटनों के दर्द में राहत मिलेगी। गुनगुना पानी पिएं।',
-      loveFamily: 'भाई का सहयोग मिलेगा। परिवार में कोई शुभ समाचार मिलेगा।',
-      remedy: 'हनुमान चालीसा का पाठ करें और हनुमान जी को सिंदूर व चमेली का तेल अर्पित करें।'
-    },
-    {
-      id: 'dhanu',
-      nameHindi: 'धनु राशि (Dhanu)',
-      nameEnglish: 'Sagittarius',
-      symbol: '♐',
-      dateRange: '22 नवंबर - 21 दिसंबर',
-      element: 'अग्नि (Fire)',
-      luckyColor: 'पीला व केसरिया (Yellow/Saffron)',
-      luckyColorHex: '#FBBF24',
-      luckyNumber: 3,
-      luckyTime: '10:00 AM - 12:30 PM',
-      rating: 5,
-      overview: 'गुरु की कृपा से आज भाग्य का 100% सहयोग मिलेगा। शिक्षा, प्रतियोगिता और उच्च अध्ययन के क्षेत्र में बड़ी सफलता मिलेगी। धार्मिक यात्रा संभव है।',
-      careerFinance: 'शिक्षण, कोचिंग, लेखन व डिजिटल सलाहकारों के लिए लाभ का दिन। बड़ा वित्तीय लाभ होगा।',
-      healthWellness: 'स्वास्थ्य उत्तम रहेगा। सकारात्मक ऊर्जा का संचार होगा।',
-      loveFamily: 'घर में बुजुर्गों का मार्गदर्शन मिलेगा। जीवनसाथी के साथ रिश्ते मधुर होंगे।',
-      remedy: 'माथे पर केसर या हल्दी का तिलक लगाएं और भगवान विष्णु के मंत्र का स्मरण करें।'
-    },
-    {
-      id: 'makar',
-      nameHindi: 'मकर राशि (Makar)',
-      nameEnglish: 'Capricorn',
-      symbol: '♑',
-      dateRange: '22 दिसंबर - 19 जनवरी',
-      element: 'पृथ्वी (Earth)',
-      luckyColor: 'नीला व जामुनी (Blue)',
-      luckyColorHex: '#3B82F6',
-      luckyNumber: 4,
-      luckyTime: '04:00 PM - 06:15 PM',
-      rating: 4,
-      overview: 'कड़ी मेहनत का मीठा फल मिलने का समय आ गया है। कार्यक्षेत्र में आपकी ईमानदारी और लगन की प्रशंसा होगी। कोई बड़ा दायित्व मिल सकता है।',
-      careerFinance: 'स्थिर आय के स्रोत मजबूत होंगे। पुराने निवेश से फायदा होगा। नई जिम्मेदारी मिलेगी।',
-      healthWellness: 'आंखों और कंधों की थकान से बचें। काम के बीच थोड़ा विश्राम अवश्य लें।',
-      loveFamily: 'परिवार में गंभीर मुद्दों पर आपकी राय को प्राथमिकता दी जाएगी। भाई-बहन का स्नेह बना रहेगा।',
-      remedy: 'शनि देव के बीज मंत्र ॐ शं शनैश्चराय नमः का 11 बार जप करें या पीपल के वृक्ष को जल दें।'
-    },
-    {
-      id: 'kumbh',
-      nameHindi: 'कुंभ राशि (Kumbh)',
-      nameEnglish: 'Aquarius',
-      symbol: '♒',
-      dateRange: '20 जनवरी - 18 फरवरी',
-      element: 'वायु (Air)',
-      luckyColor: 'आसमानी व फिरोजी (Cyan/Teal)',
-      luckyColorHex: '#06B6D4',
-      luckyNumber: 8,
-      luckyTime: '01:30 PM - 03:45 PM',
-      rating: 5,
-      overview: 'नवाचार और नए विचारों का दिन है। समाज सेवा या समूह में काम करने से नई पहचान मिलेगी। मित्रों का भरपूर सहयोग प्राप्त होगा।',
-      careerFinance: 'डिजिटल मार्केटिंग, इंटरनेट व ऑनलाइन बिजनेस में शानदार वृद्धि। दैनिक पेआउट से बचत बढ़ेगी।',
-      healthWellness: 'मानसिक शांति महसूस होगी। नियमित ध्यान व वॉक करना श्रेयस्कर रहेगा।',
-      loveFamily: 'भाई-बहन से उपहार या सहयोग मिलेगा। मित्रों के साथ संबंध प्रगाढ़ होंगे।',
-      remedy: 'किसी जरूरतमंद व्यक्ति को अन्न या वस्त्र का दान करें।'
-    },
-    {
-      id: 'meen',
-      nameHindi: 'मीन राशि (Meen)',
-      nameEnglish: 'Pisces',
-      symbol: '♓',
-      dateRange: '19 फरवरी - 20 मार्च',
-      element: 'जल (Water)',
-      luckyColor: 'पीला व सुनहरा (Golden/Yellow)',
-      luckyColorHex: '#EAB308',
-      luckyNumber: 3,
-      luckyTime: '09:30 AM - 11:45 AM',
-      rating: 5,
-      overview: 'आज मन में परोपकार और सद्भाव की भावना रहेगी। आध्यात्मिक उन्नति होगी। आपके सुझावों से दूसरों को बड़ा लाभ होगा और आपकी प्रतिष्ठा में चार चांद लगेंगे।',
-      careerFinance: 'रचनात्मक और परामर्श से जुड़े कार्यों में विशेष धन लाभ। छात्रों के लिए शुभ दिन।',
-      healthWellness: 'स्वास्थ्य सामान्य से बहुत बेहतर रहेगा। मन प्रसन्न और शांत रहेगा।',
-      loveFamily: 'घर में प्रेम, समरसता और आनंद का वातावरण रहेगा। धार्मिक चर्चा से मन प्रफुल्लित होगा।',
-      remedy: 'भगवान सत्यनारायण या विष्णु सहस्रनाम का पाठ/स्मरण करें और पीले फल का दान करें।'
-    }
-  ];
-
-  if (rashiId && rashiId !== 'all') {
-    return allRashis.filter(r => r.id === rashiId);
-  }
-  return allRashis;
+export function getDetailedRashiHoroscope(rashiId?: string, targetDate: Date = new Date()): DailyRashiForecast[] {
+  return computeDailyRashifalForDate(rashiId, targetDate);
 }
 
 function festivalToSliderItem(fest: DayFestivalInfo, orderIndex: number): HomeSliderItem {

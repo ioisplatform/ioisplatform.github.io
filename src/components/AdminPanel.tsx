@@ -12,19 +12,17 @@ import {
   replyHelpTicket, 
   isAdminLoggedIn, 
   setAdminSession,
-  subscribeToFirestoreUsers,
-  subscribeToFirestoreTickets,
   getAllDownlinesRecursive,
   getDirectDownlines,
   getDownlineStats,
   maskMobile,
   adminUpdateUserProfileAsync,
   fetchAdminFullUsersAsync,
+  fetchUserMediaAsync,
   fetchArchivedUsersAsync,
   restoreArchivedUserAsync,
   triggerAdminCloudSyncAsync,
   importUsersBackupAsync,
-  isFirestoreInQuotaCooldown,
   clearFirestoreQuotaCooldown
 } from '../services/userService';
 import { AiKnowledgeManager } from './AiKnowledgeManager';
@@ -128,6 +126,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState<boolean>(false);
   const [vaultNotice, setVaultNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+  const [serverFetchError, setServerFetchError] = useState<string>('');
   const restoreFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Silent Admin IOIS CHAT & HELP Surveillance State
@@ -283,39 +282,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
   const reloadData = async (withCloud = false) => {
     setIsRefreshing(true);
+    setServerFetchError('');
     try {
       if (withCloud) {
         clearFirestoreQuotaCooldown();
       }
-      // Step 1: Fast authoritative Admin Vault from server (auto-hydrates from Cloud Firestore if server disk was empty/sparse)
-      const adminFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
-      if (adminFull.users.length > 0) {
-        setUsersList(adminFull.users);
+      // Step 1: Ultra-fast metadata load (<35KB) so ALL members appear in <300ms on any new device
+      const fastMeta = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+        includeMedia: false,
+        forceCloud: withCloud,
+      });
+      if (fastMeta.users.length > 0) {
+        setUsersList(fastMeta.users);
       }
-      setArchivedUsers(adminFull.archivedUsers);
+      setArchivedUsers(fastMeta.archivedUsers);
 
-      // Step 2: Cross-check client Firestore & merge if cloud sync requested or records are still sparse
-      if (withCloud || adminFull.users.length <= 1) {
-        await fetchUsersFromServer({ skipFirestore: false, forceCloud: withCloud });
-        let latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
-        if (latestFull.users.length <= 1) {
-          const cloudSyncRes = await triggerAdminCloudSyncAsync('IOISSYSTEM');
-          latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM');
-          if (cloudSyncRes.cloudError && cloudSyncRes.cloudError.includes('resource-exhausted')) {
-            showVaultNotice(
-              'info',
-              `⚠️ क्लाउड रीड कोटा अस्थायी रूप से सीमित है। वर्तमान में ${latestFull.users.length} सदस्य दिख रहे हैं — आप JSON बैकअप से भी तुरंत रिस्टोर कर सकते हैं।`
-            );
-          }
-        }
-        setUsersList(latestFull.users);
-        setArchivedUsers(latestFull.archivedUsers);
+      // Step 2: Hydrate full photos & payment receipts via gzipped /api/admin/users-full
+      let latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+        includeMedia: true,
+        forceCloud: withCloud,
+      });
+
+      if (!latestFull.serverReachable && latestFull.errorMessage) {
+        setServerFetchError(latestFull.errorMessage);
       }
+
+      if (latestFull.users.length <= 1 && withCloud) {
+        await fetchUsersFromServer({ skipFirestore: false, forceCloud: true });
+        const cloudSyncRes = await triggerAdminCloudSyncAsync('IOISSYSTEM');
+        latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+          includeMedia: true,
+          forceCloud: true,
+        });
+        if (cloudSyncRes.cloudError && cloudSyncRes.cloudError.includes('resource-exhausted')) {
+          showVaultNotice(
+            'info',
+            `⚠️ क्लाउड रीड कोटा अस्थायी रूप से सीमित है। वर्तमान में ${latestFull.users.length} सदस्य दिख रहे हैं — आप JSON बैकअप से भी तुरंत रिस्टोर कर सकते हैं।`
+          );
+        }
+      }
+
+      if (latestFull.users.length > 0) {
+        setUsersList(latestFull.users);
+      }
+      setArchivedUsers(latestFull.archivedUsers);
 
       const liveTickets = await fetchTicketsFromServer({ skipFirestore: !withCloud });
       setTicketsList(liveTickets);
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Reload data failed', e);
+      setServerFetchError(e?.message || 'सर्वर से सदस्य सूची लोड करने में समस्या आई।');
     } finally {
       setIsRefreshing(false);
     }
@@ -326,35 +342,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
     void reloadData(true);
 
-    // Attach realtime Firestore listeners ONLY for authenticated Admin when not in quota cooldown
-    const unsubscribeFirestoreUsers = !isFirestoreInQuotaCooldown()
-      ? subscribeToFirestoreUsers((liveUsers) => {
-          if (liveUsers && liveUsers.length > 0) {
-            setUsersList(liveUsers);
-          }
-        })
-      : () => {};
-
-    const unsubscribeFirestoreTickets = !isFirestoreInQuotaCooldown()
-      ? subscribeToFirestoreTickets((liveTickets) => {
-          if (liveTickets && liveTickets.length > 0) {
-            setTicketsList(liveTickets);
-          }
-        })
-      : () => {};
-
-    // Background server refresh every 20s (0 Firestore reads)
+    // Background server refresh every 20s (uses single authoritative server vault without heavy client snapshot reads)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void reloadData(false);
     }, 20000);
 
     return () => {
-      unsubscribeFirestoreUsers();
-      unsubscribeFirestoreTickets();
       clearInterval(interval);
     };
   }, [isAdminAuth]);
+
+  // On-demand high-res photo/receipt loader when opening Profile Inspector or Join Form on slow networks
+  useEffect(() => {
+    const target = inspectedUser || selectedFormUser;
+    if (!target || !target.userId) return;
+    if (target.photoUrl && target.paymentScreenshotUrl) return;
+    let active = true;
+    void fetchUserMediaAsync(target.userId).then((media) => {
+      if (!active || !media) return;
+      const patchUser = (u: UserProfile): UserProfile => ({
+        ...u,
+        photoUrl: u.photoUrl || media.photoUrl || '',
+        paymentScreenshotUrl: u.paymentScreenshotUrl || media.paymentScreenshotUrl || '',
+      });
+      if (inspectedUser && inspectedUser.userId === target.userId) {
+        setInspectedUser((prev) => (prev ? patchUser(prev) : null));
+      }
+      if (selectedFormUser && selectedFormUser.userId === target.userId) {
+        setSelectedFormUser((prev) => (prev ? patchUser(prev) : null));
+      }
+      setUsersList((prev) =>
+        prev.map((item) => (item.userId === target.userId ? patchUser(item) : item))
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [inspectedUser?.userId, selectedFormUser?.userId]);
 
   const handleManualCloudSync = async () => {
     setIsCloudSyncing(true);
@@ -1091,6 +1116,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
               </button>
             </div>
           )}
+
+          {serverFetchError && (
+            <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold">⚠️ सर्वर कनेक्शन चेतावनी: {serverFetchError}</span>
+              <button
+                type="button"
+                onClick={() => void reloadData(true)}
+                className="px-3 py-1 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-black text-[11px] cursor-pointer"
+              >
+                🔄 पुनः लोड करें
+              </button>
+            </div>
+          )}
           
           {/* Search, Date Filter, Sort & Join Action Bar */}
           <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
@@ -1167,8 +1205,168 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             </div>
           </div>
 
-          {/* User Table with Date Column & Date Grouping */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 shadow-inner">
+          {/* Mobile Cards View (All member details immediately visible on phones / new mobile devices) */}
+          <div className="md:hidden space-y-3">
+            {filteredUsers.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-xs bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                {isRefreshing ? (
+                  <div className="flex flex-col items-center gap-2 text-amber-300 font-bold">
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>क्लाउड और सर्वर वॉल्ट से सभी सदस्यों का डेटा लोड हो रहा है...</span>
+                  </div>
+                ) : usersList.length > 0 ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <span>वर्तमान फ़िल्टर से कोई सदस्य नहीं मिला (कुल {usersList.length} सदस्य उपलब्ध)।</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setStatusFilter('all');
+                        setDateFilter('all');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
+                    >
+                      सभी फ़िल्टर रीसेट करें
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleManualCloudSync}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-500 text-white font-black text-xs cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>अभी क्लाउड सिंक करें</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredUsers.map((u) => {
+                const plan = PLANS.find((p) => p.id === u.selectedPlanId) || PLANS[0];
+                const dateInfo = formatJoinDateTime(u.createdAt);
+                return (
+                  <div
+                    key={u.userId}
+                    className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div
+                        onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
+                        className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+                      >
+                        <div className="w-11 h-11 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900">
+                          <img
+                            src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                            alt={u.fullName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-black text-white text-sm truncate">{u.fullName}</div>
+                          <div className="text-[11px] font-mono font-bold text-amber-300">{u.userId}</div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {dateInfo.formattedDate} {dateInfo.formattedTime ? `• ${dateInfo.formattedTime}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 border ${
+                          u.paymentStatus === 'approved'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : u.paymentStatus === 'pending'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-red-500/20 text-red-300 border-red-500/40'
+                        }`}
+                      >
+                        {u.paymentStatus === 'approved' ? 'स्वीकृत' : u.paymentStatus === 'pending' ? 'समीक्षाधीन' : 'अस्वीकृत'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-slate-900/70 p-2.5 rounded-xl border border-slate-800/80">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">प्लान व शुल्क</span>
+                        <strong className="text-white">{plan.name} (₹{plan.price})</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">मोबाइल</span>
+                        <a href={`tel:${u.mobileNumber}`} className="font-mono font-bold text-emerald-400">
+                          {u.mobileNumber}
+                        </a>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">पेमेंट UTR</span>
+                        <strong className="font-mono text-amber-300 break-all">{u.paymentUtr || 'N/A'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">पेआउट UPI / स्पॉन्सर</span>
+                        <strong className="font-mono text-sky-300 break-all">{u.payoutUpi || u.sponsorId || 'N/A'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">पासवर्ड</span>
+                        <strong className="font-mono text-rose-300">{u.password || 'N/A'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">स्थान / ईमेल</span>
+                        <strong className="text-slate-200 truncate block">{u.district || u.state || u.email || 'भारत'}</strong>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFormUser(u)}
+                        className="px-2.5 py-1.5 bg-sky-600 text-white font-black rounded-xl text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <FileText className="w-3 h-3" />
+                        <span>जॉइन फॉर्म</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInspectedUser(u); setInspectorTab('profile'); }}
+                        className="px-2.5 py-1.5 bg-amber-400 text-slate-950 font-black rounded-xl text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>प्रोफाइल</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInspectedUser(u); setInspectorTab('payment'); }}
+                        className="px-2.5 py-1.5 bg-slate-800 text-amber-300 border border-slate-700 font-bold rounded-xl text-[11px] cursor-pointer"
+                      >
+                        रसीद
+                      </button>
+                      {u.paymentStatus !== 'approved' && (
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(u.userId)}
+                          className="px-2.5 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-[11px] cursor-pointer"
+                        >
+                          अप्रूव
+                        </button>
+                      )}
+                      {u.paymentStatus !== 'rejected' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+                            if (reason !== null && reason.trim()) {
+                              handleReject(u.userId, reason.trim());
+                            }
+                          }}
+                          className="px-2 py-1.5 bg-rose-950 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-[11px] cursor-pointer"
+                        >
+                          रिजेक्ट
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop User Table with Date Column & Date Grouping */}
+          <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80 shadow-inner">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-300 uppercase text-[10px] font-black tracking-wider">
@@ -4631,8 +4829,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-                  <table className="w-full text-left text-xs border-collapse">
+                <>
+                  {/* Mobile Cards View in Pop-up Modal */}
+                  <div className="md:hidden space-y-2.5">
+                    {popupFilteredUsers.map((u) => {
+                      const plan = PLANS.find((p) => p.id === u.selectedPlanId) || PLANS[0];
+                      const dateInfo = formatJoinDateTime(u.createdAt);
+                      return (
+                        <div key={u.userId} className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div
+                              onClick={() => {
+                                setInspectedUser(u);
+                                setInspectorTab('profile');
+                              }}
+                              className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+                            >
+                              <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-400/60 shrink-0 bg-slate-900">
+                                <img
+                                  src={u.photoUrl?.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                                  alt={u.fullName}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-white text-xs truncate">{u.fullName}</div>
+                                <div className="font-mono text-[11px] font-bold text-amber-300">{u.userId}</div>
+                                <div className="text-[10px] text-slate-400">{dateInfo.formattedDate}</div>
+                              </div>
+                            </div>
+                            <span
+                              className={`text-[9.5px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+                                u.paymentStatus === 'approved'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : u.paymentStatus === 'pending'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : 'bg-red-500/20 text-red-300 border-red-500/40'
+                              }`}
+                            >
+                              {u.paymentStatus === 'approved' ? 'स्वीकृत' : u.paymentStatus === 'pending' ? 'समीक्षाधीन' : 'अस्वीकृत'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5 text-[10.5px] bg-slate-900/70 p-2 rounded-xl border border-slate-800/80">
+                            <div>
+                              <span className="text-slate-400 block">प्लान:</span>
+                              <strong className="text-white">{plan.name} (₹{plan.price})</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">मोबाइल:</span>
+                              <a href={`tel:${u.mobileNumber}`} className="font-mono text-emerald-400 font-bold">{u.mobileNumber}</a>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">UTR:</span>
+                              <strong className="font-mono text-amber-300 break-all">{u.paymentUtr || 'N/A'}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">पासवर्ड:</span>
+                              <strong className="font-mono text-rose-300">{u.password || 'N/A'}</strong>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {u.paymentStatus !== 'approved' && (
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(u.userId)}
+                                className="px-2.5 py-1 bg-emerald-600 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+                              >
+                                अप्रूव
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFormUser(u)}
+                              className="px-2.5 py-1 bg-indigo-600 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+                            >
+                              स्लिप
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInspectedUser(u);
+                                setInspectorTab('profile');
+                              }}
+                              className="px-2.5 py-1 bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] cursor-pointer"
+                            >
+                              प्रोफाइल
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                    <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-slate-800 bg-slate-900 text-slate-300 uppercase text-[9.5px] font-black tracking-wider">
                         <th className="py-3 px-3">फोटो व नाम</th>
@@ -4834,7 +5125,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       })}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                </>
               )}
             </div>
 

@@ -61,6 +61,16 @@ service cloud.firestore {
     match /profile_visits/{visitId} {
       allow read, write: if true;
     }
+
+    // Separate High-Res User Media Vault (Photos & Payment Receipts)
+    match /user_media/{userId} {
+      allow read, write: if true;
+    }
+
+    // Direct Admin-Member Private Support Messages
+    match /private_messages/{messageId} {
+      allow read, write: if true;
+    }
   }
 }
 
