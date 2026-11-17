@@ -137,11 +137,17 @@ export default function App() {
   const [isPublicProfileOpen, setIsPublicProfileOpen] = useState<boolean>(false);
   const [securityAlertState, setSecurityAlertState] = useState<{ isOpen: boolean; newDevice?: string; newLoginAt?: string }>({ isOpen: false });
 
-  // Daily Vedic Panchang & Festival / Rashifal Popups
-  const [dailyPanchang] = useState(() => calculateLiveVedicPanchang());
+  // Daily Vedic Panchang & Festival / Rashifal Popups (auto-refreshed if IST date changes)
+  const [dailyPanchang, setDailyPanchang] = useState(() => calculateLiveVedicPanchang());
   const [isFestivalWelcomeOpen, setIsFestivalWelcomeOpen] = useState<boolean>(false);
   const [isDailyRashifalOpen, setIsDailyRashifalOpen] = useState<boolean>(false);
   const [isPhotoCompressorOpen, setIsPhotoCompressorOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isFestivalWelcomeOpen) {
+      setDailyPanchang(calculateLiveVedicPanchang(new Date()));
+    }
+  }, [isFestivalWelcomeOpen]);
 
   // 3D Universal Notification System State (Includes IOIS CHAT & HELP unread + pending friend requests)
   const [isAppNotificationModalOpen, setIsAppNotificationModalOpen] = useState<boolean>(false);

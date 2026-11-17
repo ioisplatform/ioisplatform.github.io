@@ -15,6 +15,7 @@ import {
   getActiveFestivalsForDate,
   getUpcomingFestivals,
 } from '../services/festivalPanchangService';
+import { toLocalIsoDateKey } from '../data/homeSliderData';
 import { PageType } from '../types';
 
 interface DailyFestivalWelcomeModalProps {
@@ -43,26 +44,33 @@ export const DailyFestivalWelcomeModal: React.FC<DailyFestivalWelcomeModalProps>
 
   const festivalChoices = useMemo<DayFestivalInfo[]>(() => {
     const now = new Date();
+    const todayKey = toLocalIsoDateKey(now);
     const active = getActiveFestivalsForDate(now);
     const upcoming = getUpcomingFestivals(now, 2, 75);
-    const fallbackToday = festival || calculateLiveVedicPanchang(now).festivalsToday;
+    const livePanchangToday = calculateLiveVedicPanchang(now).festivalsToday;
+    const isPassedFestivalValid = Boolean(
+      festival &&
+      festival.id !== 'daily-vedic-divas' &&
+      (!festival.endDate || festival.endDate >= todayKey)
+    );
 
     const list: DayFestivalInfo[] = [];
     const seen = new Set<string>();
 
     const addIfNew = (item?: DayFestivalInfo) => {
       if (!item || seen.has(item.id)) return;
+      if (item.endDate && item.endDate < todayKey) return;
       seen.add(item.id);
       list.push(item);
     };
 
-    if (festival && festival.id !== 'daily-vedic-divas') {
+    if (isPassedFestivalValid) {
       addIfNew(festival);
     }
     active.forEach(addIfNew);
     upcoming.forEach(addIfNew);
     if (list.length === 0) {
-      addIfNew(fallbackToday);
+      addIfNew(livePanchangToday);
     }
     return list;
   }, [festival, isOpen]);

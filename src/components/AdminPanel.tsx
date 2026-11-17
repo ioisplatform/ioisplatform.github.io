@@ -12,6 +12,7 @@ import {
   replyHelpTicket, 
   isAdminLoggedIn, 
   setAdminSession,
+  loginAdminAsync,
   getAllDownlinesRecursive,
   getDirectDownlines,
   getDownlineStats,
@@ -100,6 +101,7 @@ import {
   isPopupSlotConfigured
 } from '../data/homePopupData';
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
+import { generateRealTimeFestivalPopups } from '../services/festivalPanchangService';
 import { compressImageFileToDataUrl } from '../utils/imageCompress';
 import {
   fetchAdminSocialMonitorAsync,
@@ -117,6 +119,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [isAdminAuth, setIsAdminAuth] = useState<boolean>(() => isAdminLoggedIn());
   const [adminPin, setAdminPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
+  const [isAdminLoggingIn, setIsAdminLoggingIn] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders' | 'social_monitor'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
@@ -194,7 +197,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [inspectorTab, setInspectorTab] = useState<'profile' | 'contact' | 'payment' | 'team' | 'audit'>('profile');
   const [copiedInspectUtr, setCopiedInspectUtr] = useState<boolean>(false);
   const [copiedInspectId, setCopiedInspectId] = useState<boolean>(false);
-  const [copiedInspectPassword, setCopiedInspectPassword] = useState<boolean>(false);
 
   // Direct Private Chat Selection
   const [selectedChatUserId, setSelectedChatUserId] = useState<string>('');
@@ -224,7 +226,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     setEditingUser(u);
     setEditFullName(u.fullName || '');
     setEditUsername(u.username || '');
-    setEditPassword(u.password || '');
+    setEditPassword('');
     setEditMobile(u.mobileNumber || '');
     setEditEmail(u.email || '');
     setEditPlanId(u.selectedPlanId || 1);
@@ -243,17 +245,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     setAdminEditSuccess('');
 
     try {
-      const updated = await adminUpdateUserProfileAsync(editingUser.userId, {
+      const updatePayload: Parameters<typeof adminUpdateUserProfileAsync>[1] = {
         fullName: editFullName.trim(),
         username: editUsername.trim().toLowerCase().replace(/^@/, '') || undefined,
-        password: editPassword.trim(),
         mobileNumber: editMobile.trim(),
         email: editEmail.trim(),
         selectedPlanId: editPlanId,
         payoutUpi: editPayoutUpi.trim(),
         role: editRole,
         paymentStatus: editStatus
-      });
+      };
+      if (editPassword.trim().length > 0) {
+        updatePayload.password = editPassword.trim();
+      }
+      const updated = await adminUpdateUserProfileAsync(editingUser.userId, updatePayload);
 
       if (updated) {
         setAdminEditSuccess('✅ यूजर प्रोफाइल सफलतापूर्वक अपडेट हो गई!');
@@ -288,20 +293,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         clearFirestoreQuotaCooldown();
       }
       // Step 1: Ultra-fast metadata load (<35KB) so ALL members appear in <300ms on any new device
-      const fastMeta = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+      const fastMeta = await fetchAdminFullUsersAsync({
         includeMedia: false,
         forceCloud: withCloud,
       });
+      if (fastMeta.unauthorized) {
+        setAdminSession(false);
+        setIsAdminAuth(false);
+        return;
+      }
       if (fastMeta.users.length > 0) {
         setUsersList(fastMeta.users);
       }
       setArchivedUsers(fastMeta.archivedUsers);
 
       // Step 2: Hydrate full photos & payment receipts via gzipped /api/admin/users-full
-      let latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+      let latestFull = await fetchAdminFullUsersAsync({
         includeMedia: true,
         forceCloud: withCloud,
       });
+      if (latestFull.unauthorized) {
+        setAdminSession(false);
+        setIsAdminAuth(false);
+        return;
+      }
 
       if (!latestFull.serverReachable && latestFull.errorMessage) {
         setServerFetchError(latestFull.errorMessage);
@@ -309,11 +324,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
       if (latestFull.users.length <= 1 && withCloud) {
         await fetchUsersFromServer({ skipFirestore: false, forceCloud: true });
-        const cloudSyncRes = await triggerAdminCloudSyncAsync('IOISSYSTEM');
-        latestFull = await fetchAdminFullUsersAsync('IOISSYSTEM', {
+        const cloudSyncRes = await triggerAdminCloudSyncAsync();
+        if (cloudSyncRes.unauthorized) {
+          setAdminSession(false);
+          setIsAdminAuth(false);
+          return;
+        }
+        latestFull = await fetchAdminFullUsersAsync({
           includeMedia: true,
           forceCloud: true,
         });
+        if (latestFull.unauthorized) {
+          setAdminSession(false);
+          setIsAdminAuth(false);
+          return;
+        }
         if (cloudSyncRes.cloudError && cloudSyncRes.cloudError.includes('resource-exhausted')) {
           showVaultNotice(
             'info',
@@ -384,8 +409,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const handleManualCloudSync = async () => {
     setIsCloudSyncing(true);
     try {
-      const res = await triggerAdminCloudSyncAsync('IOISSYSTEM');
-      const full = await fetchAdminFullUsersAsync('IOISSYSTEM');
+      const res = await triggerAdminCloudSyncAsync();
+      if (res.unauthorized) {
+        setAdminSession(false);
+        setIsAdminAuth(false);
+        return;
+      }
+      const full = await fetchAdminFullUsersAsync();
+      if (full.unauthorized) {
+        setAdminSession(false);
+        setIsAdminAuth(false);
+        return;
+      }
       setUsersList(full.users);
       setArchivedUsers(full.archivedUsers);
       if (res.cloudError && res.cloudError.includes('resource-exhausted')) {
@@ -468,17 +503,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Admin password exclusively set to IOISSYSTEM
     const cleanPin = adminPin.trim();
-    if (cleanPin === 'IOISSYSTEM' || cleanPin === 'ioissystem') {
-      clearFirestoreQuotaCooldown();
-      setAdminSession(true);
-      setIsAdminAuth(true);
-      setPinError('');
-    } else {
-      setPinError('गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।');
+    if (!cleanPin) {
+      setPinError('कृपया एडमिन पासवर्ड दर्ज करें।');
+      return;
+    }
+    setIsAdminLoggingIn(true);
+    setPinError('');
+    try {
+      const result = await loginAdminAsync(cleanPin);
+      if (result.success) {
+        setIsAdminAuth(true);
+        setAdminPin('');
+        setPinError('');
+      } else {
+        setPinError(result.error || 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।');
+      }
+    } finally {
+      setIsAdminLoggingIn(false);
     }
   };
 
@@ -762,10 +806,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             </div>
             <button
               type="submit"
-              className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition transform hover:scale-[1.02] active:scale-95"
+              disabled={isAdminLoggingIn}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition transform hover:scale-[1.02] active:scale-95"
             >
               <Unlock className="w-4 h-4" />
-              <span>एडमिन पैनल अनलॉक करें (UNLOCK ADMIN)</span>
+              <span>{isAdminLoggingIn ? 'वेरिफाई हो रहा है...' : 'एडमिन पैनल अनलॉक करें (UNLOCK ADMIN)'}</span>
             </button>
           </form>
         </div>
@@ -1302,8 +1347,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         <strong className="font-mono text-sky-300 break-all">{u.payoutUpi || u.sponsorId || 'N/A'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">पासवर्ड</span>
-                        <strong className="font-mono text-rose-300">{u.password || 'N/A'}</strong>
+                        <span className="text-slate-400 block text-[10px]">पासवर्ड सुरक्षा</span>
+                        <strong className="font-mono text-emerald-300">{u.passwordStatus || (u.passwordProtected ? '🔒 Encrypted (scrypt)' : 'सेट नहीं')}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px]">स्थान / ईमेल</span>
@@ -2494,23 +2539,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       </div>
 
                       <div className="p-3 bg-slate-950 rounded-xl border-2 border-emerald-500/50">
-                        <span className="text-emerald-400 block text-[10px] font-black uppercase">लॉगिन पासवर्ड (CLEAR TEXT):</span>
-                        <div className="flex items-center justify-between mt-1">
-                          <strong className="text-white font-mono text-base font-black tracking-wider select-all">
-                            {inspectedUser.password || 'IOIS1234'}
+                        <span className="text-emerald-400 block text-[10px] font-black uppercase">🔐 पासवर्ड सुरक्षा (PASSWORD SECURITY):</span>
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <strong className="text-emerald-300 font-mono text-xs sm:text-sm font-black tracking-wide">
+                            {inspectedUser.passwordStatus || (inspectedUser.passwordProtected ? '🔒 Scrypt Encrypted (Private)' : 'सेट नहीं')}
                           </strong>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(inspectedUser.password || '');
-                              setCopiedInspectPassword(true);
-                              setTimeout(() => setCopiedInspectPassword(false), 2000);
-                            }}
-                            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center gap-1 cursor-pointer transition shadow"
-                          >
-                            {copiedInspectPassword ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                            <span>{copiedInspectPassword ? 'कॉपी हुआ' : 'कॉपी पासवर्ड'}</span>
-                          </button>
+                          <span className="text-[10px] text-slate-400 font-bold">
+                            रीसेट हेतु "प्रोफाइल एडिट" खोलें
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -3120,12 +3156,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
                 {/* Password */}
                 <div>
-                  <label className="block text-amber-300 font-bold mb-1">लॉगिन पासवर्ड (Clear Text):</label>
+                  <label className="block text-amber-300 font-bold mb-1">नया लॉगिन पासवर्ड (बदलना हो तो लिखें):</label>
                   <input
                     type="text"
-                    required
                     value={editPassword}
                     onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="पासवर्ड बदलने हेतु नया पासवर्ड लिखें (खाली = अपरिवर्तित)"
                     className="w-full bg-slate-900 border-2 border-amber-500/60 focus:border-amber-400 text-amber-300 font-mono font-bold rounded-xl px-3 py-2 outline-none"
                   />
                 </div>
@@ -3364,7 +3400,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                     फोटो + शुभकामना संदेश पॉपअप व सेलिब्रेशन इफ़ेक्ट (Cut बटन सहित)
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-                    <strong>नियम:</strong> यहाँ फोटो अपलोड करें या केवल शुभकामना संदेश लिखें (जैसे: <em>"आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं!"</em>)। जब भी विज़िटर होम स्क्रीन या डैशबोर्ड पर आएंगे, Congratulations &amp; Celebration Effect और Cut (✕) बटन के साथ पॉपअप दिखेगा। <strong>यदि आप कोई फोटो या पॉपअप संदेश सेट नहीं करेंगे, तो केवल वास्तविक त्योहार/सेलिब्रेशन के दिन ही पॉपअप दिखेगा, अन्यथा कोई पॉपअप नहीं आएगा।</strong>
+                    <strong>नियम:</strong> यहाँ फोटो अपलोड करें या शुभकामना संदेश लिखें (जैसे: <em>"IOIS INDIA परिवार की ओर से पावन पर्व की हार्दिक शुभकामनाएं!"</em>)। जब भी विज़िटर होम स्क्रीन या डैशबोर्ड पर आएंगे, Congratulations &amp; Celebration Effect और Cut (✕) बटन के साथ पॉपअप दिखेगा। <strong>जो पर्व समाप्त हो जाता है उसका स्लाइडर और पॉपअप तय तिथि (IST) के बाद अपने आप बंद हो जाता है।</strong>
                   </p>
                 </div>
 
@@ -3413,33 +3449,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         return;
                       }
                       setPopupErrorMsg('');
-                      const chhathPopup: HomePopupPhoto = {
-                        id: `popup-${Date.now()}`,
-                        imageUrl: '',
-                        title: '☀️ छठ महापर्व विशेष शुभकामना संदेश',
-                        celebrationHeadline: '🎉 आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं! 🎉',
-                        description: 'भगवान सूर्य देव और छठी मैया की असीम कृपा से आप सभी के जीवन में सुख, शांति, समृद्धि और उत्तम स्वास्थ्य का वास हो। — IOIS परिवार',
-                        celebrationEffect: true,
-                        displayTargets: ['home', 'dashboard', 'all'],
-                        actionType: 'plans',
-                        actionText: 'विशेष ऑफर देखें',
-                        active: true,
-                        order: popupPhotos.length + 1,
-                        createdAt: new Date().toISOString(),
-                      };
-                      const updated = [...popupPhotos, chhathPopup];
+                      const suggested = generateRealTimeFestivalPopups(new Date(), { includeUpcoming: true })[0];
+                      const festPopup: HomePopupPhoto = suggested
+                        ? {
+                            ...suggested,
+                            id: `popup-${Date.now()}`,
+                            displayTargets: ['home', 'dashboard', 'all'],
+                            order: popupPhotos.length + 1,
+                            createdAt: new Date().toISOString(),
+                          }
+                        : {
+                            id: `popup-${Date.now()}`,
+                            imageUrl: '',
+                            title: '✨ IOIS INDIA विशेष पर्व शुभकामना संदेश',
+                            celebrationHeadline: '🎉 आप सभी सदस्यों व देशवासियों को पावन पर्व की हार्दिक शुभकामनाएं! 🎉',
+                            description: 'IOIS INDIA परिवार की ओर से आपके जीवन में सुख, शांति, समृद्धि और उत्तम स्वास्थ्य की मंगलकामना।',
+                            celebrationEffect: true,
+                            displayTargets: ['home', 'dashboard', 'all'],
+                            actionType: 'plans',
+                            actionText: 'विशेष ऑफर देखें',
+                            active: true,
+                            order: popupPhotos.length + 1,
+                            createdAt: new Date().toISOString(),
+                          };
+                      const updated = [...popupPhotos, festPopup];
                       setPopupPhotos(updated);
                       await saveAdminPopupPhotosAsync(updated);
-                      setPreviewFocusPhotoId(chhathPopup.id);
+                      setPreviewFocusPhotoId(festPopup.id);
                       setShowPopupPreview(true);
-                      setPopupSuccessMsg('छठ महापर्व सेलिब्रेशन पॉपअप सक्रिय हो गया!');
+                      setPopupSuccessMsg(`${festPopup.festivalName || 'पावन पर्व'} सेलिब्रेशन पॉपअप सक्रिय हो गया (समाप्ति के बाद स्वतः हट जाएगा)!`);
                       setTimeout(() => setPopupSuccessMsg(''), 4000);
                     }}
                     disabled={popupPhotos.length >= 7}
                     className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95 disabled:opacity-40"
                   >
                     <PartyPopper className="w-3.5 h-3.5" />
-                    <span>+ छठ महापर्व बधाई टेम्पलेट</span>
+                    <span>+ लाइव/आगामी पर्व बधाई टेम्पलेट</span>
                   </button>
 
                   <button
@@ -3662,7 +3707,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                   setPopupPhotos(updated);
                                   await saveAdminPopupPhotosAsync(updated);
                                 }}
-                                placeholder="https://example.com/chhath-banner.jpg"
+                                placeholder="https://example.com/festival-banner.jpg"
                                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-amber-400"
                               />
                             </div>
@@ -3682,7 +3727,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                   setPopupPhotos(updated);
                                   await saveAdminPopupPhotosAsync(updated);
                                 }}
-                                placeholder="उदा: आप सभी मित्रों को छठ महापर्व की हार्दिक शुभकामनाएं!"
+                                placeholder="उदा: IOIS INDIA परिवार की ओर से पावन पर्व की हार्दिक शुभकामनाएं!"
                                 className="w-full bg-slate-900 border border-amber-500/40 text-white rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-amber-400"
                               />
                             </div>
@@ -3697,7 +3742,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                   setPopupPhotos(updated);
                                   await saveAdminPopupPhotosAsync(updated);
                                 }}
-                                placeholder="उदा: छठ महापर्व विशेष सूचना"
+                                placeholder="उदा: आगामी महापर्व विशेष शुभकामना"
                                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs outline-none"
                               />
                             </div>
@@ -4885,7 +4930,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                             </div>
                             <div>
                               <span className="text-slate-400 block">पासवर्ड:</span>
-                              <strong className="font-mono text-rose-300">{u.password || 'N/A'}</strong>
+                              <strong className="font-mono text-emerald-300">{u.passwordStatus || (u.passwordProtected ? '🔒 Encrypted' : 'N/A')}</strong>
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">

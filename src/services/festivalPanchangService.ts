@@ -99,7 +99,7 @@ interface FestivalCatalogEntry extends Omit<DayFestivalInfo, 'dateStr' | 'isUpco
 
 function parseLocalIsoDate(isoKey: string): Date {
   const [y, m, d] = isoKey.split('-').map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 6, 30, 0));
 }
 
 function diffDaysBetweenKeys(fromKey: string, toKey: string): number {
@@ -110,6 +110,7 @@ function diffDaysBetweenKeys(fromKey: string, toKey: string): number {
 
 function formatHindiDateFromIso(isoKey: string): string {
   return parseLocalIsoDate(isoKey).toLocaleDateString('hi-IN', {
+    timeZone: 'Asia/Kolkata',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -237,11 +238,11 @@ const FESTIVAL_CATALOG: FestivalCatalogEntry[] = [
     }
   },
 
-  // LIVE TODAY (13–17 Nov 2026): CHHATH PUJA MAHAPARV
+  // CHHATH PUJA MAHAPARV 2026 (13–16 Nov 2026: Nahay-Khay 13, Kharna 14, Sandhya Arghya 15, Usha Arghya 16)
   {
     id: 'chhath-2026',
     startDate: '2026-11-13',
-    endDate: '2026-11-17',
+    endDate: '2026-11-16',
     nameHindi: 'लोक आस्था का महापर्व छठ पूजा — नहाय-खाय से उषा अर्घ्य तक',
     englishName: 'Chhath Puja Mahaparv',
     tagline: 'भगवान सूर्य देव व छठी मैया की असीम कृपा, स्वच्छता व सामाजिक समरसता का महापर्व',
@@ -766,10 +767,14 @@ export function getUpcomingFestivals(date: Date = new Date(), limit: number = 2,
  * Dynamic Vedic Panchang and Calendar Calculator
  */
 export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LivePanchangDetails {
-  const day = targetDate.getDate();
-  const month = targetDate.getMonth();
+  const istKey = toLocalIsoDateKey(targetDate);
+  const [, istM, istD] = istKey.split('-').map(Number);
+  const day = istD || targetDate.getDate();
+  const month = (istM || 1) - 1;
+  const istWeekdayIndex = parseLocalIsoDate(istKey).getUTCDay();
 
   const hindiDateStr = targetDate.toLocaleDateString('hi-IN', {
+    timeZone: 'Asia/Kolkata',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -777,6 +782,7 @@ export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LiveP
   });
 
   const englishDateStr = targetDate.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -784,7 +790,7 @@ export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LiveP
   });
 
   const daysOfWeek = ['रविवार (Ravivar)', 'सोमवार (Somvar)', 'मंगलवार (Mangalvar)', 'बुधवार (Budhvar)', 'गुरुवार (Guruvar)', 'शुक्रवार (Shukravar)', 'शनिवार (Shanivar)'];
-  const vaara = daysOfWeek[targetDate.getDay()];
+  const vaara = daysOfWeek[istWeekdayIndex] || daysOfWeek[targetDate.getDay()];
 
   const tithis = [
     'प्रतिपदा (Pratipada)', 'द्वितीया (Dwitiya)', 'तृतीया (Tritiya)', 'चतुर्थी (Chaturthi)',
@@ -838,7 +844,7 @@ export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LiveP
     abhijitMuhurat: '11:44 AM - 12:28 PM (सर्वश्रेष्ठ शुभ समय)',
     godhuliMuhurat: '05:22 PM - 05:48 PM (संध्या वंदन काल)',
     amritKaal: '08:40 AM - 10:15 AM',
-    rahuKaal: targetDate.getDay() === 1 ? '07:45 AM - 09:05 AM' : targetDate.getDay() === 2 ? '02:50 PM - 04:15 PM' : '01:25 PM - 02:50 PM',
+    rahuKaal: istWeekdayIndex === 1 ? '07:45 AM - 09:05 AM' : istWeekdayIndex === 2 ? '02:50 PM - 04:15 PM' : '01:25 PM - 02:50 PM',
     yamaganda: '09:15 AM - 10:35 AM',
     gulikaKaal: '11:55 AM - 01:20 PM',
     choghadiya: {
@@ -856,7 +862,7 @@ export function calculateLiveVedicPanchang(targetDate: Date = new Date()): LiveP
 
 /**
  * Returns active festival for the specified date; if no active festival is on that exact date,
- * returns the nearest upcoming festival context or auspicious daily panchang fallback.
+ * returns auspicious daily panchang fallback (past festivals NEVER return).
  */
 export function getFestivalForDate(date: Date = new Date()): DayFestivalInfo {
   const activeList = getActiveFestivalsForDate(date);
@@ -869,7 +875,7 @@ export function getFestivalForDate(date: Date = new Date()): DayFestivalInfo {
     nameHindi: 'आज का पावन सनातन दिवस व दैनिक संकल्प',
     englishName: "Today's Auspicious Day",
     tagline: 'दैनिक वैदिक ऊर्जा, शुभ मुहूर्त, सकारात्मक विचार व स्वावलंबन',
-    dateStr: date.toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+    dateStr: date.toLocaleDateString('hi-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric' }),
     badge: 'आज का पावन दिवस संदेश',
     imageUrl: missionImg,
     themeGradient: 'from-amber-600/35 via-slate-900/75 to-slate-950',
@@ -966,12 +972,16 @@ export function generateRealTimeFestivalSliders(targetDate: Date = new Date()): 
 }
 
 /**
- * Generates REAL-TIME full-picture IOIS INDIA greeting popup banners for today's active festival(s)
- * and nearest upcoming festival(s). Expired festivals never appear.
+ * Generates REAL-TIME full-picture IOIS INDIA greeting popup banners for today's active festival(s).
+ * Once a festival's endDate passes, its popup vanishes completely automatically.
+ * Optionally includes upcoming festivals only when explicitly requested (e.g., Admin preview fallback).
  */
-export function generateRealTimeFestivalPopups(targetDate: Date = new Date()): HomePopupPhoto[] {
+export function generateRealTimeFestivalPopups(
+  targetDate: Date = new Date(),
+  options?: { includeUpcoming?: boolean }
+): HomePopupPhoto[] {
   const activeToday = getActiveFestivalsForDate(targetDate);
-  const upcoming = getUpcomingFestivals(targetDate, 2, 75);
+  const upcoming = options?.includeUpcoming ? getUpcomingFestivals(targetDate, 2, 75) : [];
   const combined = [...activeToday, ...upcoming];
 
   return combined.map((fest, idx) => {

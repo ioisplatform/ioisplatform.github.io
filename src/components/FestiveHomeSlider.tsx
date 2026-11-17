@@ -18,7 +18,14 @@ import {
   Calendar,
   Clock,
 } from 'lucide-react';
-import { HomeSliderItem, getStoredSliders, fetchStoredSlidersFromServer, toLocalIsoDateKey } from '../data/homeSliderData';
+import {
+  HomeSliderItem,
+  getStoredSliders,
+  fetchStoredSlidersFromServer,
+  toLocalIsoDateKey,
+  isSliderItemExpired,
+  hasExpiredFestivalSignature,
+} from '../data/homeSliderData';
 import { generateRealTimeFestivalSliders } from '../services/festivalPanchangService';
 import { PageType } from '../types';
 
@@ -37,13 +44,25 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
 
   const buildActiveSlides = useCallback((): HomeSliderItem[] => {
     const now = new Date();
-    const realTimeFestivalSlides = generateRealTimeFestivalSliders(now);
-    const stored = getStoredSliders().filter((s) => s.active);
+    const todayKey = toLocalIsoDateKey(now);
+    const realTimeFestivalSlides = generateRealTimeFestivalSliders(now).filter(
+      (s) => s.active && !hasExpiredFestivalSignature(s, todayKey)
+    );
+    const stored = getStoredSliders().filter(
+      (s) => s.active && !isSliderItemExpired(s, now)
+    );
 
-    // Prevent duplicates with dynamically generated festival slides
-    const dynamicFestIds = new Set(realTimeFestivalSlides.map((s) => (s.festivalName || '').toLowerCase()));
+    // Prevent duplicates with dynamically generated festival slides (by festivalId or festivalName)
+    const dynamicFestKeys = new Set(
+      realTimeFestivalSlides
+        .flatMap((s) => [s.festivalId || '', s.festivalName || ''])
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
+    );
     const filteredStored = stored.filter((s) => {
-      if (s.category === 'festival' && s.festivalName && dynamicFestIds.has(s.festivalName.toLowerCase())) {
+      const fId = (s.festivalId || '').trim().toLowerCase();
+      const fName = (s.festivalName || '').trim().toLowerCase();
+      if (s.category === 'festival' && ((fId && dynamicFestKeys.has(fId)) || (fName && dynamicFestKeys.has(fName)))) {
         return false;
       }
       return true;
@@ -175,7 +194,11 @@ export const FestiveHomeSlider: React.FC<FestiveHomeSliderProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           {getSlideIcon(currentSlide.iconName)}
           <span className="text-[11px] sm:text-xs font-black tracking-wide text-amber-300 uppercase">
-            IOIS INDIA बधाई व लाइव पर्व स्लाइडर
+            {isFestivalSlide
+              ? isUpcomingFestival
+                ? 'IOIS INDIA आगामी पर्व व बधाई स्लाइडर'
+                : 'IOIS INDIA लाइव पर्व व बधाई स्लाइडर'
+              : 'IOIS INDIA विशेष अपडेट व मिशन स्लाइडर'}
           </span>
           <span className="text-slate-600 hidden sm:inline">•</span>
           <span className={`text-[11px] sm:text-xs font-bold truncate ${

@@ -18,6 +18,7 @@ import {
   HomePopupPhoto,
   getStoredHomePopupPhotos,
   fetchHomePopupPhotosFromServer,
+  isPopupExpiredOrScheduledOut,
 } from '../data/homePopupData';
 import { toLocalIsoDateKey } from '../data/homeSliderData';
 import { generateRealTimeFestivalPopups } from '../services/festivalPanchangService';
@@ -98,34 +99,41 @@ export const AdminHomePhotoPopup = ({
   }, [popupLocation, focusPhotoId, dateKey]);
 
   // Build effective full-picture popup slides:
-  // 1) Non-expired Admin popups configured for this view.
-  // 2) Real-Time Active Today + Upcoming IOIS INDIA Festival Greeting Banners (on 'home' / 'preview').
+  // 1) Strictly non-expired & active Admin popups configured for this view.
+  // 2) Real-Time Active Today IOIS INDIA Festival Greeting Banners (on 'home' — never past or far-future).
   // Passed festivals NEVER appear!
   const effectivePhotos: HomePopupPhoto[] = useMemo(() => {
+    const now = new Date();
+    const validAdminPhotos = adminPhotos.filter((p) => !isPopupExpiredOrScheduledOut(p, now));
+
     if (popupLocation === 'preview') {
-      if (adminPhotos.length > 0) return adminPhotos;
-      return generateRealTimeFestivalPopups(new Date());
+      if (validAdminPhotos.length > 0) return validAdminPhotos;
+      return generateRealTimeFestivalPopups(now, { includeUpcoming: true }).filter(
+        (p) => !isPopupExpiredOrScheduledOut(p, now)
+      );
     }
 
     if (popupLocation === 'global' || popupLocation === 'dashboard') {
       // Outside Home showcase, respect Admin-targeted popups strictly
-      return adminPhotos;
+      return validAdminPhotos;
     }
 
-    // Home location: Show active Admin popups + real-time Live & Upcoming IOIS INDIA Festival Greeting Banners
-    const realTimeFestivals = generateRealTimeFestivalPopups(new Date());
-    if (adminPhotos.length === 0) {
+    // Home location: Show active Admin popups + ONLY live today's IOIS INDIA Festival Greeting Banners
+    const realTimeFestivals = generateRealTimeFestivalPopups(now, { includeUpcoming: false }).filter(
+      (p) => !isPopupExpiredOrScheduledOut(p, now)
+    );
+    if (validAdminPhotos.length === 0) {
       return realTimeFestivals;
     }
 
-    // Put active Admin popups first, followed by current/upcoming festival banners (deduplicated by festivalId)
+    // Put active Admin popups first, followed by today's live festival banners (deduplicated by festivalId)
     const adminFestivalIds = new Set(
-      adminPhotos.map((p) => (p.festivalId || '').toLowerCase()).filter(Boolean)
+      validAdminPhotos.map((p) => (p.festivalId || '').toLowerCase()).filter(Boolean)
     );
     const additionalFestivals = realTimeFestivals.filter(
       (f) => !f.festivalId || !adminFestivalIds.has(f.festivalId.toLowerCase())
     );
-    return [...adminPhotos, ...additionalFestivals];
+    return [...validAdminPhotos, ...additionalFestivals];
   }, [adminPhotos, popupLocation, dateKey]);
 
   const contentSignature = useMemo(() => {

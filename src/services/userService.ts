@@ -35,6 +35,8 @@ const STORAGE_UNANSWERED_KEY = 'iois_ai_unanswered_v2';
 const STORAGE_INTERVIEWS_KEY = 'iois_interviews_v2';
 const STORAGE_PRIVATE_MESSAGES_KEY = 'iois_private_chat_messages_v2';
 const STORAGE_DEVICE_SESSION_TOKEN_KEY = 'iois_device_session_token';
+const STORAGE_MEMBER_AUTH_TOKEN_KEY = 'iois_auth_token';
+const STORAGE_ADMIN_AUTH_TOKEN_KEY = 'iois_admin_token';
 const STORAGE_PENDING_SYNC_QUEUE_KEY = 'iois_pending_sync_queue_v1';
 
 // NEVER include member database keys in evict list so user data is never wiped on quota pressure
@@ -105,6 +107,81 @@ export const setDeviceSessionToken = (token: string): void => {
 export const clearDeviceSessionToken = (): void => {
   if (typeof window === 'undefined') return;
   safeLocalStorageRemove(STORAGE_DEVICE_SESSION_TOKEN_KEY);
+};
+
+export const getMemberAuthToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  return safeLocalStorageGet(STORAGE_MEMBER_AUTH_TOKEN_KEY) || '';
+};
+
+export const setMemberAuthToken = (token: string): void => {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    safeLocalStorageSet(STORAGE_MEMBER_AUTH_TOKEN_KEY, token, {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
+  } else {
+    safeLocalStorageRemove(STORAGE_MEMBER_AUTH_TOKEN_KEY);
+  }
+};
+
+export const getAdminAuthToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  return safeLocalStorageGet(STORAGE_ADMIN_AUTH_TOKEN_KEY) || '';
+};
+
+export const setAdminAuthToken = (token: string): void => {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    safeLocalStorageSet(STORAGE_ADMIN_AUTH_TOKEN_KEY, token, {
+      evictKeysOnQuota: BULKY_EVICT_KEYS,
+    });
+  } else {
+    safeLocalStorageRemove(STORAGE_ADMIN_AUTH_TOKEN_KEY);
+  }
+};
+
+export const getAuthHeaders = (preferAdmin = false): Record<string, string> => {
+  const adminToken = getAdminAuthToken();
+  const memberToken = getMemberAuthToken();
+  const sessionToken = getDeviceSessionToken();
+  const bearer = preferAdmin ? adminToken || memberToken : memberToken || adminToken;
+  const headers: Record<string, string> = {};
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  if (sessionToken) headers['x-session-token'] = sessionToken;
+  return headers;
+};
+
+export const loginAdminAsync = async (
+  adminPin: string
+): Promise<{ success: boolean; error?: string }> => {
+  const cleanPin = (adminPin || '').trim();
+  if (!cleanPin) {
+    return { success: false, error: 'कृपया एडमिन पासवर्ड दर्ज करें।' };
+  }
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminPin: cleanPin }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success && data?.adminToken) {
+      setAdminAuthToken(data.adminToken);
+      setAdminSession(true);
+      clearFirestoreQuotaCooldown();
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: data?.error || 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।',
+    };
+  } catch {
+    return {
+      success: false,
+      error: 'एडमिन सत्यापन के लिए सर्वर से संपर्क नहीं हो सका।',
+    };
+  }
 };
 
 export const getDeviceFingerprintLabel = (): string => {
@@ -334,8 +411,9 @@ const sanitizeEditHistory = (logs: any): any[] => {
 
 // Prepare a user record so Firestore 1MB document limit NEVER drops a member record
 const prepareUserForFirestore = (user: UserProfile): any => {
+  const { password: _omittedPassword, ...safeUser } = user as any;
   const normalized = {
-    ...user,
+    ...safeUser,
     ...(Array.isArray(user.editHistory) ? { editHistory: sanitizeEditHistory(user.editHistory) } : {}),
   };
   const clean = sanitizeForFirestore(normalized);
@@ -363,7 +441,10 @@ const prepareUserForFirestore = (user: UserProfile): any => {
   }
 };
 
-// Merge multiple user lists non-destructively (never erase non-empty fields or lose existing members)
+const isMaskedDirectoryValue = (val: unknown): boolean =>
+  typeof val === 'string' && val.includes('***');
+
+// Merge multiple user lists non-destructively (never erase non-empty or unmasked fields)
 export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): UserProfile[] => {
   const map = new Map<string, UserProfile>();
 
@@ -386,6 +467,14 @@ export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): 
         const merged: any = { ...existing };
         for (const [k, val] of Object.entries(cleanInput)) {
           if (val !== undefined && val !== null && val !== '') {
+            if (
+              (k === 'mobileNumber' || k === 'email') &&
+              isMaskedDirectoryValue(val) &&
+              existing[k] &&
+              !isMaskedDirectoryValue(existing[k])
+            ) {
+              continue;
+            }
             merged[k] = val;
           }
         }
@@ -396,6 +485,7 @@ export const mergeUserLists = (...lists: (UserProfile[] | undefined | null)[]): 
         merged.photoUrl = cleanInput.photoUrl || existing.photoUrl;
         merged.paymentScreenshotUrl = cleanInput.paymentScreenshotUrl || existing.paymentScreenshotUrl;
         merged.password = (cleanInput.password && cleanInput.password.trim()) ? cleanInput.password : existing.password;
+        merged.passwordProtected = Boolean(cleanInput.passwordProtected || existing.passwordProtected || merged.password);
         merged.verifiedAt = cleanInput.verifiedAt || existing.verifiedAt;
         merged.rejectionReason = cleanInput.rejectionReason || existing.rejectionReason;
         merged.registrationFormData =
@@ -516,7 +606,7 @@ export const flushPendingUserSyncsAsync = async (): Promise<number> => {
       try {
         const res = await fetch('/api/users/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
           body: JSON.stringify({ users: [item.user] }),
         });
         if (res.ok) serverOk = true;
@@ -1887,11 +1977,15 @@ export const fetchUsersFromServer = async (
 
   saveUsers(allMerged);
 
-  // 3. Bidirectional Auto-Heal: Push client/cloud records back up to server disk if server was missing anything
-  if (allMerged.length > 0 && serverNeedsSelfHealSync(allMerged, serverUsers)) {
+  // 3. Bidirectional Auto-Heal: Push client/cloud records back up to server disk only when authenticated
+  if (
+    allMerged.length > 0 &&
+    serverNeedsSelfHealSync(allMerged, serverUsers) &&
+    (getAdminAuthToken() || getMemberAuthToken() || getDeviceSessionToken())
+  ) {
     fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
       body: JSON.stringify({ users: allMerged }),
     }).catch(() => {});
   }
@@ -1971,6 +2065,7 @@ export const registerNewUserAsync = async (
 
   // 3. Contact backend server with generous 20000ms timeout (for photo/screenshot uploads on mobile 4G)
   let serverSaved = false;
+  let serverUser: UserProfile | null = null;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
@@ -1992,6 +2087,16 @@ export const registerNewUserAsync = async (
       throw err;
     }
     if (serverRes.ok) {
+      const serverData = await serverRes.json().catch(() => null);
+      if (serverData?.authToken) {
+        setMemberAuthToken(serverData.authToken);
+      }
+      if (serverData?.sessionToken) {
+        setDeviceSessionToken(serverData.sessionToken);
+      }
+      if (serverData?.user) {
+        serverUser = serverData.user as UserProfile;
+      }
       serverSaved = true;
     }
   } catch (err: any) {
@@ -2004,29 +2109,37 @@ export const registerNewUserAsync = async (
     try {
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
         body: JSON.stringify({ users: [newUser] }),
       });
       if (syncRes.ok) serverSaved = true;
     } catch {}
   }
 
+  // Never keep raw plaintext password in local browser storage after registration
+  const { password: _omittedRegPass, ...newUserSafe } = newUser as any;
+  const savedLocalUser: UserProfile = serverUser || {
+    ...newUserSafe,
+    passwordProtected: Boolean(newUser.password),
+    passwordStatus: newUser.password ? '🔒 Encrypted (scrypt)' : 'कोई पासवर्ड सेट नहीं',
+  };
+
   // 4. Save immediately to local device vault & active session
-  const updatedList = mergeUserLists(currentUsers, [newUser], INITIAL_DEMO_USERS);
+  const updatedList = mergeUserLists(currentUsers, [savedLocalUser], INITIAL_DEMO_USERS);
   saveUsers(updatedList);
-  setCurrentUser(newUser);
+  setCurrentUser(savedLocalUser);
 
   // 5. Cloud Firestore persistence (await up to 12000ms so registration is safely persisted across devices)
   const firestoreSaved = await Promise.race([
-    syncUserToFirestore(newUser),
+    syncUserToFirestore(savedLocalUser),
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
   ]).catch(() => false);
 
   if (!serverSaved || !firestoreSaved) {
-    void enqueuePendingUserSync(newUser, 'register');
+    void enqueuePendingUserSync(savedLocalUser, 'register');
   }
 
-  return newUser;
+  return savedLocalUser;
 };
 
 export const GITHUB_PLATFORM_URL = 'https://ioisplatform.github.io';
@@ -2183,11 +2296,16 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   const newLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = [];
   const now = new Date().toISOString();
 
+  const pendingPasswordUpdate =
+    typeof updatedProfile.password === 'string' && updatedProfile.password.trim()
+      ? updatedProfile.password.trim()
+      : '';
+  const { password: _strippedPassword, ...safeProfileUpdates } = updatedProfile as any;
+
   if (existingUser) {
     const fieldMap: Array<{ key: keyof UserProfile; label: string }> = [
       { key: 'username', label: 'यूजरनेम (@username)' },
       { key: 'fullName', label: 'सदस्य का पूरा नाम' },
-      { key: 'password', label: 'लॉगिन पासवर्ड' },
       { key: 'payoutUpi', label: 'पेआउट UPI आईडी' },
       { key: 'mobileNumber', label: 'मोबाइल नंबर' },
       { key: 'email', label: 'ईमेल पता' },
@@ -2205,9 +2323,19 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
       { key: 'emergencyContact', label: 'आपातकालीन संपर्क' },
     ];
 
+    if (pendingPasswordUpdate) {
+      newLogs.push({
+        field: 'password',
+        fieldLabelHi: 'लॉगिन पासवर्ड',
+        oldValue: '[सुरक्षित पासवर्ड]',
+        newValue: '[सुरक्षित पासवर्ड अपडेट]',
+        timestamp: now,
+      });
+    }
+
     fieldMap.forEach(({ key, label }) => {
       const oldVal = (existingUser[key] as string) || '';
-      const newVal = (updatedProfile[key] as string) || '';
+      const newVal = (safeProfileUpdates[key] as string) || '';
       if (oldVal !== newVal && (oldVal || newVal)) {
         const isMedia =
           key === 'photoUrl' ||
@@ -2234,7 +2362,7 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   if (index !== -1) {
     finalizedUser = mergeUserLists([users[index]], [
       {
-        ...updatedProfile,
+        ...safeProfileUpdates,
         payoutUpi: sanitizedUpi,
         userId: users[index].userId, // Strictly immutable User ID
         editHistory: combinedLogs,
@@ -2243,7 +2371,7 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     users[index] = finalizedUser;
   } else {
     finalizedUser = {
-      ...updatedProfile,
+      ...safeProfileUpdates,
       payoutUpi: sanitizedUpi,
       userId: updatedProfile.userId.trim().toUpperCase(),
       editHistory: combinedLogs,
@@ -2259,6 +2387,10 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     setCurrentUser(finalizedUser);
   }
 
+  const serverPayload = pendingPasswordUpdate
+    ? { ...finalizedUser, password: pendingPasswordUpdate }
+    : finalizedUser;
+
   // Reliable dual sync to Firestore & Server with automatic fallback + retry queue
   void (async () => {
     const fsOk = await syncUserToFirestore(finalizedUser);
@@ -2266,8 +2398,8 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     try {
       const res = await fetch(`/api/users/${encodeURIComponent(finalizedUser.userId)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalizedUser),
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
+        body: JSON.stringify(serverPayload),
       });
       if (res.ok) srvOk = true;
     } catch {}
@@ -2276,8 +2408,8 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
       try {
         const syncRes = await fetch('/api/users/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ users: [finalizedUser] }),
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
+          body: JSON.stringify({ users: [serverPayload] }),
         });
         if (syncRes.ok) srvOk = true;
       } catch {}
@@ -2449,8 +2581,11 @@ export const loginUserAsync = async (
     if (res.ok && data.success && data.user) {
       matchedUser = data.user;
       issuedToken = data.sessionToken || data.user.activeSessionToken || createClientSessionToken();
+      if (data.authToken) {
+        setMemberAuthToken(data.authToken);
+      }
       fromServer = true;
-    } else if (res.status === 401) {
+    } else if (res.status === 401 || res.status === 403 || res.status === 429) {
       return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
     }
   } catch {
@@ -2513,10 +2648,15 @@ export const loginUserAsync = async (
     return { success: false, error: 'यह User ID, Username या मोबाइल नंबर पंजीकृत नहीं मिला।' };
   }
 
-  // Strict Password Verification whenever account has a password
-  if (matchedUser.password && matchedUser.password.trim() !== '') {
-    if (!password || matchedUser.password !== password) {
-      return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है। कृपया सही पासवर्ड डालें।' };
+  // Strict Password Verification in fallback mode
+  if (!fromServer) {
+    if (matchedUser.password && String(matchedUser.password).startsWith('scrypt$')) {
+      return { success: false, error: 'सुरक्षित पासवर्ड सत्यापन के लिए कृपया सक्रिय इंटरनेट/सर्वर कनेक्शन के साथ लॉगिन करें।' };
+    }
+    if (matchedUser.password && matchedUser.password.trim() !== '') {
+      if (!password || matchedUser.password !== password) {
+        return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है। कृपया सही पासवर्ड डालें।' };
+      }
     }
   }
 
@@ -2526,9 +2666,11 @@ export const loginUserAsync = async (
   }
   const existingLocal = findUserById(matchedUser.userId);
   const mergedBase = existingLocal ? mergeUserLists([existingLocal], [matchedUser])[0] : matchedUser;
+  const { password: _dropPass, ...safeMergedBase } = mergedBase as any;
 
   const updatedUser: UserProfile = {
-    ...mergedBase,
+    ...safeMergedBase,
+    passwordProtected: Boolean(mergedBase.passwordProtected || mergedBase.password),
     activeSessionToken: issuedToken,
     lastLoginDevice: matchedUser.lastLoginDevice || deviceInfo,
     lastLoginAt: matchedUser.lastLoginAt || new Date().toISOString(),
@@ -2542,11 +2684,11 @@ export const loginUserAsync = async (
 
   // Sync updated activeSessionToken to Firestore so old devices receive instant logout signal
   void syncUserToFirestore(updatedUser);
-  // If user came from Firestore/local rather than server, push full record back to server disk
-  if (!fromServer) {
+  // If user came from Firestore/local rather than server, push full record back to server disk if authorized
+  if (!fromServer && (getMemberAuthToken() || getAdminAuthToken())) {
     fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
       body: JSON.stringify({ users: [updatedUser] }),
     }).catch(() => {});
   }
@@ -2689,6 +2831,7 @@ export const setCurrentUser = (user: UserProfile | null): void => {
 export const logoutUser = (): void => {
   setCurrentUser(null);
   clearDeviceSessionToken();
+  setMemberAuthToken('');
 };
 
 /**
@@ -2705,11 +2848,11 @@ export const refreshCurrentUserFullAsync = async (userId: string): Promise<UserP
   let fsDocUser: UserProfile | null = null;
 
   try {
-    const token = getDeviceSessionToken();
+    const authHeaders = getAuthHeaders(false);
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(`/api/users/profile/${encodeURIComponent(cleanId)}?self=1`, {
-      headers: token ? { 'x-session-token': token } : {},
+      headers: authHeaders,
       signal: controller.signal,
     });
     clearTimeout(tid);
@@ -2756,10 +2899,10 @@ export const refreshCurrentUserFullAsync = async (userId: string): Promise<UserP
   setCurrentUser(merged);
 
   // If server was missing this user or any rich fields, push back cleanly
-  if (!serverFull) {
+  if (!serverFull && (getMemberAuthToken() || getAdminAuthToken() || getDeviceSessionToken())) {
     fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
       body: JSON.stringify({ users: [merged] }),
     }).catch(() => {});
   }
@@ -2815,7 +2958,9 @@ export const fetchUserWithdrawalsAsync = async (userId: string): Promise<Withdra
   for (const w of getLocalWithdrawals(cleanId)) wMap.set(w.id, w);
 
   try {
-    const res = await fetch(`/api/withdrawals/${encodeURIComponent(cleanId)}`);
+    const res = await fetch(`/api/withdrawals/${encodeURIComponent(cleanId)}`, {
+      headers: getAuthHeaders(false),
+    });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.withdrawals)) {
@@ -2868,7 +3013,7 @@ export const saveUserWithdrawalAsync = async (
 
   fetch('/api/withdrawals', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
     body: JSON.stringify({ userId: cleanId, withdrawal: record }),
   }).catch(() => {});
 
@@ -3103,7 +3248,7 @@ export const registerMemberBySponsorAsync = async (
     const tid = setTimeout(() => controller.abort(), 20000);
     const res = await fetch('/api/users/sponsor-register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
       body: JSON.stringify(draftUser),
       signal: controller.signal,
     });
@@ -3117,7 +3262,7 @@ export const registerMemberBySponsorAsync = async (
     }
     serverSaved = true;
   } catch (err: any) {
-    if (err?.message && (err.message.includes('पंजीकृत') || err.message.includes('यूजरनेम'))) {
+    if (err?.message && (err.message.includes('पंजीकृत') || err.message.includes('यूजरनेम') || err.message.includes('अनधिकृत'))) {
       throw err;
     }
   }
@@ -3126,26 +3271,32 @@ export const registerMemberBySponsorAsync = async (
     try {
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
         body: JSON.stringify({ users: [createdUser] }),
       });
       if (syncRes.ok) serverSaved = true;
     } catch {}
   }
 
+  const { password: _omittedSponsorPass, ...safeCreatedUser } = createdUser as any;
+  const localCreatedUser: UserProfile = {
+    ...safeCreatedUser,
+    passwordProtected: true,
+  };
+
   // Update local directory cache & Firestore WITHOUT changing getCurrentUser() or device session token
-  const merged = mergeUserLists(users, [createdUser], INITIAL_DEMO_USERS);
+  const merged = mergeUserLists(users, [localCreatedUser], INITIAL_DEMO_USERS);
   saveUsers(merged);
   const fsOk = await Promise.race([
-    syncUserToFirestore(createdUser),
+    syncUserToFirestore(localCreatedUser),
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
   ]).catch(() => false);
 
   if (!serverSaved || !fsOk) {
-    void enqueuePendingUserSync(createdUser, 'sponsor-register');
+    void enqueuePendingUserSync(localCreatedUser, 'sponsor-register');
   }
 
-  return createdUser;
+  return localCreatedUser;
 };
 
 /**
@@ -3161,7 +3312,7 @@ export const forceUpdatePasswordAsync = async (
   if (!newPassword || newPassword.trim().length < 6) {
     return { success: false, error: 'नया पासवर्ड कम से कम 6 अक्षरों/अंकों का सुरक्षित होना चाहिए।' };
   }
-  if (newPassword.trim() === currentPassword.trim()) {
+  if (currentPassword && currentPassword.trim() && newPassword.trim() === currentPassword.trim()) {
     return { success: false, error: 'नया पासवर्ड पुराने अस्थायी पासवर्ड से अलग होना चाहिए।' };
   }
 
@@ -3171,7 +3322,7 @@ export const forceUpdatePasswordAsync = async (
   try {
     const res = await fetch('/api/users/force-password-update', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
       body: JSON.stringify({
         userId: cleanId,
         currentPassword,
@@ -3183,7 +3334,10 @@ export const forceUpdatePasswordAsync = async (
     if (res.ok && data.success && data.user) {
       updatedUser = data.user;
       newToken = data.sessionToken || data.user.activeSessionToken || newToken;
-    } else if (res.status === 401 || res.status === 400) {
+      if (data.authToken) {
+        setMemberAuthToken(data.authToken);
+      }
+    } else if (res.status === 401 || res.status === 400 || res.status === 403) {
       return { success: false, error: data.error || 'पासवर्ड अपडेट असफल रहा।' };
     }
   } catch {
@@ -3197,13 +3351,15 @@ export const forceUpdatePasswordAsync = async (
     return { success: false, error: 'सदस्य खाता नहीं मिला।' };
   }
 
-  if (!updatedUser && baseUser.password && baseUser.password !== currentPassword) {
+  if (!updatedUser && baseUser.password && !String(baseUser.password).startsWith('scrypt$') && baseUser.password !== currentPassword) {
     return { success: false, error: 'पुराना पासवर्ड मेल नहीं खा रहा है।' };
   }
 
+  const { password: _omittedPass, ...safeBase } = baseUser as any;
   const finalized: UserProfile = {
-    ...baseUser,
-    password: newPassword.trim(),
+    ...safeBase,
+    passwordProtected: true,
+    passwordStatus: '🔒 Encrypted (scrypt)',
     mustChangePassword: false,
     activeSessionToken: newToken,
     lastLoginDevice: getDeviceFingerprintLabel(),
@@ -3234,7 +3390,7 @@ export const findUserByEmail = (email: string): UserProfile | null => {
 // Admin Auth and Status Updates
 export const isAdminLoggedIn = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return safeLocalStorageGet(STORAGE_ADMIN_SESSION_KEY) === 'true';
+  return safeLocalStorageGet(STORAGE_ADMIN_SESSION_KEY) === 'true' && Boolean(getAdminAuthToken());
 };
 
 export const setAdminSession = (active: boolean): void => {
@@ -3245,6 +3401,7 @@ export const setAdminSession = (active: boolean): void => {
     });
   } else {
     safeLocalStorageRemove(STORAGE_ADMIN_SESSION_KEY);
+    setAdminAuthToken('');
   }
 };
 
@@ -3278,7 +3435,7 @@ export const setPaymentStatus = (
       try {
         const res = await fetch(`/api/users/${encodeURIComponent(userId)}/status`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
           body: JSON.stringify({ status, reason }),
         });
         if (res.ok) srvOk = true;
@@ -3287,7 +3444,7 @@ export const setPaymentStatus = (
         try {
           const syncRes = await fetch('/api/users/sync', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
             body: JSON.stringify({ users: [targetUser] }),
           });
           if (syncRes.ok) srvOk = true;
@@ -3323,7 +3480,10 @@ export const deleteUserAccount = async (userId: string): Promise<boolean> => {
   }
 
   try {
-    await fetch(`/api/users/${encodeURIComponent(cleanId)}`, { method: 'DELETE' });
+    await fetch(`/api/users/${encodeURIComponent(cleanId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(true),
+    });
   } catch (e) {
     console.warn('Archive user note:', e);
   }
@@ -3378,7 +3538,12 @@ export const fetchTicketsFromServer = async (options?: { skipFirestore?: boolean
   await hydrateUsersFromIdb();
   // Prefer server disk first so polling doesn't burn Firestore read quota
   try {
-    const res = await fetch('/api/tickets');
+    const isAdmin = isAdminLoggedIn();
+    const curUser = getCurrentUser();
+    const qs = !isAdmin && curUser?.userId ? `?userId=${encodeURIComponent(curUser.userId)}` : '';
+    const res = await fetch(`/api/tickets${qs}`, {
+      headers: getAuthHeaders(isAdmin),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.tickets)) {
@@ -3428,7 +3593,7 @@ export const createHelpTicket = (ticket: Omit<HelpTicket, 'id' | 'createdAt' | '
   syncTicketToFirestore(newTicket);
   fetch('/api/tickets', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
     body: JSON.stringify(ticket),
   }).catch((e) => console.warn('Background ticket sync note:', e));
 
@@ -3449,7 +3614,7 @@ export const replyHelpTicket = (ticketId: string, reply: string, status: 'in_pro
     syncTicketToFirestore(tickets[index]);
     fetch(`/api/tickets/${encodeURIComponent(ticketId)}/reply`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ adminReply: reply, status }),
     }).catch((e) => console.warn('Background ticket reply note:', e));
   }
@@ -3617,7 +3782,9 @@ export const fetchPrivateChatMessagesAsync = async (userId: string): Promise<Adm
 
   // Server API check
   try {
-    const res = await fetch(`/api/messages/${encodeURIComponent(cleanId)}`);
+    const res = await fetch(`/api/messages/${encodeURIComponent(cleanId)}`, {
+      headers: getAuthHeaders(isAdminLoggedIn()),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.messages)) {
@@ -3658,7 +3825,7 @@ export const sendPrivateChatMessageAsync = async (
   // Sync with Server API
   fetch('/api/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(msg.sender === 'admin') },
     body: JSON.stringify(newMsg),
   }).catch(() => {});
 
@@ -3701,6 +3868,19 @@ export const adminUpdateUserProfileAsync = async (
   const newLogs: any[] = [];
   Object.keys(updates).forEach((k) => {
     if (k !== 'editHistory' && k !== 'userId' && (updates as any)[k] !== undefined) {
+      if (k === 'password') {
+        const nextPass = String((updates as any).password || '').trim();
+        if (nextPass) {
+          newLogs.push({
+            field: 'password',
+            fieldLabelHi: fieldLabels.password,
+            oldValue: '[सुरक्षित पासवर्ड]',
+            newValue: '[नया पासवर्ड अपडेट]',
+            timestamp: now,
+          });
+        }
+        return;
+      }
       const oldV = String((existing as any)[k] || '');
       const newV = String((updates as any)[k] || '');
       if (oldV !== newV) {
@@ -3716,14 +3896,18 @@ export const adminUpdateUserProfileAsync = async (
     }
   });
 
+  const { password: rawAdminPassUpdate, ...safeAdminUpdates } = updates as any;
   const nonEmptyUpdates = Object.fromEntries(
-    Object.entries(updates).filter(([, v]) => v !== undefined && v !== '')
+    Object.entries(safeAdminUpdates).filter(([, v]) => v !== undefined && v !== '')
   ) as Partial<UserProfile>;
 
   const updatedUser: UserProfile = mergeUserLists([existing], [
     {
       ...existing,
       ...nonEmptyUpdates,
+      ...(rawAdminPassUpdate && String(rawAdminPassUpdate).trim()
+        ? { passwordProtected: true, passwordStatus: '🔒 Encrypted (scrypt)' }
+        : {}),
       userId: existing.userId,
       editHistory: sanitizeEditHistory([...newLogs, ...existingHistory]).slice(0, 50),
     },
@@ -3740,7 +3924,7 @@ export const adminUpdateUserProfileAsync = async (
     try {
       const res = await fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
         body: JSON.stringify(updates),
       });
       if (res.ok) srvOk = true;
@@ -3749,7 +3933,7 @@ export const adminUpdateUserProfileAsync = async (
       try {
         const syncRes = await fetch('/api/users/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
           body: JSON.stringify({ users: [updatedUser] }),
         });
         if (syncRes.ok) srvOk = true;
@@ -3782,7 +3966,10 @@ export const fetchUserMediaAsync = async (
     const cleanId = encodeURIComponent(userId.trim().toUpperCase());
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(`/api/users/${cleanId}/media`, { signal: controller.signal });
+    const res = await fetch(`/api/users/${cleanId}/media`, {
+      headers: getAuthHeaders(isAdminLoggedIn()),
+      signal: controller.signal,
+    });
     clearTimeout(tid);
     if (!res.ok) return null;
     const data = await res.json();
@@ -3797,7 +3984,6 @@ export const fetchUserMediaAsync = async (
 };
 
 export const fetchAdminFullUsersAsync = async (
-  adminPin = 'IOISSYSTEM',
   options: { includeMedia?: boolean; forceCloud?: boolean } = {}
 ): Promise<{
   users: UserProfile[];
@@ -3805,6 +3991,7 @@ export const fetchAdminFullUsersAsync = async (
   backupInfo?: AdminBackupInfo;
   cloudError?: string;
   serverReachable: boolean;
+  unauthorized?: boolean;
   errorMessage?: string;
 }> => {
   await hydrateUsersFromIdb();
@@ -3814,6 +4001,7 @@ export const fetchAdminFullUsersAsync = async (
   let backupInfo: AdminBackupInfo | undefined;
   let cloudError: string | undefined;
   let serverReachable = false;
+  let unauthorized = false;
   let errorMessage: string | undefined;
 
   const includeMedia = options.includeMedia !== false;
@@ -3825,15 +4013,20 @@ export const fetchAdminFullUsersAsync = async (
       const tid = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch('/api/admin/users-full', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
         body: JSON.stringify({
-          adminPin,
           includeMedia,
           forceCloud: Boolean(options.forceCloud),
         }),
         signal: controller.signal,
       });
       clearTimeout(tid);
+      if (res.status === 401 || res.status === 403) {
+        unauthorized = true;
+        setAdminSession(false);
+        errorMessage = 'एडमिन सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।';
+        break;
+      }
       if (res.ok) {
         const data = await res.json();
         if (data?.success) {
@@ -3874,7 +4067,7 @@ export const fetchAdminFullUsersAsync = async (
   if (serverReachable && merged.length > serverFull.length) {
     fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ users: merged }),
     }).catch(() => {});
   }
@@ -3885,6 +4078,7 @@ export const fetchAdminFullUsersAsync = async (
     backupInfo,
     cloudError,
     serverReachable,
+    unauthorized,
     errorMessage,
   };
 };
@@ -3892,7 +4086,9 @@ export const fetchAdminFullUsersAsync = async (
 export const fetchArchivedUsersAsync = async (): Promise<UserProfile[]> => {
   await hydrateUsersFromIdb();
   try {
-    const res = await fetch('/api/users/archive');
+    const res = await fetch('/api/users/archive', {
+      headers: getAuthHeaders(true),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data?.success && Array.isArray(data.archivedUsers)) {
@@ -3916,6 +4112,7 @@ export const restoreArchivedUserAsync = async (userId: string): Promise<UserProf
   try {
     const res = await fetch(`/api/users/restore/${encodeURIComponent(cleanId)}`, {
       method: 'POST',
+      headers: getAuthHeaders(true),
     });
     if (res.ok) {
       const data = await res.json();
@@ -3946,7 +4143,7 @@ export const restoreArchivedUserAsync = async (userId: string): Promise<UserProf
     void syncUserToFirestore(restored);
     fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ users: merged }),
     }).catch(() => {});
   }
@@ -3954,9 +4151,11 @@ export const restoreArchivedUserAsync = async (userId: string): Promise<UserProf
   return restored;
 };
 
-export const triggerAdminCloudSyncAsync = async (
-  adminPin = 'IOISSYSTEM'
-): Promise<{ users: UserProfile[]; cloudError?: string }> => {
+export const triggerAdminCloudSyncAsync = async (): Promise<{
+  users: UserProfile[];
+  cloudError?: string;
+  unauthorized?: boolean;
+}> => {
   await hydrateUsersFromIdb();
   clearFirestoreQuotaCooldown();
   let cloudError: string | undefined;
@@ -3966,11 +4165,15 @@ export const triggerAdminCloudSyncAsync = async (
     const tid = setTimeout(() => controller.abort(), 25000);
     const res = await fetch('/api/admin/cloud-sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminPin }),
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+      body: JSON.stringify({}),
       signal: controller.signal,
     });
     clearTimeout(tid);
+    if (res.status === 401 || res.status === 403) {
+      setAdminSession(false);
+      return { users: getAllUsers(), unauthorized: true };
+    }
     if (res.ok) {
       const data = await res.json();
       cloudError = data?.cloudError;
@@ -4012,7 +4215,7 @@ export const importUsersBackupAsync = async (
   try {
     await fetch('/api/users/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ users: merged }),
     });
   } catch {}

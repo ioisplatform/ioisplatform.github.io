@@ -91,7 +91,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
   const [sponsorId, setSponsorId] = useState<string>(user.sponsorId || '');
   const [selectedPlanId, setSelectedPlanId] = useState<number>(user.selectedPlanId || 1);
   const [role, setRole] = useState<string>(user.role || 'Verified Elite Member');
-  const [password, setPassword] = useState<string>(user.password || '');
+  const [password, setPassword] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string>(user.photoUrl || '');
   const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>(user.googleDrivePhotoLink || '');
 
@@ -124,7 +124,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
     setRole(user.role || 'Verified Elite Member');
-    setPassword(user.password || '');
+    setPassword('');
     setPhotoUrl(user.photoUrl || '');
     setGoogleDrivePhotoLink(user.googleDrivePhotoLink || '');
     setPaymentScreenshotUrl(user.paymentScreenshotUrl || '');
@@ -147,7 +147,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setSponsorId(user.sponsorId || '');
     setSelectedPlanId(user.selectedPlanId || 1);
     setRole(user.role || 'Verified Elite Member');
-    setPassword(user.password || '');
+    setPassword('');
     setPhotoUrl(user.photoUrl || '');
     setGoogleDrivePhotoLink(user.googleDrivePhotoLink || '');
     setPaymentScreenshotUrl(user.paymentScreenshotUrl || '');
@@ -206,8 +206,16 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     try {
       const sanitizedUpi = sanitizeUpiId(payoutUpi);
       
+      const trimmedNewPassword = password.trim();
+      if (trimmedNewPassword && trimmedNewPassword.length < 4) {
+        setErrorMsg('नया पासवर्ड कम से कम 4 अक्षरों का होना चाहिए।');
+        setIsSaving(false);
+        return;
+      }
+
+      const { password: _existingPass, ...baseUserWithoutPass } = user;
       const updated: UserProfile = {
-        ...user,
+        ...baseUserWithoutPass,
         userId: user.userId, // Immutable
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
@@ -219,7 +227,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
         sponsorId: sponsorId.trim().toUpperCase() || user.sponsorId || '',
         selectedPlanId,
         role: role.trim() || 'Verified Elite Member',
-        password: password.trim(),
+        ...(trimmedNewPassword ? { password: trimmedNewPassword } : {}),
         photoUrl: photoUrl || user.photoUrl,
         googleDrivePhotoLink: googleDrivePhotoLink.trim() || undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || user.paymentScreenshotUrl,
@@ -229,6 +237,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
       };
 
       const saved = updateUserProfile(updated);
+      setPassword('');
       onUserUpdated(saved);
       setIsEditing(false);
       setSaveSuccessMsg('आपकी प्रोफाइल व संपूर्ण विवरण बिना किसी त्रुटि के सफलतापूर्वक सुरक्षित कर दिया गया है!');
@@ -565,7 +574,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
 
           <div>
             <label className="block text-slate-300 font-bold mb-1">
-              लॉगिन पासवर्ड (Password):
+              नया लॉगिन पासवर्ड (बदलना हो तो लिखें):
             </label>
             <div className="relative">
               <input
@@ -573,7 +582,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
                 disabled={!isEditing}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="नया पासवर्ड दर्ज करें"
+                placeholder={isEditing ? 'नया पासवर्ड बदलना हो तो लिखें (अन्यथा खाली छोड़ें)' : '🔒 पासवर्ड सुरक्षित (Encrypted)'}
                 className={`w-full bg-slate-900 border text-white rounded-xl pl-3 pr-10 py-2.5 outline-none font-mono transition ${
                   isEditing 
                     ? 'border-amber-500/70 focus:border-amber-400 focus:ring-1 focus:ring-amber-400' 
@@ -591,7 +600,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
             </div>
             {isEditing && (
               <p className="text-[10px] text-slate-400 mt-1">
-                पासवर्ड कम से कम 4 अक्षरों का रखें। आप जो भी पासवर्ड यहाँ लिखेंगे, उसी से अगली बार लॉगिन होगा।
+                नया पासवर्ड कम से कम 4 अक्षरों का रखें। यदि पासवर्ड नहीं बदलना है, तो इसे खाली छोड़ दें।
               </p>
             )}
           </div>

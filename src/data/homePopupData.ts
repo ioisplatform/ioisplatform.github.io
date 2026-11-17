@@ -1,3 +1,6 @@
+import { getAuthHeaders } from '../services/userService';
+import { toLocalIsoDateKey, hasExpiredFestivalSignature } from './homeSliderData';
+
 export type PopupDisplayTarget = 'all' | 'home' | 'dashboard';
 
 export interface HomePopupPhoto {
@@ -33,19 +36,16 @@ const IDB_STORE = 'kv_store';
 
 let memoryPopupPhotos: HomePopupPhoto[] | null = null;
 
-function getTodayIsoKey(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+export function isPopupExpired(item: HomePopupPhoto | null | undefined, now: Date = new Date()): boolean {
+  if (!item || typeof item !== 'object') return true;
+  const todayKey = toLocalIsoDateKey(now);
+  return hasExpiredFestivalSignature(item, todayKey);
 }
 
 export function isPopupExpiredOrScheduledOut(item: HomePopupPhoto | null | undefined, now: Date = new Date()): boolean {
   if (!item || typeof item !== 'object') return true;
-  const todayKey = getTodayIsoKey(now);
-  if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
-    return true;
-  }
+  if (isPopupExpired(item, now)) return true;
+  const todayKey = toLocalIsoDateKey(now);
   if (item.startDate && /^\d{4}-\d{2}-\d{2}$/.test(item.startDate) && item.startDate > todayKey) {
     return true;
   }
@@ -132,7 +132,14 @@ function readRawFromLocalStorage(): HomePopupPhoto[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is HomePopupPhoto => Boolean(item && typeof item === 'object'));
+      const now = new Date();
+      const nonExpired = parsed.filter(
+        (item): item is HomePopupPhoto => Boolean(item && typeof item === 'object' && !isPopupExpired(item, now))
+      );
+      if (nonExpired.length !== parsed.length) {
+        trySafeLocalStorageSave(nonExpired);
+      }
+      return nonExpired;
     }
     return [];
   } catch {
@@ -141,12 +148,15 @@ function readRawFromLocalStorage(): HomePopupPhoto[] {
 }
 
 /**
- * Returns ALL admin popup photo/celebration slots (including inactive) for admin management.
+ * Returns ALL non-expired admin popup photo/celebration slots (including inactive) for admin management.
  */
 export const getAllAdminPopupPhotos = (): HomePopupPhoto[] => {
   if (typeof window === 'undefined') return [];
+  const now = new Date();
   if (memoryPopupPhotos !== null) {
-    return memoryPopupPhotos;
+    const clean = memoryPopupPhotos.filter((item) => !isPopupExpired(item, now));
+    memoryPopupPhotos = clean;
+    return clean;
   }
   const lsPhotos = readRawFromLocalStorage();
   memoryPopupPhotos = lsPhotos;
@@ -157,11 +167,12 @@ export const getAllAdminPopupPhotos = (): HomePopupPhoto[] => {
  * Returns configured, active, non-expired admin popup items.
  */
 export const getStoredHomePopupPhotos = (location?: 'home' | 'dashboard' | 'global' | 'preview'): HomePopupPhoto[] => {
+  const now = new Date();
   const all = getAllAdminPopupPhotos();
   if (location === 'preview') {
-    return all.filter((item) => item && item.active);
+    return all.filter((item) => item && item.active && !isPopupExpired(item, now));
   }
-  return all.filter((item) => isPopupSlotConfigured(item) && matchesPopupTarget(item, location));
+  return all.filter((item) => isPopupSlotConfigured(item) && !isPopupExpiredOrScheduledOut(item, now) && matchesPopupTarget(item, location));
 };
 
 function trySafeLocalStorageSave(photos: HomePopupPhoto[]): void {
@@ -189,28 +200,34 @@ function trySafeLocalStorageSave(photos: HomePopupPhoto[]): void {
  */
 export const fetchHomePopupPhotosFromServer = async (): Promise<HomePopupPhoto[]> => {
   if (typeof window === 'undefined') return [];
+  const now = new Date();
   try {
     const res = await fetch('/api/home-popups', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.photos)) {
-        const clean = data.photos.filter((item: any): item is HomePopupPhoto => Boolean(item && typeof item === 'object')).slice(0, 7);
-        if (clean.length > 0 || memoryPopupPhotos === null) {
-          memoryPopupPhotos = clean;
-          await idbSet(STORAGE_HOME_POPUPS_KEY, clean);
-          trySafeLocalStorageSave(clean);
-          window.dispatchEvent(new Event('iois_home_popups_updated'));
-          return clean;
-        }
+        const clean = data.photos
+          .filter((item: any): item is HomePopupPhoto => Boolean(item && typeof item === 'object' && !isPopupExpired(item, now)))
+          .slice(0, 7);
+        memoryPopupPhotos = clean;
+        await idbSet(STORAGE_HOME_POPUPS_KEY, clean);
+        trySafeLocalStorageSave(clean);
+        window.dispatchEvent(new Event('iois_home_popups_updated'));
+        return clean;
       }
     }
   } catch {}
 
   const idbPhotos = await idbGet<HomePopupPhoto[]>(STORAGE_HOME_POPUPS_KEY);
   if (Array.isArray(idbPhotos)) {
-    memoryPopupPhotos = idbPhotos;
+    const cleanIdb = idbPhotos.filter((item) => !isPopupExpired(item, now));
+    memoryPopupPhotos = cleanIdb;
+    if (cleanIdb.length !== idbPhotos.length) {
+      await idbSet(STORAGE_HOME_POPUPS_KEY, cleanIdb);
+      trySafeLocalStorageSave(cleanIdb);
+    }
     window.dispatchEvent(new Event('iois_home_popups_updated'));
-    return idbPhotos;
+    return cleanIdb;
   }
 
   return getAllAdminPopupPhotos();
@@ -252,7 +269,7 @@ export const saveAdminPopupPhotosAsync = async (photos: HomePopupPhoto[]): Promi
   try {
     const res = await fetch('/api/home-popups', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ photos: sliced }),
     });
     if (!res.ok) {

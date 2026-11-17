@@ -8,7 +8,8 @@ import {
   syncUnansweredToFirestore,
   deleteUnansweredFromFirestore,
   subscribeToFirestoreUnanswered,
-  INITIAL_KNOWLEDGE
+  INITIAL_KNOWLEDGE,
+  getAuthHeaders
 } from '../services/userService';
 import { 
   Bot, 
@@ -63,7 +64,7 @@ export const AiKnowledgeManager: React.FC = () => {
       // 2. Fetch from server as well
       const [kRes, uRes] = await Promise.all([
         fetch('/api/ai/knowledge').then((r) => r.json()).catch(() => null),
-        fetch('/api/ai/unanswered').then((r) => r.json()).catch(() => null),
+        fetch('/api/ai/unanswered', { headers: getAuthHeaders(true) }).then((r) => r.json()).catch(() => null),
       ]);
       if (kRes && kRes.success && Array.isArray(kRes.knowledge) && kRes.knowledge.length > 0) {
         setKnowledgeList(kRes.knowledge);
@@ -128,7 +129,7 @@ export const AiKnowledgeManager: React.FC = () => {
     try {
       await fetch('/api/ai/knowledge', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
         body: JSON.stringify(newItem),
       });
     } catch (e) {
@@ -149,7 +150,10 @@ export const AiKnowledgeManager: React.FC = () => {
       // 2. Update local state
       setKnowledgeList((prev) => prev.filter((k) => k.id !== id));
       // 3. Delete on server
-      await fetch(`/api/ai/knowledge/${id}`, { method: 'DELETE' });
+      await fetch(`/api/ai/knowledge/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(true),
+      });
     } catch (e) {
       console.warn('Delete knowledge error', e);
     }
@@ -183,7 +187,7 @@ export const AiKnowledgeManager: React.FC = () => {
     try {
       await fetch('/api/ai/unanswered/answer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
         body: JSON.stringify({
           id: questionId,
           answer: quickAnswer.trim(),

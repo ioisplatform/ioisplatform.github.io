@@ -1,5 +1,6 @@
 import smartSavingsImg from '../assets/images/smart_savings_growth_1794240843133.jpg';
 import missionImg from '../assets/images/national_youth_mission_1794240929346.jpg';
+import { getAuthHeaders } from '../services/userService';
 
 export interface HomeSliderItem {
   id: string;
@@ -37,10 +38,92 @@ const LEGACY_STATIC_FESTIVAL_IDS = new Set([
 ]);
 
 export function toLocalIsoDateKey(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch {}
+  // Exact IST (UTC+05:30) arithmetic fallback
+  const ist = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(ist.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+// Authoritative cutoff dates (YYYY-MM-DD IST) for catalog festivals so saved/legacy items auto-expire even without explicit endDate
+export const CATALOG_FESTIVAL_CUTOFFS: Record<string, string> = {
+  'dhanteras-2026': '2026-11-06',
+  'diwali-2026': '2026-11-08',
+  'govardhan-2026': '2026-11-10',
+  'bhaidooj-2026': '2026-11-12',
+  'chhath-2026': '2026-11-16',
+  'tulsi-vivah-2026': '2026-11-21',
+  'dev-deepawali-2026': '2026-11-25',
+  'gita-jayanti-2026': '2026-12-20',
+  'winter-festive-2026': '2026-12-26',
+  'newyear-2027': '2027-01-02',
+  'makar-sankranti-2027': '2027-01-15',
+  'republic-day-2027': '2027-01-26',
+  'vasant-panchami-2027': '2027-02-12',
+  'mahashivaratri-2027': '2027-03-07',
+  'holi-2027': '2027-03-23',
+  'navratri-ramnavami-2027': '2027-04-16',
+  'independence-day-2027': '2027-08-16',
+  'diwali-2027': '2027-11-04',
+};
+
+const PAST_2026_FESTIVAL_KEYWORD_CUTOFFS: Array<{ cutoff: string; pattern: RegExp }> = [
+  { cutoff: '2026-11-06', pattern: /(धनतेरस|dhanteras)/i },
+  { cutoff: '2026-11-08', pattern: /(दीपावली|दिवाली|diwali|deepawali)/i },
+  { cutoff: '2026-11-10', pattern: /(गोवर्धन|अन्नकूट|govardhan|annakoot)/i },
+  { cutoff: '2026-11-12', pattern: /(भाई दूज|भैया दूज|bhaidooj|bhai dooj)/i },
+  { cutoff: '2026-11-16', pattern: /(छठ|छठी मैया|chhath|nahay-khay|sandhya arghya|usha arghya)/i },
+];
+
+export function hasExpiredFestivalSignature(
+  item: {
+    id?: string;
+    festivalId?: string;
+    festivalName?: string;
+    title?: string;
+    subtitle?: string;
+    celebrationHeadline?: string;
+    tag?: string;
+    badgeText?: string;
+    startDate?: string;
+    endDate?: string;
+  },
+  todayKey: string
+): boolean {
+  const hasFutureExplicitEnd = Boolean(
+    item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate >= todayKey
+  );
+  if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
+    return true;
+  }
+  if (item.festivalId && CATALOG_FESTIVAL_CUTOFFS[item.festivalId] && CATALOG_FESTIVAL_CUTOFFS[item.festivalId] < todayKey) {
+    return true;
+  }
+  // If explicit future endDate exists (e.g., Diwali 2027), honor that explicit schedule
+  if (hasFutureExplicitEnd) {
+    return false;
+  }
+  // Otherwise, auto-expire legacy/template items referencing already-ended 2026 festivals
+  const searchable = `${item.id || ''} ${item.festivalName || ''} ${item.title || ''} ${item.subtitle || ''} ${item.celebrationHeadline || ''} ${item.tag || ''} ${item.badgeText || ''}`;
+  for (const rule of PAST_2026_FESTIVAL_KEYWORD_CUTOFFS) {
+    if (todayKey > rule.cutoff && rule.pattern.test(searchable)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function isSliderItemExpired(item: Partial<HomeSliderItem> | null | undefined, now: Date = new Date()): boolean {
@@ -49,10 +132,10 @@ export function isSliderItemExpired(item: Partial<HomeSliderItem> | null | undef
   if (item.id && item.id.startsWith('dynamic-festive-')) return true;
 
   const todayKey = toLocalIsoDateKey(now);
-  if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
+  if (item.startDate && /^\d{4}-\d{2}-\d{2}$/.test(item.startDate) && item.startDate > todayKey && !item.isUpcoming) {
     return true;
   }
-  return false;
+  return hasExpiredFestivalSignature(item, todayKey);
 }
 
 // Evergreen IOIS India Mission & Savings Sliders (Festivals are injected dynamically in real time)
@@ -211,7 +294,9 @@ function trySafeSliderLocalStorage(slides: HomeSliderItem[]): void {
 export const getStoredSliders = (): HomeSliderItem[] => {
   if (typeof window === 'undefined') return INITIAL_SLIDES;
   if (memorySliders !== null && memorySliders.length > 0) {
-    return sanitizeStoredSliders(memorySliders);
+    const cleanMem = sanitizeStoredSliders(memorySliders);
+    memorySliders = cleanMem;
+    return cleanMem;
   }
   try {
     // Purge legacy v4 slider cache so stale past festival slides are immediately removed
@@ -228,6 +313,9 @@ export const getStoredSliders = (): HomeSliderItem[] => {
     if (Array.isArray(parsed) && parsed.length > 0) {
       const sanitized = sanitizeStoredSliders(parsed);
       memorySliders = sanitized;
+      if (sanitized.length !== parsed.length) {
+        trySafeSliderLocalStorage(sanitized);
+      }
       return sanitized;
     }
     return INITIAL_SLIDES;
@@ -257,6 +345,10 @@ export const fetchStoredSlidersFromServer = async (): Promise<HomeSliderItem[]> 
   if (Array.isArray(idb) && idb.length > 0) {
     const sanitized = sanitizeStoredSliders(idb);
     memorySliders = sanitized;
+    if (sanitized.length !== idb.length) {
+      await idbSetSliders(sanitized);
+      trySafeSliderLocalStorage(sanitized);
+    }
     window.dispatchEvent(new Event('iois_sliders_updated'));
     return sanitized;
   }
@@ -266,7 +358,10 @@ export const fetchStoredSlidersFromServer = async (): Promise<HomeSliderItem[]> 
 
 export const saveStoredSlidersAsync = async (slides: HomeSliderItem[]): Promise<void> => {
   if (typeof window === 'undefined') return;
-  const normalized = slides.map((s, idx) => normalizeSliderItem(s, idx));
+  const now = new Date();
+  const normalized = slides
+    .filter((s) => s && typeof s === 'object' && !isSliderItemExpired(s, now))
+    .map((s, idx) => normalizeSliderItem(s, idx));
   memorySliders = normalized;
   trySafeSliderLocalStorage(normalized);
   window.dispatchEvent(new Event('iois_sliders_updated'));
@@ -274,7 +369,7 @@ export const saveStoredSlidersAsync = async (slides: HomeSliderItem[]): Promise<
   try {
     await fetch('/api/home-sliders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
       body: JSON.stringify({ slides: normalized }),
     });
   } catch {}

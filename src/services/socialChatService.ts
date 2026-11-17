@@ -7,6 +7,7 @@ import {
   SocialSenderUnreadSummary,
 } from '../types';
 import { db } from '../lib/firebase';
+import { getAuthHeaders } from './userService';
 import {
   idbGet,
   idbSet,
@@ -710,7 +711,9 @@ export interface AdminSocialMonitorPayload {
 
 export const fetchAdminSocialMonitorAsync = async (): Promise<AdminSocialMonitorPayload> => {
   try {
-    const res = await fetch('/api/admin/social-monitor');
+    const res = await fetch('/api/admin/social-monitor', {
+      headers: getAuthHeaders(true),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && data.success) {
@@ -766,6 +769,7 @@ export const adminDeleteSocialMessageAsync = async (messageId: string): Promise<
   try {
     const res = await fetch(`/api/admin/social-messages/${encodeURIComponent(messageId)}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(true),
     });
     if (res.ok) {
       const all = getLocalArray<SocialChatMessage>(STORAGE_SOCIAL_MESSAGES_LOCAL);
@@ -781,6 +785,7 @@ export const adminDeleteSocialGroupAsync = async (groupId: string): Promise<bool
   try {
     const res = await fetch(`/api/admin/social-groups/${encodeURIComponent(groupId)}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(true),
     });
     if (res.ok) {
       const grps = getLocalArray<SocialGroup>(STORAGE_SOCIAL_GROUPS_LOCAL);

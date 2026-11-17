@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToFirestoreInterviews } from '../services/userService';
+import { subscribeToFirestoreInterviews, getAuthHeaders } from '../services/userService';
 import { 
   GraduationCap, 
   RefreshCw, 
@@ -40,7 +40,9 @@ export const InterviewListManager: React.FC = () => {
   const fetchInterviews = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/interviews');
+      const res = await fetch('/api/interviews', {
+        headers: getAuthHeaders(true),
+      });
       const data = await res.json();
       if (data.success && Array.isArray(data.interviews)) {
         setInterviews(data.interviews);

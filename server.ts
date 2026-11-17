@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import zlib from "zlib";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -50,6 +51,225 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+}
+
+// =========================================================================
+// Security Foundation: Secrets, scrypt Hashing, HMAC Tokens & Rate Limits
+// =========================================================================
+const SESSION_SECRET_FILE = path.join(DATA_DIR, ".session-secret");
+
+function getServerSessionSecret(): string {
+  if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.trim().length >= 16) {
+    return process.env.SESSION_SECRET.trim();
+  }
+  try {
+    if (fs.existsSync(SESSION_SECRET_FILE)) {
+      const existing = fs.readFileSync(SESSION_SECRET_FILE, "utf-8").trim();
+      if (existing.length >= 32) return existing;
+    }
+    const generated = crypto.randomBytes(32).toString("hex");
+    fs.writeFileSync(SESSION_SECRET_FILE, generated, { encoding: "utf-8", mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.createHash("sha256").update(`${process.cwd()}|iois_session_fallback`).digest("hex");
+  }
+}
+
+const SERVER_SESSION_SECRET = getServerSessionSecret();
+
+function getAdminPin(): string {
+  return (process.env.ADMIN_PIN && process.env.ADMIN_PIN.trim()) || "IOISSYSTEM";
+}
+
+function timingSafeStringEqual(aStr: string, bStr: string): boolean {
+  const a = Buffer.from(aStr, "utf-8");
+  const b = Buffer.from(bStr, "utf-8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function isHashedPassword(val?: string | null): boolean {
+  return typeof val === "string" && val.startsWith("scrypt$");
+}
+
+function hashPassword(plain: string): string {
+  const clean = String(plain || "").trim();
+  if (!clean) return "";
+  if (isHashedPassword(clean)) return clean;
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derived = crypto.scryptSync(clean, salt, 64).toString("hex");
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPassword(plain: string, stored?: string | null): boolean {
+  if (!stored || !String(stored).trim()) return true;
+  const candidate = String(plain || "");
+  const cleanCandidate = candidate.trim();
+  const s = String(stored);
+
+  if (isHashedPassword(s)) {
+    const parts = s.split("$");
+    if (parts.length !== 3) return false;
+    const [, salt, hexHash] = parts;
+    if (!salt || !hexHash) return false;
+    try {
+      const expectedBuf = Buffer.from(hexHash, "hex");
+      const candidates = candidate === cleanCandidate ? [candidate] : [candidate, cleanCandidate];
+      for (const c of candidates) {
+        if (!c) continue;
+        const actualBuf = crypto.scryptSync(c, salt, expectedBuf.length);
+        if (actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf)) {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  if (timingSafeStringEqual(candidate, s)) return true;
+  if (cleanCandidate !== candidate && timingSafeStringEqual(cleanCandidate, s)) return true;
+  return false;
+}
+
+interface AuthTokenPayload {
+  role: "admin" | "member";
+  userId: string;
+  sessionToken?: string;
+  iat: number;
+  exp: number;
+}
+
+function signAuthToken(payload: Omit<AuthTokenPayload, "iat" | "exp">, ttlSeconds = 12 * 3600): string {
+  const now = Math.floor(Date.now() / 1000);
+  const fullPayload: AuthTokenPayload = { ...payload, iat: now, exp: now + ttlSeconds };
+  const encoded = Buffer.from(JSON.stringify(fullPayload), "utf-8").toString("base64url");
+  const sig = crypto.createHmac("sha256", SERVER_SESSION_SECRET).update(encoded).digest("base64url");
+  return `${encoded}.${sig}`;
+}
+
+function verifyAuthToken(token?: string | null): AuthTokenPayload | null {
+  if (!token || typeof token !== "string" || !token.includes(".")) return null;
+  const [encoded, sig] = token.trim().split(".");
+  if (!encoded || !sig) return null;
+  try {
+    const expectedSig = crypto.createHmac("sha256", SERVER_SESSION_SECRET).update(encoded).digest("base64url");
+    if (!timingSafeStringEqual(sig, expectedSig)) return null;
+    const decoded = JSON.parse(Buffer.from(encoded, "base64url").toString("utf-8")) as AuthTokenPayload;
+    if (!decoded || typeof decoded.exp !== "number" || decoded.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+function extractBearerToken(req: Request): string {
+  const authHeader = String(req.headers.authorization || "").trim();
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+  return "";
+}
+
+function isAdminAuthorized(req: Request): boolean {
+  const bearer = extractBearerToken(req);
+  const decoded = verifyAuthToken(bearer);
+  if (decoded && decoded.role === "admin") return true;
+
+  const pinCandidate = String(
+    req.headers["x-admin-pin"] || (req.body && typeof req.body === "object" ? req.body.adminPin : "") || ""
+  ).trim();
+  if (pinCandidate) {
+    return timingSafeStringEqual(pinCandidate.toUpperCase(), getAdminPin().toUpperCase());
+  }
+  return false;
+}
+
+function requireAdminRequest(req: Request, res: Response): boolean {
+  if (isAdminAuthorized(req)) return true;
+  res.status(401).json({ success: false, error: "अनधिकृत अनुरोध: एडमिन प्रमाणीकरण (Admin Auth) आवश्यक है।" });
+  return false;
+}
+
+function getAuthenticatedMember(req: Request): AuthTokenPayload | null {
+  const decoded = verifyAuthToken(extractBearerToken(req));
+  if (decoded && (decoded.role === "member" || decoded.role === "admin")) {
+    return decoded;
+  }
+  return null;
+}
+
+function isSelfOrAdminAuthorized(req: Request, targetUserId: string, matchedUser?: any): boolean {
+  if (isAdminAuthorized(req)) return true;
+  const cleanTarget = String(targetUserId || "").trim().toUpperCase();
+  if (!cleanTarget) return false;
+
+  const auth = getAuthenticatedMember(req);
+  if (auth && auth.role === "member" && String(auth.userId || "").toUpperCase() === cleanTarget) {
+    if (matchedUser?.activeSessionToken && auth.sessionToken && matchedUser.activeSessionToken !== auth.sessionToken) {
+      return false;
+    }
+    return true;
+  }
+
+  const sessionHeader = String(req.headers["x-session-token"] || "").trim();
+  if (sessionHeader && matchedUser?.activeSessionToken && sessionHeader === matchedUser.activeSessionToken) {
+    return true;
+  }
+  return false;
+}
+
+function requireSelfOrAdminRequest(req: Request, res: Response, targetUserId: string, matchedUser?: any): boolean {
+  if (isSelfOrAdminAuthorized(req, targetUserId, matchedUser)) return true;
+  res.status(401).json({ success: false, error: "अनधिकृत अनुरोध: कृपया अपने खाते में लॉगिन करें।" });
+  return false;
+}
+
+const rateLimitBuckets = new Map<string, number[]>();
+
+function getClientIp(req: Request): string {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xff || req.ip || req.socket?.remoteAddress || "unknown";
+}
+
+function isRateLimited(req: Request, bucketKey: string, maxRequests: number, windowMs: number, recordAttempt = true): boolean {
+  const ip = getClientIp(req);
+  const key = `${bucketKey}:${ip}`;
+  const now = Date.now();
+  const recent = (rateLimitBuckets.get(key) || []).filter((ts) => now - ts < windowMs);
+  if (recent.length >= maxRequests) {
+    rateLimitBuckets.set(key, recent);
+    return true;
+  }
+  if (recordAttempt) {
+    recent.push(now);
+    rateLimitBuckets.set(key, recent);
+  }
+  if (rateLimitBuckets.size > 5000) {
+    for (const [k, arr] of rateLimitBuckets.entries()) {
+      if (!arr.length || now - arr[arr.length - 1] > windowMs) {
+        rateLimitBuckets.delete(k);
+      }
+    }
+  }
+  return false;
+}
+
+function recordRateLimitHit(req: Request, bucketKey: string, windowMs: number): void {
+  const ip = getClientIp(req);
+  const key = `${bucketKey}:${ip}`;
+  const now = Date.now();
+  const recent = (rateLimitBuckets.get(key) || []).filter((ts) => now - ts < windowMs);
+  recent.push(now);
+  rateLimitBuckets.set(key, recent);
+}
+
+function clearRateLimitHits(req: Request, bucketKey: string): void {
+  const ip = getClientIp(req);
+  rateLimitBuckets.delete(`${bucketKey}:${ip}`);
 }
 
 function writeJsonAtomic(filePath: string, data: any): void {
@@ -142,7 +362,7 @@ function loadTelegramConfig(): TelegramConfigData {
     enabled: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
     botToken: process.env.TELEGRAM_BOT_TOKEN || "",
     chatId: process.env.TELEGRAM_CHAT_ID || "",
-    adminSecret: "IOISSYSTEM",
+    adminSecret: getAdminPin(),
     botUsername: "@iois_admin_notification_bot",
   };
   try {
@@ -307,24 +527,59 @@ function sanitizeEditHistoryArray(logs: any): any[] {
 }
 
 function compactUserForPublicDirectory(u: any): any {
-  const { password, editHistory, ...rest } = u;
-  const compact: any = { ...rest };
-  if (typeof compact.paymentScreenshotUrl === "string" && compact.paymentScreenshotUrl.length > 4096) {
-    compact.hasPaymentScreenshot = true;
-    delete compact.paymentScreenshotUrl;
-  }
-  if (
-    compact.registrationFormData &&
-    typeof compact.registrationFormData === "object" &&
-    typeof compact.registrationFormData.paymentScreenshotUrl === "string" &&
-    compact.registrationFormData.paymentScreenshotUrl.length > 4096
-  ) {
-    compact.registrationFormData = {
-      ...compact.registrationFormData,
-      paymentScreenshotUrl: "",
-    };
-  }
-  return compact;
+  if (!u || typeof u !== "object") return u;
+  const privacy = (u.privacySettings && typeof u.privacySettings === "object") ? u.privacySettings : {};
+  return {
+    userId: u.userId,
+    username: u.username || undefined,
+    fullName: u.fullName,
+    photoUrl: u.photoUrl || "",
+    googleDrivePhotoLink: u.googleDrivePhotoLink || undefined,
+    selectedPlanId: u.selectedPlanId,
+    role: u.role,
+    paymentStatus: u.paymentStatus,
+    createdAt: u.createdAt,
+    verifiedAt: u.verifiedAt,
+    sponsorId: u.sponsorId,
+    state: u.state,
+    district: u.district,
+    profileFrameId: u.profileFrameId,
+    privacySettings: u.privacySettings,
+    bio: u.bio || undefined,
+    coverUrl: u.coverUrl || undefined,
+    profileViews: u.profileViews || 0,
+    profileLikes: Array.isArray(u.profileLikes) ? u.profileLikes : undefined,
+    friends: Array.isArray(u.friends) ? u.friends : undefined,
+    mustChangePassword: u.mustChangePassword || undefined,
+    registeredBySponsorId: u.registeredBySponsorId || undefined,
+    mobileNumber: privacy.showMobile === true ? (u.mobileNumber || "") : maskMobile(u.mobileNumber),
+    email: privacy.showEmail === true ? (u.email || "") : maskEmail(u.email),
+    hasPaymentScreenshot: Boolean(u.paymentScreenshotUrl || u.registrationFormData?.paymentScreenshotUrl),
+    passwordProtected: Boolean(u.password),
+  };
+}
+
+function sanitizeUserForMember(u: any): any {
+  if (!u || typeof u !== "object") return u;
+  const { password, ...rest } = u;
+  return {
+    ...rest,
+    passwordProtected: Boolean(password),
+  };
+}
+
+function sanitizeUserForAdmin(u: any): any {
+  if (!u || typeof u !== "object") return u;
+  const { password, ...rest } = u;
+  return {
+    ...rest,
+    passwordProtected: Boolean(password),
+    passwordStatus: password
+      ? isHashedPassword(password)
+        ? "🔒 Encrypted (scrypt)"
+        : "🔐 Legacy Protected"
+      : "कोई पासवर्ड सेट नहीं",
+  };
 }
 
 let cachedUsersMemory: any[] | null = null;
@@ -396,7 +651,7 @@ function sendJsonCompressed(req: Request, res: Response, payload: any): Response
 }
 
 function stripUserMediaForMetadata(u: any): any {
-  const clean: any = { ...u };
+  const clean: any = sanitizeUserForAdmin(u);
   const hasPhoto = Boolean(clean.photoUrl && String(clean.photoUrl).trim().length > 10);
   const hasReceipt = Boolean(
     (clean.paymentScreenshotUrl && String(clean.paymentScreenshotUrl).trim().length > 10) ||
@@ -433,6 +688,7 @@ function stripUserMediaForMetadata(u: any): any {
 function prepareUserForFirestore(user: any): any {
   const normalized = {
     ...user,
+    ...(user?.password && String(user.password).trim() ? { password: hashPassword(String(user.password)) } : {}),
     ...(Array.isArray(user?.editHistory) ? { editHistory: sanitizeEditHistoryArray(user.editHistory) } : {}),
   };
   const clean = sanitizeDocForFirestore(normalized);
@@ -615,10 +871,13 @@ function mergeUsersNonDestructive(...lists: any[][]): any[] {
         cleanInputUser.paymentScreenshotUrl && String(cleanInputUser.paymentScreenshotUrl).trim()
           ? cleanInputUser.paymentScreenshotUrl
           : existing.paymentScreenshotUrl;
-      merged.password =
-        cleanInputUser.password && String(cleanInputUser.password).trim()
-          ? cleanInputUser.password
-          : existing.password;
+      const inPwd = cleanInputUser.password && String(cleanInputUser.password).trim() ? String(cleanInputUser.password).trim() : "";
+      const exPwd = existing.password && String(existing.password).trim() ? String(existing.password).trim() : "";
+      if (inPwd) {
+        merged.password = isHashedPassword(exPwd) && !isHashedPassword(inPwd) ? exPwd : inPwd;
+      } else {
+        merged.password = exPwd;
+      }
       merged.registrationFormData =
         cleanInputUser.registrationFormData && typeof cleanInputUser.registrationFormData === "object"
           ? { ...(existing.registrationFormData || {}), ...cleanInputUser.registrationFormData }
@@ -734,6 +993,40 @@ function saveArchivedUsersToDisk(archived: any[]): void {
     writeJsonAtomic(DELETED_USERS_FILE, archived);
   } catch (err) {
     console.error("Error writing deleted-users-archive.json:", err);
+  }
+}
+
+function migratePlaintextPasswordsOnDisk(): void {
+  try {
+    const users = loadUsersFromDisk();
+    let migratedUsersCount = 0;
+    const updatedUsers = users.map((u) => {
+      if (u && typeof u.password === "string" && u.password.trim() && !isHashedPassword(u.password.trim())) {
+        migratedUsersCount++;
+        return { ...u, password: hashPassword(u.password.trim()) };
+      }
+      return u;
+    });
+    if (migratedUsersCount > 0) {
+      saveUsersToDisk(updatedUsers);
+      console.log(`[Security] Auto-hashed ${migratedUsersCount} legacy user password(s) with scrypt.`);
+    }
+
+    const archived = loadArchivedUsersFromDisk();
+    let migratedArchivedCount = 0;
+    const updatedArchived = archived.map((u) => {
+      if (u && typeof u.password === "string" && u.password.trim() && !isHashedPassword(u.password.trim())) {
+        migratedArchivedCount++;
+        return { ...u, password: hashPassword(u.password.trim()) };
+      }
+      return u;
+    });
+    if (migratedArchivedCount > 0) {
+      saveArchivedUsersToDisk(updatedArchived);
+      console.log(`[Security] Auto-hashed ${migratedArchivedCount} archived user password(s) with scrypt.`);
+    }
+  } catch (err) {
+    console.warn("[Security] Password migration note:", err);
   }
 }
 
@@ -1537,9 +1830,22 @@ async function startServer() {
 
   const getTodayServerDateKey = (): string => {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(now);
+      const y = parts.find((p) => p.type === "year")?.value;
+      const m = parts.find((p) => p.type === "month")?.value;
+      const d = parts.find((p) => p.type === "day")?.value;
+      if (y && m && d) return `${y}-${m}-${d}`;
+    } catch {}
+    const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    const y = ist.getUTCFullYear();
+    const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(ist.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   };
 
@@ -1551,22 +1857,73 @@ async function startServer() {
     "slide-06-chhath",
   ]);
 
+  const SERVER_CATALOG_FESTIVAL_CUTOFFS: Record<string, string> = {
+    "dhanteras-2026": "2026-11-06",
+    "diwali-2026": "2026-11-08",
+    "govardhan-2026": "2026-11-10",
+    "bhaidooj-2026": "2026-11-12",
+    "chhath-2026": "2026-11-16",
+    "tulsi-vivah-2026": "2026-11-21",
+    "dev-deepawali-2026": "2026-11-25",
+    "gita-jayanti-2026": "2026-12-20",
+    "winter-festive-2026": "2026-12-26",
+    "newyear-2027": "2027-01-02",
+    "makar-sankranti-2027": "2027-01-15",
+    "republic-day-2027": "2027-01-26",
+    "vasant-panchami-2027": "2027-02-12",
+    "mahashivaratri-2027": "2027-03-07",
+    "holi-2027": "2027-03-23",
+    "navratri-ramnavami-2027": "2027-04-16",
+    "independence-day-2027": "2027-08-16",
+    "diwali-2027": "2027-11-04",
+  };
+
+  const SERVER_PAST_2026_KEYWORD_CUTOFFS: Array<{ cutoff: string; pattern: RegExp }> = [
+    { cutoff: "2026-11-06", pattern: /(धनतेरस|dhanteras)/i },
+    { cutoff: "2026-11-08", pattern: /(दीपावली|दिवाली|diwali|deepawali)/i },
+    { cutoff: "2026-11-10", pattern: /(गोवर्धन|अन्नकूट|govardhan|annakoot)/i },
+    { cutoff: "2026-11-12", pattern: /(भाई दूज|भैया दूज|bhaidooj|bhai dooj)/i },
+    { cutoff: "2026-11-16", pattern: /(छठ|छठी मैया|chhath|nahay-khay|sandhya arghya|usha arghya)/i },
+  ];
+
+  const isExpiredServerFestivalItem = (item: any, todayKey: string): boolean => {
+    if (!item || typeof item !== "object") return true;
+    if (item.id && LEGACY_PAST_SLIDE_IDS.has(item.id)) return true;
+    if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) return true;
+    if (item.festivalId && SERVER_CATALOG_FESTIVAL_CUTOFFS[item.festivalId] && SERVER_CATALOG_FESTIVAL_CUTOFFS[item.festivalId] < todayKey) {
+      return true;
+    }
+    const hasFutureExplicitEnd = Boolean(item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate >= todayKey);
+    if (hasFutureExplicitEnd) return false;
+    const searchable = `${item.id || ""} ${item.festivalName || ""} ${item.title || ""} ${item.subtitle || ""} ${item.celebrationHeadline || ""} ${item.tag || ""} ${item.badgeText || ""}`;
+    for (const rule of SERVER_PAST_2026_KEYWORD_CUTOFFS) {
+      if (todayKey > rule.cutoff && rule.pattern.test(searchable)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // API Route: Home & Dashboard Celebration Popups (Admin 7-Slot Pop Effect System)
   app.get("/api/home-popups", (_req: Request, res: Response) => {
     const todayKey = getTodayServerDateKey();
-    const photos = loadJsonArray(HOME_POPUPS_FILE).filter((item: any) => {
-      if (!item || typeof item !== "object") return false;
-      if (item.endDate && /^\d{4}-\d{2}-\d{2}$/.test(item.endDate) && item.endDate < todayKey) {
-        return false;
-      }
-      return true;
-    });
+    const raw = loadJsonArray(HOME_POPUPS_FILE);
+    const photos = raw.filter((item: any) => !isExpiredServerFestivalItem(item, todayKey));
+    if (photos.length !== raw.length) {
+      try {
+        saveJsonArray(HOME_POPUPS_FILE, photos);
+      } catch {}
+    }
     res.json({ success: true, photos });
   });
 
   app.post("/api/home-popups", (req: Request, res: Response) => {
+    if (!requireAdminRequest(req, res)) return;
     try {
-      const incoming = Array.isArray(req.body?.photos) ? req.body.photos.slice(0, 7) : [];
+      const todayKey = getTodayServerDateKey();
+      const incoming = (Array.isArray(req.body?.photos) ? req.body.photos.slice(0, 7) : []).filter(
+        (item: any) => !isExpiredServerFestivalItem(item, todayKey)
+      );
       saveJsonArray(HOME_POPUPS_FILE, incoming);
       res.json({ success: true, photos: incoming });
     } catch (err: any) {
@@ -1581,12 +1938,13 @@ async function startServer() {
         return res.json({ success: true, slides: null });
       }
       const todayKey = getTodayServerDateKey();
-      const slides = loadJsonArray(HOME_SLIDERS_FILE).filter((s: any) => {
-        if (!s || typeof s !== "object") return false;
-        if (s.id && LEGACY_PAST_SLIDE_IDS.has(s.id)) return false;
-        if (s.endDate && /^\d{4}-\d{2}-\d{2}$/.test(s.endDate) && s.endDate < todayKey) return false;
-        return true;
-      });
+      const raw = loadJsonArray(HOME_SLIDERS_FILE);
+      const slides = raw.filter((s: any) => !isExpiredServerFestivalItem(s, todayKey));
+      if (slides.length !== raw.length) {
+        try {
+          saveJsonArray(HOME_SLIDERS_FILE, slides);
+        } catch {}
+      }
       res.json({ success: true, slides: slides.length > 0 ? slides : null });
     } catch {
       res.json({ success: true, slides: null });
@@ -1594,8 +1952,12 @@ async function startServer() {
   });
 
   app.post("/api/home-sliders", (req: Request, res: Response) => {
+    if (!requireAdminRequest(req, res)) return;
     try {
-      const incoming = Array.isArray(req.body?.slides) ? req.body.slides : [];
+      const todayKey = getTodayServerDateKey();
+      const incoming = (Array.isArray(req.body?.slides) ? req.body.slides : []).filter(
+        (s: any) => !isExpiredServerFestivalItem(s, todayKey)
+      );
       saveJsonArray(HOME_SLIDERS_FILE, incoming);
       res.json({ success: true, slides: incoming });
     } catch (err: any) {
@@ -1877,17 +2239,63 @@ async function startServer() {
     });
   });
 
-  // API Route: Get All Users (Lightweight directory summary; compressed for fast transfer)
+  // API Route: Get All Users (Privacy-masked public directory + optional server pagination & search)
   app.get("/api/users", (req: Request, res: Response) => {
-    const users = loadUsersFromDisk();
+    let users = loadUsersFromDisk();
     if (users.length <= 1 && !firestoreHydrationPromise && Date.now() >= firestoreQuotaBlockedUntil) {
       void hydrateServerFromFirestoreOnce(false);
     }
-    const sanitized = users.map(compactUserForPublicDirectory);
-    return sendJsonCompressed(req, res, { success: true, count: sanitized.length, users: sanitized });
+
+    const searchQ = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+    const statusFilter = typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "all";
+
+    if (statusFilter && statusFilter !== "all") {
+      users = users.filter((u) => String(u.paymentStatus || "").toLowerCase() === statusFilter);
+    }
+    if (searchQ) {
+      users = users.filter(
+        (u) =>
+          String(u.userId || "").toLowerCase().includes(searchQ) ||
+          String(u.username || "").toLowerCase().includes(searchQ) ||
+          String(u.fullName || "").toLowerCase().includes(searchQ) ||
+          String(u.state || "").toLowerCase().includes(searchQ) ||
+          String(u.district || "").toLowerCase().includes(searchQ)
+      );
+    }
+
+    const totalCount = users.length;
+    const rawPage = req.query.page !== undefined ? Number(req.query.page) : 0;
+    const rawLimit = req.query.limit !== undefined ? Number(req.query.limit) : 0;
+
+    let pagedUsers = users;
+    let page = 1;
+    let limit = totalCount || 50;
+    let totalPages = 1;
+    let hasMore = false;
+
+    if (Number.isFinite(rawLimit) && rawLimit > 0) {
+      limit = Math.min(Math.max(Math.floor(rawLimit), 1), 200);
+      page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+      totalPages = Math.max(1, Math.ceil(totalCount / limit));
+      const start = (page - 1) * limit;
+      pagedUsers = users.slice(start, start + limit);
+      hasMore = page < totalPages;
+    }
+
+    const sanitized = pagedUsers.map(compactUserForPublicDirectory);
+    return sendJsonCompressed(req, res, {
+      success: true,
+      count: sanitized.length,
+      totalCount,
+      page,
+      limit,
+      totalPages,
+      hasMore,
+      users: sanitized,
+    });
   });
 
-  // API Route: On-demand Member High-Res Media (Photo & Payment Receipt)
+  // API Route: On-demand Member High-Res Media (Photo public; Payment Receipt restricted to Owner/Admin)
   app.get("/api/users/:userId/media", async (req: Request, res: Response) => {
     try {
       const cleanUpper = String(req.params.userId || "").trim().toUpperCase();
@@ -1908,19 +2316,21 @@ async function startServer() {
           matched = await hydrateUserMediaFromFirestore(fsDb, matched);
         }
       }
+      const canViewReceipt = isSelfOrAdminAuthorized(req, matched.userId, matched);
       return sendJsonCompressed(req, res, {
         success: true,
         userId: matched.userId,
         photoUrl: matched.photoUrl || "",
-        paymentScreenshotUrl:
-          matched.paymentScreenshotUrl || matched.registrationFormData?.paymentScreenshotUrl || "",
+        paymentScreenshotUrl: canViewReceipt
+          ? matched.paymentScreenshotUrl || matched.registrationFormData?.paymentScreenshotUrl || ""
+          : "",
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || "Media fetch failed" });
     }
   });
 
-  // API Route: Fetch Single User Profile (Supports ?self=1 with matching x-session-token for full User Dashboard sync across devices)
+  // API Route: Fetch Single User Profile (Supports ?self=1 with Admin/Member auth for full User Dashboard sync)
   app.get("/api/users/profile/:userId", async (req: Request, res: Response) => {
     try {
       const rawId = String(req.params.userId || "").trim();
@@ -1956,10 +2366,9 @@ async function startServer() {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
-      const tokenHeader = String(req.headers["x-session-token"] || "").trim();
       const isSelfAuthorized =
         String(req.query.self || "") === "1" &&
-        (!matched.activeSessionToken || (tokenHeader && tokenHeader === matched.activeSessionToken));
+        isSelfOrAdminAuthorized(req, matched.userId, matched);
 
       const allWithdrawals = loadJsonArray(WITHDRAWALS_FILE).filter(
         (w: any) => w && String(w.userId || "").toUpperCase() === String(matched!.userId).toUpperCase()
@@ -1970,7 +2379,8 @@ async function startServer() {
           : matched;
 
       if (isSelfAuthorized) {
-        return res.json({ success: true, user: mergedUser, ...mergedUser });
+        const safeSelf = sanitizeUserForMember(mergedUser);
+        return res.json({ success: true, user: safeSelf, ...safeSelf });
       }
 
       const publicSafe = compactUserForPublicDirectory(mergedUser);
@@ -1980,18 +2390,49 @@ async function startServer() {
     }
   });
 
-  // API Route: Admin Full Users List + Deleted Archive Vault (Instant non-blocking response + gzip compression)
+  // API Route: Secure Admin Portal Login (Rate-limited + Timing-Safe + Signed 12h HMAC Token)
+  app.post("/api/admin/login", (req: Request, res: Response) => {
+    try {
+      if (isRateLimited(req, "admin-login-fail", 6, 15 * 60 * 1000, false)) {
+        return res.status(429).json({
+          success: false,
+          error: "बहुत अधिक गलत एडमिन लॉगिन प्रयास! सुरक्षा हेतु कृपया 15 मिनट बाद पुनः प्रयास करें।",
+        });
+      }
+
+      const { adminPin } = req.body || {};
+      const cleanPin = String(adminPin || "").trim().toUpperCase();
+      const expectedPin = getAdminPin().toUpperCase();
+
+      if (!cleanPin || !timingSafeStringEqual(cleanPin, expectedPin)) {
+        recordRateLimitHit(req, "admin-login-fail", 15 * 60 * 1000);
+        return res.status(401).json({
+          success: false,
+          error: "गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।",
+        });
+      }
+
+      clearRateLimitHits(req, "admin-login-fail");
+      const adminToken = signAuthToken({ role: "admin", userId: "ADMIN" }, 12 * 3600);
+      return res.json({
+        success: true,
+        adminToken,
+        expiresInSeconds: 12 * 3600,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Admin login failed" });
+    }
+  });
+
+  // API Route: Admin Full Users List + Deleted Archive Vault (Protected + Pagination + Password Redacted)
   app.post("/api/admin/users-full", async (req: Request, res: Response) => {
     try {
-      const { adminPin, includeMedia = true, forceCloud = false } = req.body || {};
-      const cleanPin = String(adminPin || "").trim().toUpperCase();
-      if (cleanPin !== "IOISSYSTEM") {
-        return res.status(403).json({ success: false, error: "Unauthorized Admin Access" });
-      }
+      if (!requireAdminRequest(req, res)) return;
+      const { includeMedia = true, forceCloud = false, page, limit, search, status } = req.body || {};
+
       let users = loadUsersFromDisk();
       let cloudError: string | undefined;
 
-      // Never stall HTTP 25s when disk already holds members: wait at most 5s when empty or forceCloud, otherwise refresh in background
       if (users.length <= 1 || forceCloud) {
         const hydration = await Promise.race([
           hydrateServerFromFirestoreOnce(Boolean(forceCloud) && users.length <= 1),
@@ -2005,12 +2446,52 @@ async function startServer() {
         void hydrateServerFromFirestoreOnce(false);
       }
 
-      const archivedUsers = loadArchivedUsersFromDisk();
-      const responseUsers = includeMedia === false ? users.map(stripUserMediaForMetadata) : users;
+      let filtered = users;
+      const statusStr = typeof status === "string" ? status.trim().toLowerCase() : "all";
+      const searchStr = typeof search === "string" ? search.trim().toLowerCase() : "";
+
+      if (statusStr && statusStr !== "all") {
+        filtered = filtered.filter((u) => String(u.paymentStatus || "").toLowerCase() === statusStr);
+      }
+      if (searchStr) {
+        filtered = filtered.filter(
+          (u) =>
+            String(u.userId || "").toLowerCase().includes(searchStr) ||
+            String(u.fullName || "").toLowerCase().includes(searchStr) ||
+            String(u.mobileNumber || "").includes(searchStr) ||
+            String(u.email || "").toLowerCase().includes(searchStr) ||
+            String(u.paymentUtr || "").toLowerCase().includes(searchStr)
+        );
+      }
+
+      const totalCount = filtered.length;
+      let paged = filtered;
+      let resolvedPage = 1;
+      let resolvedLimit = totalCount || 50;
+      let totalPages = 1;
+      let hasMore = false;
+
+      if (Number(limit) > 0) {
+        resolvedLimit = Math.min(Math.max(Math.floor(Number(limit)), 1), 250);
+        resolvedPage = Number(page) >= 1 ? Math.floor(Number(page)) : 1;
+        totalPages = Math.max(1, Math.ceil(totalCount / resolvedLimit));
+        const start = (resolvedPage - 1) * resolvedLimit;
+        paged = filtered.slice(start, start + resolvedLimit);
+        hasMore = resolvedPage < totalPages;
+      }
+
+      const archivedUsers = loadArchivedUsersFromDisk().map(sanitizeUserForAdmin);
+      const responseUsers =
+        includeMedia === false ? paged.map(stripUserMediaForMetadata) : paged.map(sanitizeUserForAdmin);
 
       return sendJsonCompressed(req, res, {
         success: true,
         count: responseUsers.length,
+        totalCount,
+        page: resolvedPage,
+        limit: resolvedLimit,
+        totalPages,
+        hasMore,
         users: responseUsers,
         archivedUsers,
         includeMedia: includeMedia !== false,
@@ -2030,13 +2511,9 @@ async function startServer() {
   // API Route: Admin On-Demand Cloud Sync
   app.post("/api/admin/cloud-sync", async (req: Request, res: Response) => {
     try {
-      const { adminPin } = req.body || {};
-      const cleanPin = String(adminPin || "").trim().toUpperCase();
-      if (cleanPin !== "IOISSYSTEM") {
-        return res.status(403).json({ success: false, error: "Unauthorized" });
-      }
+      if (!requireAdminRequest(req, res)) return;
       const result = await hydrateServerFromFirestoreOnce(true);
-      const users = loadUsersFromDisk();
+      const users = loadUsersFromDisk().map(sanitizeUserForAdmin);
       return sendJsonCompressed(req, res, {
         success: true,
         count: users.length,
@@ -2048,7 +2525,7 @@ async function startServer() {
     }
   });
 
-  // API Route: Bulk User Sync (Non-Destructive Merge + Cloud Firestore Sync)
+  // API Route: Bulk User Sync (Authenticated only + Privilege-Escalation Hardening)
   app.post("/api/users/sync", (req: Request, res: Response) => {
     try {
       const incomingUsers = req.body.users;
@@ -2056,26 +2533,68 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Invalid users array" });
       }
 
+      const isAdmin = isAdminAuthorized(req);
       const existingUsers = loadUsersFromDisk();
       const archivedIds = new Set(
         loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase())
       );
 
-      // Ignore already archived accounts unless explicitly restored via /api/users/restore/:userId
-      const activeIncoming = incomingUsers.filter(
-        (u: any) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId) && !archivedIds.has(String(u.userId).toUpperCase())
-      );
+      let authorizedIncoming: any[] = [];
 
-      const merged = mergeUsersNonDestructive(existingUsers, activeIncoming);
+      if (isAdmin) {
+        authorizedIncoming = incomingUsers
+          .filter(
+            (u: any) =>
+              u && u.userId && !u.isArchived && !isDemoUserId(u.userId) && !archivedIds.has(String(u.userId).toUpperCase())
+          )
+          .map((u: any) => ({
+            ...u,
+            ...(u.password && String(u.password).trim() ? { password: hashPassword(String(u.password)) } : {}),
+          }));
+      } else {
+        const authMember = getAuthenticatedMember(req);
+        const sessionHeader = String(req.headers["x-session-token"] || "").trim();
+
+        authorizedIncoming = incomingUsers
+          .filter((u: any) => {
+            if (!u || !u.userId || u.isArchived || isDemoUserId(u.userId)) return false;
+            const cleanUid = String(u.userId).trim().toUpperCase();
+            if (archivedIds.has(cleanUid)) return false;
+            const existing = existingUsers.find((ex) => String(ex.userId).toUpperCase() === cleanUid);
+            if (!existing) return false; // Unprivileged sync cannot invent arbitrary new accounts
+            if (authMember && String(authMember.userId).toUpperCase() === cleanUid) return true;
+            if (sessionHeader && existing.activeSessionToken && sessionHeader === existing.activeSessionToken) return true;
+            return false;
+          })
+          .map((u: any) => {
+            // Strip privileged billing/role/password fields from non-admin sync
+            const {
+              paymentStatus,
+              selectedPlanId,
+              verifiedAt,
+              rejectionReason,
+              password,
+              role,
+              isArchived,
+              ...safeRest
+            } = u;
+            return safeRest;
+          });
+
+        if (authorizedIncoming.length === 0) {
+          return res.status(401).json({ success: false, error: "अनधिकृत सिंक प्रयास। कृपया पहले लॉगिन करें।" });
+        }
+      }
+
+      const merged = mergeUsersNonDestructive(existingUsers, authorizedIncoming);
       saveUsersToDisk(merged);
 
-      // Sync new or updated incoming records cleanly to Firestore in background
-      if (activeIncoming.length > 0 && Date.now() >= firestoreQuotaBlockedUntil) {
+      if (authorizedIncoming.length > 0 && Date.now() >= firestoreQuotaBlockedUntil) {
         const mergedById = new Map<string, any>(
           merged.map((m) => [String(m.userId).toUpperCase(), m])
         );
         void (async () => {
-          for (const u of activeIncoming.slice(0, 30)) {
+          for (const u of authorizedIncoming.slice(0, 30)) {
             const fullRecord = mergedById.get(String(u.userId).toUpperCase()) || u;
             await syncSingleUserToFirestore(fullRecord);
           }
@@ -2089,19 +2608,21 @@ async function startServer() {
     }
   });
 
-  // API Route: Get Archived / Soft-Deleted Users Vault
-  app.get("/api/users/archive", (_req: Request, res: Response) => {
+  // API Route: Get Archived / Soft-Deleted Users Vault (Admin Only)
+  app.get("/api/users/archive", (req: Request, res: Response) => {
     try {
-      const archived = loadArchivedUsersFromDisk();
+      if (!requireAdminRequest(req, res)) return;
+      const archived = loadArchivedUsersFromDisk().map(sanitizeUserForAdmin);
       return res.json({ success: true, count: archived.length, archivedUsers: archived });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || "Failed to load archive" });
     }
   });
 
-  // API Route: Restore Archived User Back to Active Members
+  // API Route: Restore Archived User Back to Active Members (Admin Only)
   app.post("/api/users/restore/:userId", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const cleanId = String(req.params.userId || "").trim().toUpperCase();
       const archived = loadArchivedUsersFromDisk();
       const target = archived.find((u) => u && String(u.userId).toUpperCase() === cleanId);
@@ -2126,7 +2647,7 @@ async function startServer() {
       return res.json({
         success: true,
         message: "सदस्य का डेटा सफलतापूर्वक पुनः सक्रिय (Restore) कर दिया गया है!",
-        user: restoredUser,
+        user: sanitizeUserForAdmin(restoredUser),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || "Restore failed" });
@@ -2289,9 +2810,15 @@ async function startServer() {
     }
   });
 
-  // API Route: User Registration
+  // API Route: User Registration (Rate-limited + scrypt Password Hashing + Signed Session Token)
   app.post("/api/users/register", async (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "user-register", 15, 10 * 60 * 1000, true)) {
+        return res.status(429).json({
+          success: false,
+          error: "बहुत अधिक रजिस्ट्रेशन प्रयास। कृपया 10 मिनट बाद पुनः प्रयास करें।",
+        });
+      }
       const {
         fullName,
         username,
@@ -2434,6 +2961,10 @@ async function startServer() {
 
       const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "") : undefined;
 
+      const rawPassword = String(password || "1234").trim();
+      const hashedPassword = hashPassword(rawPassword);
+      const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
+
       const newUser = {
         userId,
         username: cleanUsername || undefined,
@@ -2450,7 +2981,9 @@ async function startServer() {
         telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
         selectedPlanId: Number(selectedPlanId),
         role: role || "Verified Elite Member",
-        password: password || "1234",
+        password: hashedPassword,
+        activeSessionToken: sessionToken,
+        lastLoginAt: new Date().toISOString(),
         photoUrl,
         googleDrivePhotoLink: googleDrivePhotoLink ? googleDrivePhotoLink.trim() : undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || undefined,
@@ -2486,10 +3019,14 @@ async function startServer() {
         console.warn("Telegram registration alert note:", e);
       });
 
+      const authToken = signAuthToken({ role: "member", userId: newUser.userId, sessionToken });
+
       return res.status(201).json({
         success: true,
         message: "रजिस्ट्रेशन सफलतापूर्वक पूरा हुआ!",
-        user: newUser,
+        sessionToken,
+        authToken,
+        user: sanitizeUserForMember(newUser),
       });
     } catch (err: any) {
       console.error("Register Error:", err);
@@ -2497,9 +3034,16 @@ async function startServer() {
     }
   });
 
-  // API Route: User Login (Flexible matching by UserID, @Username, Mobile, or Email + Single Active Device Session)
+  // API Route: User Login (scrypt + Lazy Auto-Migration + Rate Limit + HMAC Token)
   app.post("/api/users/login", async (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "user-login", 20, 10 * 60 * 1000, true)) {
+        return res.status(429).json({
+          success: false,
+          error: "बहुत अधिक लॉगिन प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।",
+        });
+      }
+
       const { identifier, password, deviceInfo } = req.body;
 
       if (!identifier || typeof identifier !== "string") {
@@ -2521,7 +3065,6 @@ async function startServer() {
       let users = loadUsersFromDisk();
       let userIndex = findMatchIndex(users);
 
-      // Cold container safety: hydrate from Firestore if user not yet on disk
       if (userIndex === -1) {
         if (!cleanInput.includes("@") && cleanInput.length >= 4 && inputDigits.length < 10) {
           await fetchSingleUserFromFirestore(cleanInput.toUpperCase());
@@ -2544,16 +3087,20 @@ async function startServer() {
 
       const user = users[userIndex];
 
-      // Strict password check whenever account has a password set
-      if (user.password && (!password || user.password !== password)) {
+      if (user.password && (!password || !verifyPassword(String(password), user.password))) {
         return res.status(401).json({
           success: false,
           error: "दर्ज किया गया पासवर्ड गलत है। यदि पासवर्ड भूल गए हैं तो 'पासवर्ड रीसेट' का उपयोग करें।",
         });
       }
 
-      // Issue a fresh single-active-device session token so previous devices get auto logged out
-      const sessionToken = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      // Auto-migrate legacy plaintext password into salted scrypt hash seamlessly on login
+      const upgradedPassword =
+        user.password && !isHashedPassword(user.password) && password
+          ? hashPassword(String(password))
+          : user.password;
+
+      const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
       const nowIso = new Date().toISOString();
       const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "नया डिवाइस / ब्राउज़र";
 
@@ -2564,20 +3111,27 @@ async function startServer() {
       users[userIndex] = mergeUsersNonDestructive([user], [
         {
           userId: user.userId,
+          password: upgradedPassword,
           activeSessionToken: sessionToken,
           lastLoginDevice: loginDevice,
           lastLoginAt: nowIso,
           ...(allWithdrawals.length > 0 ? { withdrawals: allWithdrawals } : {}),
         },
       ])[0];
+      if (upgradedPassword && isHashedPassword(upgradedPassword)) {
+        users[userIndex].password = upgradedPassword;
+      }
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[userIndex]);
+
+      const authToken = signAuthToken({ role: "member", userId: users[userIndex].userId, sessionToken });
 
       return res.json({
         success: true,
         message: "लॉगिन सफल!",
         sessionToken,
-        user: users[userIndex],
+        authToken,
+        user: sanitizeUserForMember(users[userIndex]),
       });
     } catch (err: any) {
       console.error("Login Error:", err);
@@ -2611,9 +3165,12 @@ async function startServer() {
     }
   });
 
-  // API Route: Sponsor-Assisted Member Joining (Sponsor stays logged in; New Member must change password on first login)
+  // API Route: Sponsor-Assisted Member Joining (Requires Sponsor Auth + scrypt Hashing)
   app.post("/api/users/sponsor-register", async (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "sponsor-register", 20, 10 * 60 * 1000, true)) {
+        return res.status(429).json({ success: false, error: "बहुत अधिक प्रयास। कृपया थोड़ी देर बाद प्रयास करें।" });
+      }
       const {
         fullName,
         mobileNumber,
@@ -2641,6 +3198,11 @@ async function startServer() {
       await ensureServerHydratedIfSparse();
       const users = loadUsersFromDisk();
       const cleanSponsor = String(sponsorId).trim().toUpperCase();
+      const sponsorRecord = users.find((u) => u && String(u.userId).toUpperCase() === cleanSponsor);
+      if (!isSelfOrAdminAuthorized(req, cleanSponsor, sponsorRecord)) {
+        return res.status(401).json({ success: false, error: "अनधिकृत स्पॉन्सर अनुरोध। कृपया अपने खाते में लॉगिन करें।" });
+      }
+
       const cleanDigits = String(mobileNumber).replace(/\D/g, "");
       const cleanEmail = email ? String(email).trim().toLowerCase() : "";
       const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "") : "";
@@ -2678,7 +3240,7 @@ async function startServer() {
         mustChangePassword: true,
         selectedPlanId: Number(selectedPlanId),
         role: role ? String(role).trim() : "Verified Elite Member",
-        password: String(password).trim(),
+        password: hashPassword(String(password).trim()),
         photoUrl: photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
         googleDrivePhotoLink: googleDrivePhotoLink ? String(googleDrivePhotoLink).trim() : undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || undefined,
@@ -2707,14 +3269,14 @@ async function startServer() {
       return res.status(201).json({
         success: true,
         message: "नए सदस्य का पंजीकरण आपके स्पॉन्सर ID से सफलतापूर्वक हो गया! पहले लॉगिन पर उन्हें नया पासवर्ड सेट करने का विकल्प मिलेगा।",
-        user: newMember,
+        user: compactUserForPublicDirectory(newMember),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message || "सदस्य जोड़ने में त्रुटि आई।" });
     }
   });
 
-  // API Route: Mandatory Password Update (Clears mustChangePassword & rotates sessionToken so sponsor cannot login)
+  // API Route: Mandatory Password Update (Hashes password + rotates session & auth token)
   app.post("/api/users/force-password-update", async (req: Request, res: Response) => {
     try {
       const { userId, currentPassword, newPassword, deviceInfo } = req.body;
@@ -2737,16 +3299,26 @@ async function startServer() {
       }
 
       const target = users[index];
-      if (target.password && currentPassword && target.password !== currentPassword) {
-        return res.status(401).json({ success: false, error: "वर्तमान/अस्थायी पासवर्ड सही नहीं है।" });
+      const hasSessionAuth = isSelfOrAdminAuthorized(req, cleanId, target);
+      if (target.password) {
+        if (currentPassword && !verifyPassword(String(currentPassword), target.password)) {
+          return res.status(401).json({ success: false, error: "वर्तमान/अस्थायी पासवर्ड सही नहीं है।" });
+        }
+        if (!currentPassword && !hasSessionAuth) {
+          return res.status(401).json({ success: false, error: "प्रमाणीकरण आवश्यक है। कृपया दोबारा लॉगिन करें।" });
+        }
       }
 
-      const newSessionToken = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      if (target.password && verifyPassword(String(newPassword).trim(), target.password)) {
+        return res.status(400).json({ success: false, error: "नया पासवर्ड पुराने अस्थायी पासवर्ड से अलग होना चाहिए।" });
+      }
+
+      const newSessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
       const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "वर्तमान सुरक्षित डिवाइस";
 
       users[index] = {
         ...target,
-        password: String(newPassword).trim(),
+        password: hashPassword(String(newPassword).trim()),
         mustChangePassword: false,
         activeSessionToken: newSessionToken,
         lastLoginDevice: loginDevice,
@@ -2756,20 +3328,26 @@ async function startServer() {
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[index]);
 
+      const authToken = signAuthToken({ role: "member", userId: users[index].userId, sessionToken: newSessionToken });
+
       return res.json({
         success: true,
         message: "आपका गुप्त पासवर्ड सुरक्षित रूप से अपडेट हो गया है! अब कोई अन्य व्यक्ति या स्पॉन्सर आपका खाता लॉगिन नहीं कर सकेगा।",
         sessionToken: newSessionToken,
-        user: users[index],
+        authToken,
+        user: sanitizeUserForMember(users[index]),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "पासवर्ड अपडेट करने में त्रुटि आई।" });
     }
   });
 
-  // API Route: Secure Recover User ID (Requires matching Mobile AND Email to protect privacy)
+  // API Route: Secure Recover User ID (Rate-limited + requires Mobile AND Email)
   app.post("/api/users/recover-id", async (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "user-recovery", 15, 10 * 60 * 1000, true)) {
+        return res.status(429).json({ success: false, error: "बहुत अधिक प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।" });
+      }
       const { mobile, email, fullName } = req.body;
       if (!mobile || !email) {
         return res.status(400).json({
@@ -2811,9 +3389,12 @@ async function startServer() {
     }
   });
 
-  // API Route: Verify Real Identity (Multi-field security challenge before password reset)
+  // API Route: Verify Real Identity (Rate-limited + Cryptographic Reset Token)
   app.post("/api/users/verify-identity", async (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "user-recovery", 15, 10 * 60 * 1000, true)) {
+        return res.status(429).json({ success: false, error: "बहुत अधिक सत्यापन प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।" });
+      }
       await ensureServerHydratedIfSparse();
       const { identifier, fullName, email, address, sponsorId } = req.body;
       if (!identifier || !fullName || !email) {
@@ -2846,7 +3427,6 @@ async function startServer() {
         });
       }
 
-      // Check Real Identity: Full Name & Email match
       const uName = (user.fullName || "").trim().toLowerCase();
       const uEmail = (user.email || "").trim().toLowerCase();
       const uAddress = (user.address || "").trim().toLowerCase();
@@ -2872,8 +3452,7 @@ async function startServer() {
         });
       }
 
-      // Generate secure verification token valid for 15 minutes
-      const token = `rst_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+      const token = `rst_${crypto.randomBytes(16).toString("hex")}`;
       passwordResetTokens.set(token, {
         userId: user.userId,
         expiresAt: Date.now() + 15 * 60 * 1000,
@@ -2892,15 +3471,18 @@ async function startServer() {
     }
   });
 
-  // API Route: Reset Password (Requires valid verificationToken)
+  // API Route: Reset Password (Rate-limited + scrypt Hashing)
   app.post("/api/users/reset-password", (req: Request, res: Response) => {
     try {
+      if (isRateLimited(req, "user-recovery", 15, 10 * 60 * 1000, true)) {
+        return res.status(429).json({ success: false, error: "बहुत अधिक प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।" });
+      }
       const { userId, verificationToken, newPassword, confirmPassword, fallbackIdentity } = req.body;
       if (!userId || !newPassword) {
         return res.status(400).json({ success: false, error: "User ID और नया पासवर्ड आवश्यक हैं।" });
       }
 
-      if (newPassword.length < 4) {
+      if (String(newPassword).trim().length < 4) {
         return res.status(400).json({ success: false, error: "नया पासवर्ड कम से कम 4 अक्षरों का होना चाहिए।" });
       }
 
@@ -2918,7 +3500,6 @@ async function startServer() {
 
       const targetUser = users[userIndex];
 
-      // Validate token OR fallback identity check
       let isAuthorized = false;
       if (verificationToken) {
         const tokenData = passwordResetTokens.get(verificationToken);
@@ -2928,7 +3509,6 @@ async function startServer() {
         }
       }
 
-      // Secondary fallback if token expired but full identity payload is verified
       if (!isAuthorized && fallbackIdentity) {
         const fName = String(fallbackIdentity.fullName || "").trim().toLowerCase();
         const fEmail = String(fallbackIdentity.email || "").trim().toLowerCase();
@@ -2947,7 +3527,7 @@ async function startServer() {
         });
       }
 
-      users[userIndex].password = newPassword;
+      users[userIndex].password = hashPassword(String(newPassword).trim());
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[userIndex]);
 
@@ -2960,12 +3540,13 @@ async function startServer() {
     }
   });
 
-  // API Route: Update User Profile (Non-Destructive Merge + Auto-Hydration + Upsert Safety)
+  // API Route: Update User Profile (Authenticated Self/Admin + Privilege Field Protection)
   app.put("/api/users/:userId", async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
       const cleanId = String(userId || "").trim().toUpperCase();
-      const updates = req.body || {};
+      const rawUpdates = { ...(req.body || {}) };
+      const isAdmin = isAdminAuthorized(req);
 
       let users = loadUsersFromDisk();
       let index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
@@ -2974,6 +3555,28 @@ async function startServer() {
         await fetchSingleUserFromFirestore(cleanId);
         users = loadUsersFromDisk();
         index = users.findIndex((u) => u.userId && u.userId.toUpperCase() === cleanId);
+      }
+
+      if (index !== -1) {
+        if (!requireSelfOrAdminRequest(req, res, cleanId, users[index])) return;
+      } else {
+        if (!requireAdminRequest(req, res)) return;
+      }
+
+      const updates: Record<string, any> = { ...rawUpdates };
+      if (!isAdmin) {
+        delete updates.paymentStatus;
+        delete updates.selectedPlanId;
+        delete updates.verifiedAt;
+        delete updates.rejectionReason;
+        delete updates.isArchived;
+        delete updates.role;
+      }
+
+      if (typeof updates.password === "string" && updates.password.trim()) {
+        updates.password = hashPassword(updates.password.trim());
+      } else {
+        delete updates.password;
       }
 
       // Check if new mobile or email is already taken by another user
@@ -3008,7 +3611,7 @@ async function startServer() {
         return res.json({
           success: true,
           message: "प्रोफ़ाइल सफलतापूर्वक सहेज ली गई!",
-          user: upserted,
+          user: sanitizeUserForMember(upserted),
         });
       }
 
@@ -3024,16 +3627,17 @@ async function startServer() {
       return res.json({
         success: true,
         message: "प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई!",
-        user: mergedUser,
+        user: isAdmin ? sanitizeUserForAdmin(mergedUser) : sanitizeUserForMember(mergedUser),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "अपडेट में त्रुटि आई।" });
     }
   });
 
-  // API Route: Admin Approve / Reject User
+  // API Route: Admin Approve / Reject User (Admin Only)
   app.post("/api/users/:userId/status", async (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { userId } = req.params;
       const cleanId = String(userId || "").trim().toUpperCase();
       const { status, reason } = req.body;
@@ -3072,27 +3676,29 @@ async function startServer() {
       return res.json({
         success: true,
         message: `यूजर स्टेटस ${status === "approved" ? "स्वीकृत" : "अस्वीकृत"} कर दिया गया।`,
-        user: users[index],
+        user: sanitizeUserForAdmin(users[index]),
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "स्टेटस बदलने में त्रुटि आई।" });
     }
   });
 
-  // API Routes: Cross-Device User Withdrawal History Sync
+  // API Routes: Cross-Device User Withdrawal History Sync (Self or Admin Only)
   app.get("/api/withdrawals/:userId", async (req: Request, res: Response) => {
     try {
       const cleanId = String(req.params.userId || "").trim().toUpperCase();
       if (!cleanId) return res.status(400).json({ success: false, error: "User ID required" });
 
-      const diskList = loadJsonArray(WITHDRAWALS_FILE).filter(
-        (w: any) => w && String(w.userId || "").toUpperCase() === cleanId
-      );
       let users = loadUsersFromDisk();
       let user = users.find((u) => u && String(u.userId).toUpperCase() === cleanId);
       if (!user) {
         user = (await fetchSingleUserFromFirestore(cleanId)) || undefined;
       }
+      if (!requireSelfOrAdminRequest(req, res, cleanId, user)) return;
+
+      const diskList = loadJsonArray(WITHDRAWALS_FILE).filter(
+        (w: any) => w && String(w.userId || "").toUpperCase() === cleanId
+      );
 
       const userList = Array.isArray(user?.withdrawals) ? user.withdrawals : [];
       const wMap = new Map<string, any>();
@@ -3117,13 +3723,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Invalid withdrawal payload" });
       }
 
-      const record = { ...withdrawal, userId: cleanId };
-      const allDisk = loadJsonArray(WITHDRAWALS_FILE);
-      const filteredDisk = allDisk.filter((w: any) => w && w.id !== record.id);
-      filteredDisk.unshift(record);
-      saveJsonArray(WITHDRAWALS_FILE, filteredDisk);
-
-      // Merge into user profile on disk & Firestore so cross-device user logins inherit withdrawals automatically
       let users = loadUsersFromDisk();
       let idx = users.findIndex((u) => u && String(u.userId).toUpperCase() === cleanId);
       if (idx === -1) {
@@ -3131,6 +3730,16 @@ async function startServer() {
         users = loadUsersFromDisk();
         idx = users.findIndex((u) => u && String(u.userId).toUpperCase() === cleanId);
       }
+      const targetUser = idx !== -1 ? users[idx] : undefined;
+      if (!requireSelfOrAdminRequest(req, res, cleanId, targetUser)) return;
+
+      const record = { ...withdrawal, userId: cleanId };
+      const allDisk = loadJsonArray(WITHDRAWALS_FILE);
+      const filteredDisk = allDisk.filter((w: any) => w && w.id !== record.id);
+      filteredDisk.unshift(record);
+      saveJsonArray(WITHDRAWALS_FILE, filteredDisk);
+
+      // Merge into user profile on disk & Firestore so cross-device user logins inherit withdrawals automatically
       if (idx !== -1) {
         users[idx] = mergeUsersNonDestructive([users[idx]], [{ userId: cleanId, withdrawals: [record] }])[0];
         saveUsersToDisk(users);
@@ -3147,9 +3756,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Admin Soft-Archive User (NEVER permanently loses data; moves cleanly to archive vault)
+  // API Route: Admin Soft-Archive User (Admin Only — moves cleanly to archive vault)
   app.delete("/api/users/:userId", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { userId } = req.params;
       const cleanId = String(userId || "").trim().toUpperCase();
       const users = loadUsersFromDisk();
@@ -3183,10 +3793,29 @@ async function startServer() {
     }
   });
 
-  // API Routes: Help Tickets
-  app.get("/api/tickets", (_req: Request, res: Response) => {
+  // API Routes: Help Tickets (Admin sees all; Authenticated Member sees own tickets only)
+  app.get("/api/tickets", (req: Request, res: Response) => {
     const tickets = loadTicketsFromDisk();
-    res.json({ success: true, count: tickets.length, tickets });
+    if (isAdminAuthorized(req)) {
+      return res.json({ success: true, count: tickets.length, tickets });
+    }
+    const authMember = getAuthenticatedMember(req);
+    let resolvedUid = authMember && authMember.role === "member" ? String(authMember.userId || "").trim().toUpperCase() : "";
+    if (!resolvedUid) {
+      const qUid = String(req.query.userId || "").trim().toUpperCase();
+      const sessionHeader = String(req.headers["x-session-token"] || "").trim();
+      if (qUid && sessionHeader) {
+        const matched = loadUsersFromDisk().find((u) => u && String(u.userId).toUpperCase() === qUid);
+        if (matched?.activeSessionToken && matched.activeSessionToken === sessionHeader) {
+          resolvedUid = qUid;
+        }
+      }
+    }
+    if (!resolvedUid) {
+      return res.status(401).json({ success: false, error: "अनधिकृत अनुरोध: कृपया अपने खाते में लॉगिन करें।" });
+    }
+    const ownTickets = tickets.filter((t) => t && String(t.userId || "").trim().toUpperCase() === resolvedUid);
+    return res.json({ success: true, count: ownTickets.length, tickets: ownTickets });
   });
 
   app.post("/api/tickets", (req: Request, res: Response) => {
@@ -3222,6 +3851,7 @@ async function startServer() {
 
   app.post("/api/tickets/:id/reply", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { id } = req.params;
       const { adminReply, status = "resolved" } = req.body;
 
@@ -3247,11 +3877,14 @@ async function startServer() {
   // API Routes: Private Direct Messaging (Admin <-> User with text, photos, videos, links)
   // =========================================================================
 
-  // GET messages for a specific user
+  // GET messages for a specific user (Self or Admin Only)
   app.get("/api/messages/:userId", (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
       const cleanId = String(userId).trim().toUpperCase();
+      const targetUser = loadUsersFromDisk().find((u) => u && String(u.userId).toUpperCase() === cleanId);
+      if (!requireSelfOrAdminRequest(req, res, cleanId, targetUser)) return;
+
       const allMessages = loadMessagesFromDisk();
       const userMessages = allMessages.filter((m) => m && m.userId && m.userId.toUpperCase() === cleanId);
       return res.json({ success: true, count: userMessages.length, messages: userMessages });
@@ -3260,7 +3893,7 @@ async function startServer() {
     }
   });
 
-  // POST new message (from Admin or User)
+  // POST new message (Self or Admin; sender==='admin' requires Admin Auth)
   app.post("/api/messages", (req: Request, res: Response) => {
     try {
       const { userId, sender, senderName, text, mediaType, mediaUrl, linkUrl, linkTitle } = req.body;
@@ -3268,10 +3901,18 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "User ID और संदेश अथवा मीडिया अनिवार्य है।" });
       }
 
+      const cleanId = String(userId).trim().toUpperCase();
+      if (sender === "admin") {
+        if (!requireAdminRequest(req, res)) return;
+      } else {
+        const targetUser = loadUsersFromDisk().find((u) => u && String(u.userId).toUpperCase() === cleanId);
+        if (!requireSelfOrAdminRequest(req, res, cleanId, targetUser)) return;
+      }
+
       const allMessages = loadMessagesFromDisk();
       const newMsg = {
         id: `MSG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        userId: String(userId).trim().toUpperCase(),
+        userId: cleanId,
         sender: sender === 'admin' ? 'admin' : 'user',
         senderName: senderName || (sender === 'admin' ? 'IOIS Admin Team' : 'सदस्य'),
         text: text ? String(text).trim() : '',
@@ -3292,9 +3933,10 @@ async function startServer() {
     }
   });
 
-  // GET all active chat threads for Admin
-  app.get("/api/admin/chat-threads", (_req: Request, res: Response) => {
+  // GET all active chat threads for Admin (Admin Only)
+  app.get("/api/admin/chat-threads", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const allMessages = loadMessagesFromDisk();
       const users = loadUsersFromDisk();
       const threadsMap: Record<string, { userId: string; userName: string; userMobile: string; lastMessage: any; messageCount: number; unreadCount: number }> = {};
@@ -3332,11 +3974,12 @@ async function startServer() {
     }
   });
 
-  // Admin Update User Profile with Edit History (Non-Destructive Merge + Auto-Hydration)
+  // Admin Update User Profile with Edit History (Admin Only + Scrypt Password Hashing)
   app.put("/api/admin/users/:userId", async (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { userId } = req.params;
-      const updates = req.body || {};
+      const rawUpdates = { ...(req.body || {}) };
       const cleanId = String(userId).trim().toUpperCase();
 
       let users = loadUsersFromDisk();
@@ -3351,10 +3994,18 @@ async function startServer() {
       }
 
       const existing = users[index];
+      const updates: Record<string, any> = { ...rawUpdates };
+      const hasPasswordUpdate = typeof updates.password === "string" && updates.password.trim().length > 0;
+      if (hasPasswordUpdate) {
+        updates.password = hashPassword(String(updates.password).trim());
+      } else {
+        delete updates.password;
+      }
+
       const now = new Date().toISOString();
       const editLogs: Array<{ field: string; fieldLabelHi: string; oldValue?: string; newValue?: string; timestamp: string }> = Array.isArray(existing.editHistory) ? [...existing.editHistory] : [];
 
-      // Track Admin changes
+      // Track Admin changes (never log plaintext passwords in editHistory)
       const fieldLabels: Record<string, string> = {
         fullName: "सदस्य का पूरा नाम (Admin Change)",
         password: "लॉगिन पासवर्ड (Admin Reset)",
@@ -3370,6 +4021,16 @@ async function startServer() {
 
       Object.keys(updates).forEach((k) => {
         if (k !== 'editHistory' && k !== 'userId' && updates[k] !== undefined) {
+          if (k === 'password') {
+            editLogs.unshift({
+              field: 'password',
+              fieldLabelHi: fieldLabels.password,
+              oldValue: '[सुरक्षित पासवर्ड]',
+              newValue: '[सुरक्षित पासवर्ड अपडेट]',
+              timestamp: now,
+            });
+            return;
+          }
           const rawOldV = String(existing[k] || '');
           const rawNewV = String(updates[k] || '');
           if (rawOldV !== rawNewV) {
@@ -3397,7 +4058,7 @@ async function startServer() {
 
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(mergedUser);
-      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: mergedUser });
+      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: sanitizeUserForAdmin(mergedUser) });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
     }
@@ -3430,7 +4091,6 @@ async function startServer() {
       sponsorId: u.sponsorId,
       state: u.state,
       district: u.district,
-      address: u.address,
       profileFrameId: u.profileFrameId,
       privacySettings: u.privacySettings,
       createdAt: u.createdAt,
@@ -3864,9 +4524,10 @@ async function startServer() {
     }
   });
 
-  // SILENT ADMIN SURVEILLANCE API: Inspect all DMs, Groups, Shared Photos/Videos/Links, Friend Links (Invisible to Users)
-  app.get("/api/admin/social-monitor", (_req: Request, res: Response) => {
+  // SILENT ADMIN SURVEILLANCE API: Inspect all DMs, Groups, Shared Photos/Videos/Links, Friend Links (Admin Only)
+  app.get("/api/admin/social-monitor", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const users = loadUsersFromDisk();
       const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
       const allGroups = loadJsonArray(SOCIAL_GROUPS_FILE);
@@ -3932,9 +4593,10 @@ async function startServer() {
     }
   });
 
-  // Admin Control: Delete any social message
+  // Admin Control: Delete any social message (Admin Only)
   app.delete("/api/admin/social-messages/:id", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { id } = req.params;
       const allMsgs = loadJsonArray(SOCIAL_MESSAGES_FILE);
       const filtered = allMsgs.filter((m) => m.id !== id);
@@ -3945,9 +4607,10 @@ async function startServer() {
     }
   });
 
-  // Admin Control: Delete any social group
+  // Admin Control: Delete any social group (Admin Only)
   app.delete("/api/admin/social-groups/:groupId", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { groupId } = req.params;
       const groups = loadJsonArray(SOCIAL_GROUPS_FILE).filter((g) => g.id !== groupId);
       saveJsonArray(SOCIAL_GROUPS_FILE, groups);
@@ -4027,8 +4690,9 @@ async function startServer() {
 </html>`;
   }
 
-  // Telegram API: Get Telegram Configuration
-  app.get("/api/telegram/config", (_req: Request, res: Response) => {
+  // Telegram API: Get Telegram Configuration (Admin Only — never leak adminSecret)
+  app.get("/api/telegram/config", (req: Request, res: Response) => {
+    if (!requireAdminRequest(req, res)) return;
     const cfg = loadTelegramConfig();
     const maskedToken = cfg.botToken ? `${cfg.botToken.slice(0, 5)}...${cfg.botToken.slice(-4)}` : "";
     res.json({
@@ -4036,14 +4700,15 @@ async function startServer() {
       enabled: cfg.enabled,
       chatId: cfg.chatId,
       hasToken: !!cfg.botToken,
+      hasAdminSecret: Boolean(cfg.adminSecret),
       maskedToken,
-      adminSecret: cfg.adminSecret,
     });
   });
 
-  // Telegram API: Update Telegram Configuration
+  // Telegram API: Update Telegram Configuration (Admin Only)
   app.post("/api/telegram/config", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { botToken, chatId, enabled, adminSecret } = req.body;
       const current = loadTelegramConfig();
       const updated: TelegramConfigData = {
@@ -4067,9 +4732,10 @@ async function startServer() {
     }
   });
 
-  // Telegram API: Send Test Alert
+  // Telegram API: Send Test Alert (Admin Only)
   app.post("/api/telegram/test", async (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const cfg = loadTelegramConfig();
       if (!cfg.enabled || !cfg.botToken || !cfg.chatId) {
         return res.status(400).json({
@@ -4109,8 +4775,13 @@ async function startServer() {
         return res.status(400).send(renderActionHtml("अमान्य अनुरोध", "यूजर आईडी नहीं मिली।", "error"));
       }
 
-      // Verify secret token for security
-      if (cfg.adminSecret && token !== cfg.adminSecret && token !== "IOISSYSTEM" && token !== "iois_admin_sec_2026") {
+      // Verify secret token timing-safely for security
+      const providedToken = typeof token === "string" ? token.trim() : "";
+      const tokenMatches =
+        providedToken.length > 0 &&
+        ((cfg.adminSecret && timingSafeStringEqual(providedToken, cfg.adminSecret)) ||
+          timingSafeStringEqual(providedToken, getAdminPin()));
+      if (!tokenMatches) {
         return res.status(403).send(renderActionHtml("असुरक्षित अनुरोध", "सुरक्षा टोकन अमान्य है। कृपया एडमिन पैनल से लॉगिन करें।", "error"));
       }
 
@@ -4267,9 +4938,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Get All Interview Submissions
-  app.get("/api/interviews", (_req: Request, res: Response) => {
+  // API Route: Get All Interview Submissions (Admin Only)
+  app.get("/api/interviews", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const interviews = loadInterviewsFromDisk();
       return res.json({ success: true, count: interviews.length, interviews });
     } catch (err: any) {
@@ -4287,9 +4959,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Add or Update AI Knowledge Base Item
+  // API Route: Add or Update AI Knowledge Base Item (Admin Only)
   app.post("/api/ai/knowledge", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { question, answer, category = "General", id } = req.body;
       if (!question || !answer) {
         return res.status(400).json({ success: false, error: "प्रश्न और उत्तर दोनों आवश्यक हैं।" });
@@ -4315,9 +4988,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Delete AI Knowledge Item
+  // API Route: Delete AI Knowledge Item (Admin Only)
   app.delete("/api/ai/knowledge/:id", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { id } = req.params;
       let knowledge = loadKnowledgeFromDisk();
       knowledge = knowledge.filter((k) => k.id !== id);
@@ -4328,9 +5002,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Get Unanswered Questions
-  app.get("/api/ai/unanswered", (_req: Request, res: Response) => {
+  // API Route: Get Unanswered Questions (Admin Only)
+  app.get("/api/ai/unanswered", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const unanswered = loadUnansweredFromDisk();
       return res.json({ success: true, count: unanswered.length, unanswered });
     } catch (err: any) {
@@ -4338,9 +5013,10 @@ async function startServer() {
     }
   });
 
-  // API Route: Answer an Unanswered Question (moves to Knowledge Base)
+  // API Route: Answer an Unanswered Question (Admin Only — moves to Knowledge Base)
   app.post("/api/ai/unanswered/answer", (req: Request, res: Response) => {
     try {
+      if (!requireAdminRequest(req, res)) return;
       const { id, answer, category = "Learned" } = req.body;
       if (!id || !answer) {
         return res.status(400).json({ success: false, error: "ID और उत्तर आवश्यक हैं।" });
@@ -5332,6 +6008,9 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Auto-hash any legacy plaintext passwords on disk cleanly at boot
+  migratePlaintextPasswordsOnDisk();
 
   // Hydrate users once from Firestore cleanly on boot (non-blocking)
   void hydrateServerFromFirestoreOnce(false);

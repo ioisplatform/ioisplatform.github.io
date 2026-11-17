@@ -51,6 +51,8 @@ export interface UserProfile {
   selectedPlanId: number;
   role: string;
   password?: string;
+  passwordProtected?: boolean;
+  passwordStatus?: string;
   photoUrl: string;
   googleDrivePhotoLink?: string;
   paymentScreenshotUrl?: string;
