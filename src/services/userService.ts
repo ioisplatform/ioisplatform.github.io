@@ -2266,6 +2266,19 @@ export const registerNewUserAsync = async (
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
   ]).catch(() => false);
 
+  if (!serverSaved && firestoreSaved && db && newUser.password && String(newUser.password).trim()) {
+    try {
+      const hashedPwd = await hashPasswordBrowserAsync(String(newUser.password).trim());
+      if (hashedPwd) {
+        await setDoc(
+          doc(db, 'users', savedLocalUser.userId.trim().toUpperCase()),
+          { password: hashedPwd, passwordProtected: true },
+          { merge: true }
+        );
+      }
+    } catch {}
+  }
+
   if (!serverSaved || !firestoreSaved) {
     void enqueuePendingUserSync(savedLocalUser, 'register');
   }
@@ -2751,11 +2764,33 @@ export const loginUserAsync = async (
           const qEmail = query(col, where('email', '==', cleanLower), limit(1));
           const snapE = await getDocs(qEmail);
           if (!snapE.empty) return snapE.docs[0].data() as UserProfile;
+          if (cleanId !== cleanLower) {
+            const qEmailRaw = query(col, where('email', '==', cleanId), limit(1));
+            const snapERaw = await getDocs(qEmailRaw);
+            if (!snapERaw.empty) return snapERaw.docs[0].data() as UserProfile;
+          }
         }
         const qUname = query(col, where('username', '==', cleanLower), limit(1));
         const snapU = await getDocs(qUname);
         if (!snapU.empty) return snapU.docs[0].data() as UserProfile;
-        return null;
+
+        // Bounded collection scan for mixed-case emails or non-standard phone formatting
+        const snapAll = await getDocs(col);
+        let fallbackFound: UserProfile | null = null;
+        snapAll.forEach((d) => {
+          if (fallbackFound) return;
+          const u = d.data() as UserProfile;
+          if (!u || !u.userId || u.isArchived) return;
+          const uidMatch = u.userId.toLowerCase() === cleanLower;
+          const unameMatch = Boolean(u.username && u.username.toLowerCase().replace(/^@/, '') === cleanLower);
+          const mobileMatch =
+            digits.length >= 10 && (u.mobileNumber || '').replace(/\D/g, '').endsWith(digits.slice(-10));
+          const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === cleanLower);
+          if (uidMatch || unameMatch || mobileMatch || emailMatch) {
+            fallbackFound = u;
+          }
+        });
+        return fallbackFound;
       })();
 
       matchedUser = await Promise.race([firestorePromise, timeoutPromise]);
@@ -2839,8 +2874,11 @@ export const loginUserAsync = async (
   saveUsers(merged);
   setCurrentUser(updatedUser);
 
-  // Sync updated activeSessionToken to Firestore so old devices receive instant logout signal
-  void syncUserToFirestore(updatedUser);
+  // Sync updated activeSessionToken to Firestore (wait up to 1.5s so real-time listener sees new token first)
+  await Promise.race([
+    syncUserToFirestore(updatedUser),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1500)),
+  ]).catch(() => false);
   // If user came from Firestore/local rather than server, push full record back to server disk if authorized
   if (!fromServer && (getMemberAuthToken() || getAdminAuthToken())) {
     fetch('/api/users/sync', {
@@ -3252,6 +3290,7 @@ export const subscribeToSessionValidity = (
       unsubscribeSnap = onSnapshot(
         doc(db, 'users', cleanId),
         (snap) => {
+          if (snap.metadata?.fromCache) return;
           const localToken = getDeviceSessionToken();
           if (!snap.exists() || !localToken) return;
           const data = snap.data() as UserProfile;
@@ -4094,6 +4133,14 @@ export const adminUpdateUserProfileAsync = async (
           body: JSON.stringify({ users: [updatedUser] }),
         });
         if (syncRes.ok) srvOk = true;
+      } catch {}
+    }
+    if (!srvOk && fsOk && db && rawAdminPassUpdate && String(rawAdminPassUpdate).trim()) {
+      try {
+        const hashed = await hashPasswordBrowserAsync(String(rawAdminPassUpdate).trim());
+        if (hashed) {
+          await setDoc(doc(db, 'users', cleanId), { password: hashed, passwordProtected: true }, { merge: true });
+        }
       } catch {}
     }
     if (!srvOk || !fsOk) {

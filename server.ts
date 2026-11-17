@@ -1087,12 +1087,33 @@ async function findSingleUserInFirestoreByIdentifier(identifier: string): Promis
 
     if (!matchedData && cleanLower.includes("@") && !raw.startsWith("@")) {
       const snapE = await withTimeout(getDocs(query(usersCol, where("email", "==", cleanLower), limit(1))));
-      if (!snapE.empty) matchedData = snapE.docs[0].data();
+      if (!snapE.empty) {
+        matchedData = snapE.docs[0].data();
+      } else if (raw !== cleanLower) {
+        const snapERaw = await withTimeout(getDocs(query(usersCol, where("email", "==", raw), limit(1))));
+        if (!snapERaw.empty) matchedData = snapERaw.docs[0].data();
+      }
     }
 
     if (!matchedData && cleanLower.length >= 2) {
       const snapU = await withTimeout(getDocs(query(usersCol, where("username", "==", cleanLower), limit(1))));
       if (!snapU.empty) matchedData = snapU.docs[0].data();
+    }
+
+    if (!matchedData) {
+      const snapAll = await withTimeout(getDocs(usersCol));
+      snapAll.forEach((d) => {
+        if (matchedData) return;
+        const u: any = d.data();
+        if (!u || !u.userId || u.isArchived || isDemoUserId(u.userId)) return;
+        const uidMatch = String(u.userId).toLowerCase() === cleanLower;
+        const unameMatch = u.username && String(u.username).toLowerCase().replace(/^@/, "") === cleanLower;
+        const mobMatch = digits.length >= 10 && String(u.mobileNumber || "").replace(/\D/g, "").endsWith(digits.slice(-10));
+        const emailMatch = u.email && String(u.email).trim().toLowerCase() === cleanLower;
+        if (uidMatch || unameMatch || mobMatch || emailMatch) {
+          matchedData = u;
+        }
+      });
     }
 
     if (matchedData && matchedData.userId && !matchedData.isArchived && !isDemoUserId(matchedData.userId)) {
@@ -3200,10 +3221,10 @@ async function startServer() {
   // API Route: User Login (scrypt + Lazy Auto-Migration + Rate Limit + HMAC Token)
   app.post("/api/users/login", async (req: Request, res: Response) => {
     try {
-      if (isRateLimited(req, "user-login", 20, 10 * 60 * 1000, true)) {
+      if (isRateLimited(req, "user-login", 20, 10 * 60 * 1000, false)) {
         return res.status(429).json({
           success: false,
-          error: "बहुत अधिक लॉगिन प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।",
+          error: "बहुत अधिक गलत लॉगिन प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।",
         });
       }
 
@@ -3244,6 +3265,7 @@ async function startServer() {
       }
 
       if (userIndex === -1) {
+        recordRateLimitHit(req, "user-login", 10 * 60 * 1000);
         return res.status(404).json({
           success: false,
           error: "यह User ID, @Username या मोबाइल नंबर पंजीकृत नहीं है। कृपया सही विवरण दर्ज करें या नया रजिस्ट्रेशन करें।",
@@ -3253,11 +3275,14 @@ async function startServer() {
       const user = users[userIndex];
 
       if (user.password && (!password || !verifyPassword(String(password), user.password))) {
+        recordRateLimitHit(req, "user-login", 10 * 60 * 1000);
         return res.status(401).json({
           success: false,
           error: "दर्ज किया गया पासवर्ड गलत है। यदि पासवर्ड भूल गए हैं तो 'पासवर्ड रीसेट' का उपयोग करें।",
         });
       }
+
+      clearRateLimitHits(req, "user-login");
 
       // Auto-migrate legacy plaintext password into salted scrypt hash seamlessly on login
       const upgradedPassword =
