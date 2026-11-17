@@ -10,6 +10,10 @@ import {
   safeLocalStorageSet,
   stripOversizedDataUrls,
 } from '../utils/safeStorage';
+import {
+  hashPasswordBrowserAsync,
+  verifyScryptBrowserAsync,
+} from '../utils/scryptBrowser';
 import { 
   collection, 
   doc, 
@@ -142,7 +146,8 @@ export const setAdminAuthToken = (token: string): void => {
 };
 
 export const getAuthHeaders = (preferAdmin = false): Record<string, string> => {
-  const adminToken = getAdminAuthToken();
+  const rawAdmin = getAdminAuthToken();
+  const adminToken = rawAdmin && rawAdmin !== 'firestore_verified' ? rawAdmin : '';
   const memberToken = getMemberAuthToken();
   const sessionToken = getDeviceSessionToken();
   const bearer = preferAdmin ? adminToken || memberToken : memberToken || adminToken;
@@ -152,6 +157,19 @@ export const getAuthHeaders = (preferAdmin = false): Record<string, string> => {
   return headers;
 };
 
+const parseJsonResponseSafe = async (res: Response): Promise<{ isJson: boolean; data: any }> => {
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (!ct.includes('application/json')) {
+    return { isJson: false, data: null };
+  }
+  try {
+    const data = await res.json();
+    return { isJson: true, data };
+  } catch {
+    return { isJson: false, data: null };
+  }
+};
+
 export const loginAdminAsync = async (
   adminPin: string
 ): Promise<{ success: boolean; error?: string }> => {
@@ -159,29 +177,88 @@ export const loginAdminAsync = async (
   if (!cleanPin) {
     return { success: false, error: 'कृपया एडमिन पासवर्ड दर्ज करें।' };
   }
+
+  let serverError = '';
+  let gotJsonUnauthorized = false;
+
+  // 1. Primary server verification
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ adminPin: cleanPin }),
+      signal: controller.signal,
     });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.success && data?.adminToken) {
-      setAdminAuthToken(data.adminToken);
-      setAdminSession(true);
-      clearFirestoreQuotaCooldown();
-      return { success: true };
+    clearTimeout(tid);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson) {
+      if (res.ok && data?.success && data?.adminToken) {
+        setAdminAuthToken(data.adminToken);
+        setAdminSession(true);
+        clearFirestoreQuotaCooldown();
+        return { success: true };
+      }
+      if (res.status === 429) {
+        return {
+          success: false,
+          error: data?.error || 'बहुत अधिक गलत एडमिन लॉगिन प्रयास! कृपया बाद में पुनः प्रयास करें।',
+        };
+      }
+      if (res.status === 401) {
+        gotJsonUnauthorized = true;
+        serverError = data?.error || 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।';
+      } else if (data?.error) {
+        serverError = data.error;
+      }
     }
-    return {
-      success: false,
-      error: data?.error || 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।',
-    };
   } catch {
-    return {
-      success: false,
-      error: 'एडमिन सत्यापन के लिए सर्वर से संपर्क नहीं हो सका।',
-    };
+    // Fallback to Firestore scrypt vault if server endpoint is unreachable (static host / another device proxy)
   }
+
+  // 2. Cross-Device Firestore Encrypted PIN Vault Fallback (supports GitHub Pages & containers without ADMIN_PIN secret)
+  if (db) {
+    try {
+      clearFirestoreQuotaCooldown();
+      const snap = await Promise.race([
+        getDoc(doc(db, 'app_settings', 'admin_security')),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+      if (snap && snap.exists()) {
+        const vault = snap.data() as { pinHash?: string };
+        if (vault?.pinHash && String(vault.pinHash).startsWith('scrypt$')) {
+          const ok = await verifyScryptBrowserAsync(cleanPin.toUpperCase(), vault.pinHash);
+          if (ok) {
+            setAdminAuthToken('firestore_verified');
+            setAdminSession(true);
+            clearFirestoreQuotaCooldown();
+            return { success: true };
+          }
+          return {
+            success: false,
+            error: serverError || 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।',
+          };
+        }
+      } else if (!gotJsonUnauthorized && cleanPin.toUpperCase() === 'IOISSYSTEM') {
+        // Pure static mode when no custom PIN vault exists in Firestore yet
+        setAdminAuthToken('firestore_verified');
+        setAdminSession(true);
+        return { success: true };
+      }
+    } catch {
+      // Fall through cleanly
+    }
+  }
+
+  return {
+    success: false,
+    error:
+      serverError ||
+      (gotJsonUnauthorized
+        ? 'गलत एडमिन पासवर्ड! कृपया सही पासवर्ड दर्ज करें।'
+        : 'एडमिन सत्यापन के लिए सर्वर से संपर्क नहीं हो सका।'),
+  };
 };
 
 export const getDeviceFingerprintLabel = (): string => {
@@ -1661,27 +1738,53 @@ export const verifyUserIdentityAsync = async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, fullName, email, address, sponsorId }),
     });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      return {
-        success: true,
-        verificationToken: data.verificationToken,
-        userId: data.userId,
-        maskedName: data.maskedName,
-        maskedMobile: data.maskedMobile,
-        message: data.message,
-      };
-    } else if (res.status === 401 || res.status === 404 || res.status === 400) {
-      return {
-        success: false,
-        error: data.error || 'पहचान सत्यापन असफल: दर्ज किया गया नाम, ईमेल या विवरण इस खाते के रिकॉर्ड से मेल नहीं खाता।',
-      };
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson) {
+      if (res.ok && data?.success) {
+        return {
+          success: true,
+          verificationToken: data.verificationToken,
+          userId: data.userId,
+          maskedName: data.maskedName,
+          maskedMobile: data.maskedMobile,
+          message: data.message,
+        };
+      } else if (res.status === 401 || res.status === 404 || res.status === 400 || res.status === 429) {
+        return {
+          success: false,
+          error: data?.error || 'पहचान सत्यापन असफल: दर्ज किया गया नाम, ईमेल या विवरण इस खाते के रिकॉर्ड से मेल नहीं खाता।',
+        };
+      }
     }
-  } catch (e) {
-    // offline / fallback to local storage
+  } catch {
+    // offline / static host fallback to Firestore + local storage
   }
 
-  // Local fallback verification
+  const findUserInFirestoreForRecovery = async (): Promise<UserProfile | null> => {
+    if (!db) return null;
+    try {
+      clearFirestoreQuotaCooldown();
+      const raw = identifier.trim();
+      const cleanLow = raw.toLowerCase().replace(/^@/, '');
+      const digitsOnly = cleanLow.replace(/\D/g, '');
+      const col = collection(db, 'users');
+
+      if (!cleanLow.includes('@') && !raw.startsWith('@') && cleanLow.length >= 4 && digitsOnly.length < 10) {
+        const snap = await getDoc(doc(db, 'users', raw.toUpperCase()));
+        if (snap.exists()) return snap.data() as UserProfile;
+      }
+      if (digitsOnly.length >= 10) {
+        const last10 = digitsOnly.slice(-10);
+        const snapM = await getDocs(query(col, where('mobileNumber', '==', last10), limit(1)));
+        if (!snapM.empty) return snapM.docs[0].data() as UserProfile;
+        const snapM91 = await getDocs(query(col, where('mobileNumber', '==', `+91${last10}`), limit(1)));
+        if (!snapM91.empty) return snapM91.docs[0].data() as UserProfile;
+      }
+    } catch {}
+    return null;
+  };
+
+  // Firestore + Local fallback verification
   const cleanInput = identifier.trim().toLowerCase();
   const inputDigits = cleanInput.replace(/\D/g, '');
   const cleanName = fullName.trim().toLowerCase();
@@ -1689,14 +1792,18 @@ export const verifyUserIdentityAsync = async (
   const cleanAddress = (address || '').trim().toLowerCase();
   const cleanSponsor = (sponsorId || '').trim().toLowerCase();
 
-  const users = getAllUsers();
-  const user = users.find((u) => {
-    if (!u) return false;
-    const uidMatch = (u.userId || '').toLowerCase() === cleanInput;
-    const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
-    const mobMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
-    return uidMatch || mobMatch;
-  });
+  let user: UserProfile | null = await findUserInFirestoreForRecovery();
+  if (!user) {
+    const users = getAllUsers();
+    user =
+      users.find((u) => {
+        if (!u) return false;
+        const uidMatch = (u.userId || '').toLowerCase() === cleanInput;
+        const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+        const mobMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
+        return uidMatch || mobMatch;
+      }) || null;
+  }
 
   if (!user) {
     return {
@@ -1759,32 +1866,56 @@ export const resetPasswordWithTokenAsync = async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, verificationToken, newPassword, confirmPassword, fallbackIdentity }),
     });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      // Also update local cache for smooth offline and seamless login
-      const users = getAllUsers();
-      const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
-      if (idx !== -1) {
-        users[idx].password = newPassword;
-        saveUsers(users);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson) {
+      if (res.ok && data?.success) {
+        const hashed = await hashPasswordBrowserAsync(newPassword.trim());
+        const users = getAllUsers();
+        const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+        if (idx !== -1) {
+          users[idx].password = hashed;
+          users[idx].passwordProtected = true;
+          saveUsers(users);
+        }
+        return { success: true, message: data.message || 'पासवर्ड सफलतापूर्वक बदल दिया गया है!' };
+      } else if (res.status === 403 || res.status === 401 || res.status === 400 || res.status === 404 || res.status === 429) {
+        return { success: false, error: data?.error || 'सत्यापन अमान्य है।' };
       }
-      return { success: true, message: data.message || 'पासवर्ड सफलतापूर्वक बदल दिया गया है!' };
-    } else if (res.status === 403 || res.status === 401 || res.status === 400 || res.status === 404) {
-      return { success: false, error: data.error || 'सत्यापन अमान्य है।' };
     }
-  } catch (e) {
+  } catch {
     // server unreachable fallback
   }
 
-  // Local fallback
+  // Cross-device Firestore + local scrypt fallback
+  const cleanId = userId.trim().toUpperCase();
+  const hashed = await hashPasswordBrowserAsync(newPassword.trim());
+  let updatedAnywhere = false;
+
+  if (db) {
+    try {
+      clearFirestoreQuotaCooldown();
+      const userRef = doc(db, 'users', cleanId);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        await setDoc(userRef, { password: hashed, passwordProtected: true }, { merge: true });
+        updatedAnywhere = true;
+      }
+    } catch {}
+  }
+
   const users = getAllUsers();
-  const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
-  if (idx === -1) {
+  const idx = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+  if (idx !== -1) {
+    users[idx].password = hashed;
+    users[idx].passwordProtected = true;
+    saveUsers(users);
+    updatedAnywhere = true;
+  }
+
+  if (!updatedAnywhere) {
     return { success: false, error: 'उपयोगकर्ता खाता नहीं मिला।' };
   }
 
-  users[idx].password = newPassword;
-  saveUsers(users);
   return {
     success: true,
     message: 'पासवर्ड सफलतापूर्वक बदल दिया गया है! अब आप नए पासवर्ड से लॉगिन कर सकते हैं।',
@@ -2565,10 +2696,10 @@ export const loginUserAsync = async (
   let issuedToken = '';
   let fromServer = false;
 
-  // 1. Try Server API Login FIRST (12s timeout) so single-device sessionToken rotates reliably & cold containers finish hydrating
+  // 1. Try Server API Login FIRST (14s timeout) so single-device sessionToken rotates reliably
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
     const res = await fetch('/api/users/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2577,19 +2708,21 @@ export const loginUserAsync = async (
     });
     clearTimeout(timeoutId);
 
-    const data = await res.json();
-    if (res.ok && data.success && data.user) {
-      matchedUser = data.user;
-      issuedToken = data.sessionToken || data.user.activeSessionToken || createClientSessionToken();
-      if (data.authToken) {
-        setMemberAuthToken(data.authToken);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson) {
+      if (res.ok && data?.success && data?.user) {
+        matchedUser = data.user;
+        issuedToken = data.sessionToken || data.user.activeSessionToken || createClientSessionToken();
+        if (data.authToken) {
+          setMemberAuthToken(data.authToken);
+        }
+        fromServer = true;
+      } else if (res.status === 401 || res.status === 403 || res.status === 429) {
+        return { success: false, error: data?.error || 'दर्ज किया गया पासवर्ड गलत है।' };
       }
-      fromServer = true;
-    } else if (res.status === 401 || res.status === 403 || res.status === 429) {
-      return { success: false, error: data.error || 'दर्ज किया गया पासवर्ड गलत है।' };
     }
   } catch {
-    // Fallback to Firestore / local cache if server endpoint unreachable
+    // Fallback to Firestore / local cache if server endpoint unreachable or non-JSON
   }
 
   // 2. Targeted Firestore query fallback (clear cooldown on explicit user login attempt)
@@ -2648,15 +2781,39 @@ export const loginUserAsync = async (
     return { success: false, error: 'यह User ID, Username या मोबाइल नंबर पंजीकृत नहीं मिला।' };
   }
 
-  // Strict Password Verification in fallback mode
+  // Strict Password Verification in fallback mode (supports Node-compatible scrypt$ in browser!)
   if (!fromServer) {
-    if (matchedUser.password && String(matchedUser.password).startsWith('scrypt$')) {
-      return { success: false, error: 'सुरक्षित पासवर्ड सत्यापन के लिए कृपया सक्रिय इंटरनेट/सर्वर कनेक्शन के साथ लॉगिन करें।' };
+    if (!matchedUser.password && matchedUser.passwordProtected && db) {
+      try {
+        clearFirestoreQuotaCooldown();
+        const docSnap = await Promise.race([
+          getDoc(doc(db, 'users', matchedUser.userId.trim().toUpperCase())),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+        ]);
+        if (docSnap && docSnap.exists()) {
+          const cloudRec = docSnap.data() as UserProfile;
+          if (cloudRec?.password) {
+            matchedUser = { ...matchedUser, password: cloudRec.password };
+          }
+        }
+      } catch {}
     }
-    if (matchedUser.password && matchedUser.password.trim() !== '') {
-      if (!password || matchedUser.password !== password) {
+
+    if (matchedUser.password && String(matchedUser.password).startsWith('scrypt$')) {
+      const ok = await verifyScryptBrowserAsync(password || '', matchedUser.password);
+      if (!ok) {
         return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है। कृपया सही पासवर्ड डालें।' };
       }
+    } else if (matchedUser.password && matchedUser.password.trim() !== '') {
+      const candidate = String(password || '');
+      if (candidate !== matchedUser.password && candidate.trim() !== matchedUser.password.trim()) {
+        return { success: false, error: 'दर्ज किया गया पासवर्ड गलत है। कृपया सही पासवर्ड डालें।' };
+      }
+    } else if (matchedUser.passwordProtected) {
+      return {
+        success: false,
+        error: 'पासवर्ड सत्यापन के लिए इंटरनेट कनेक्शन की जांच करें और पुनः प्रयास करें।',
+      };
     }
   }
 
@@ -4006,6 +4163,7 @@ export const fetchAdminFullUsersAsync = async (
 
   const includeMedia = options.includeMedia !== false;
   const timeoutMs = includeMedia ? 45000 : 15000;
+  const isCloudVerifiedMode = getAdminAuthToken() === 'firestore_verified';
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -4022,13 +4180,18 @@ export const fetchAdminFullUsersAsync = async (
       });
       clearTimeout(tid);
       if (res.status === 401 || res.status === 403) {
-        unauthorized = true;
-        setAdminSession(false);
-        errorMessage = 'एडमिन सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।';
+        if (!isCloudVerifiedMode) {
+          unauthorized = true;
+          setAdminSession(false);
+          errorMessage = 'एडमिन सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।';
+        }
         break;
       }
       if (res.ok) {
-        const data = await res.json();
+        const { isJson, data } = await parseJsonResponseSafe(res);
+        if (!isJson) {
+          break;
+        }
         if (data?.success) {
           serverFull = Array.isArray(data.users) ? data.users : [];
           serverArchived = Array.isArray(data.archivedUsers) ? data.archivedUsers : [];
@@ -4051,6 +4214,35 @@ export const fetchAdminFullUsersAsync = async (
     }
   }
 
+  // Fallback directly to Firestore when running on static/cross-device fallback without Express admin route
+  let cloudFallbackUsers: UserProfile[] = [];
+  if (!serverReachable && !unauthorized && db) {
+    try {
+      clearFirestoreQuotaCooldown();
+      const snap = await Promise.race([
+        getDocs(collection(db, 'users')),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+      ]);
+      if (snap) {
+        snap.forEach((d) => {
+          const u = d.data() as UserProfile;
+          if (!u || !u.userId || DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) return;
+          if (u.isArchived) {
+            serverArchived.push(u);
+          } else {
+            cloudFallbackUsers.push(u);
+          }
+        });
+        if (cloudFallbackUsers.length > 0 || serverArchived.length > 0) {
+          errorMessage = undefined;
+        }
+      }
+    } catch (e: any) {
+      markFirestoreQuotaExhausted(e);
+      cloudError = e?.message || 'firestore-fallback-error';
+    }
+  }
+
   const archivedMap = new Map<string, UserProfile>();
   for (const a of [...memoryArchivedUsers, ...serverArchived]) {
     if (a?.userId) archivedMap.set(a.userId.trim().toUpperCase(), a);
@@ -4059,7 +4251,7 @@ export const fetchAdminFullUsersAsync = async (
   void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
 
   const archivedIds = new Set(memoryArchivedUsers.map((u) => u.userId.trim().toUpperCase()));
-  const merged = mergeUserLists(localUsers, serverFull).filter(
+  const merged = mergeUserLists(localUsers, serverFull, cloudFallbackUsers).filter(
     (u) => !archivedIds.has(u.userId.trim().toUpperCase())
   );
 
@@ -4171,14 +4363,17 @@ export const triggerAdminCloudSyncAsync = async (): Promise<{
     });
     clearTimeout(tid);
     if (res.status === 401 || res.status === 403) {
-      setAdminSession(false);
-      return { users: getAllUsers(), unauthorized: true };
-    }
-    if (res.ok) {
-      const data = await res.json();
-      cloudError = data?.cloudError;
-      if (Array.isArray(data?.users)) {
-        serverCloudUsers = data.users;
+      if (getAdminAuthToken() !== 'firestore_verified') {
+        setAdminSession(false);
+        return { users: getAllUsers(), unauthorized: true };
+      }
+    } else if (res.ok) {
+      const { isJson, data } = await parseJsonResponseSafe(res);
+      if (isJson) {
+        cloudError = data?.cloudError;
+        if (Array.isArray(data?.users)) {
+          serverCloudUsers = data.users;
+        }
       }
     }
   } catch {}

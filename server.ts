@@ -18,6 +18,9 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  query,
+  where,
+  limit,
   setLogLevel,
   Firestore,
 } from "firebase/firestore/lite";
@@ -77,9 +80,16 @@ function getServerSessionSecret(): string {
 
 const SERVER_SESSION_SECRET = getServerSessionSecret();
 
+function hasExplicitAdminPinEnv(): boolean {
+  return Boolean(process.env.ADMIN_PIN && process.env.ADMIN_PIN.trim());
+}
+
 function getAdminPin(): string {
   return (process.env.ADMIN_PIN && process.env.ADMIN_PIN.trim()) || "IOISSYSTEM";
 }
+
+let cachedCloudAdminPinHash: string | null = null;
+let lastCloudAdminPinFetchAt = 0;
 
 function timingSafeStringEqual(aStr: string, bStr: string): boolean {
   const a = Buffer.from(aStr, "utf-8");
@@ -183,7 +193,16 @@ function isAdminAuthorized(req: Request): boolean {
     req.headers["x-admin-pin"] || (req.body && typeof req.body === "object" ? req.body.adminPin : "") || ""
   ).trim();
   if (pinCandidate) {
-    return timingSafeStringEqual(pinCandidate.toUpperCase(), getAdminPin().toUpperCase());
+    const cleanCandidate = pinCandidate.toUpperCase();
+    if (hasExplicitAdminPinEnv()) {
+      return timingSafeStringEqual(cleanCandidate, getAdminPin().toUpperCase());
+    }
+    if (cachedCloudAdminPinHash && verifyPassword(cleanCandidate, cachedCloudAdminPinHash)) {
+      return true;
+    }
+    if (!cachedCloudAdminPinHash && timingSafeStringEqual(cleanCandidate, getAdminPin().toUpperCase())) {
+      return true;
+    }
   }
   return false;
 }
@@ -951,6 +970,137 @@ async function fetchSingleUserFromFirestore(userId: string): Promise<any | null>
         saveUsersToDisk(merged);
         return merged.find((u) => String(u.userId).toUpperCase() === cleanId) || data;
       }
+    }
+  } catch (err: any) {
+    if (isQuotaOrResourceExhaustedError(err)) {
+      firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+    }
+  }
+  return null;
+}
+
+async function fetchCloudAdminPinHash(forceRefresh = false): Promise<string | null> {
+  if (!forceRefresh && cachedCloudAdminPinHash && Date.now() - lastCloudAdminPinFetchAt < 60_000) {
+    return cachedCloudAdminPinHash;
+  }
+  const fsDb = getServerFirestore();
+  if (!fsDb) return cachedCloudAdminPinHash;
+  try {
+    const snap = await Promise.race([
+      getDoc(doc(fsDb, "app_settings", "admin_security")),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Admin hash timeout")), 5000)),
+    ]);
+    lastCloudAdminPinFetchAt = Date.now();
+    if (snap.exists()) {
+      const data: any = snap.data();
+      if (data && typeof data.pinHash === "string" && data.pinHash.startsWith("scrypt$")) {
+        cachedCloudAdminPinHash = data.pinHash;
+        return cachedCloudAdminPinHash;
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+  return cachedCloudAdminPinHash;
+}
+
+async function syncAdminPinHashToFirestore(): Promise<void> {
+  const fsDb = getServerFirestore();
+  if (!fsDb) return;
+  try {
+    const expectedPin = getAdminPin().trim().toUpperCase();
+    const isExplicit = hasExplicitAdminPinEnv();
+    const docRef = doc(fsDb, "app_settings", "admin_security");
+    const snap = await Promise.race([
+      getDoc(docRef),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Admin sync read timeout")), 6000)),
+    ]);
+    const existingData: any = snap.exists() ? snap.data() : null;
+    const existingHash =
+      existingData && typeof existingData.pinHash === "string" && existingData.pinHash.startsWith("scrypt$")
+        ? existingData.pinHash
+        : "";
+
+    if (isExplicit || !existingHash) {
+      if (existingHash && verifyPassword(expectedPin, existingHash)) {
+        cachedCloudAdminPinHash = existingHash;
+        lastCloudAdminPinFetchAt = Date.now();
+        return;
+      }
+      const nextHash = hashPassword(expectedPin);
+      await setDoc(
+        docRef,
+        {
+          pinHash: nextHash,
+          source: isExplicit ? "env_secret" : "default",
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      cachedCloudAdminPinHash = nextHash;
+      lastCloudAdminPinFetchAt = Date.now();
+      console.log("[Security] Synced salted scrypt Admin PIN verifier to Firestore vault.");
+    } else if (existingHash) {
+      cachedCloudAdminPinHash = existingHash;
+      lastCloudAdminPinFetchAt = Date.now();
+    }
+  } catch (err: any) {
+    console.warn("[Security] Admin PIN vault sync note:", err?.message || err);
+  }
+}
+
+async function findSingleUserInFirestoreByIdentifier(identifier: string): Promise<any | null> {
+  if (!identifier || Date.now() < firestoreQuotaBlockedUntil) return null;
+  const fsDb = getServerFirestore();
+  if (!fsDb) return null;
+
+  const raw = String(identifier).trim();
+  const cleanLower = raw.toLowerCase().replace(/^@/, "");
+  const cleanUpper = raw.toUpperCase();
+  const digits = cleanLower.replace(/\D/g, "");
+
+  try {
+    const usersCol = collection(fsDb, "users");
+    const withTimeout = <T>(p: Promise<T>): Promise<T> =>
+      Promise.race([
+        p,
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore query timeout")), 6000)),
+      ]);
+
+    let matchedData: any | null = null;
+
+    if (!cleanLower.includes("@") && !raw.startsWith("@") && cleanLower.length >= 4 && digits.length < 10) {
+      const snap = await withTimeout(getDoc(doc(fsDb, "users", cleanUpper)));
+      if (snap.exists()) matchedData = snap.data();
+    }
+
+    if (!matchedData && digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      const snapM1 = await withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", last10), limit(1))));
+      if (!snapM1.empty) {
+        matchedData = snapM1.docs[0].data();
+      } else {
+        const snapM2 = await withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", `+91${last10}`), limit(1))));
+        if (!snapM2.empty) matchedData = snapM2.docs[0].data();
+      }
+    }
+
+    if (!matchedData && cleanLower.includes("@") && !raw.startsWith("@")) {
+      const snapE = await withTimeout(getDocs(query(usersCol, where("email", "==", cleanLower), limit(1))));
+      if (!snapE.empty) matchedData = snapE.docs[0].data();
+    }
+
+    if (!matchedData && cleanLower.length >= 2) {
+      const snapU = await withTimeout(getDocs(query(usersCol, where("username", "==", cleanLower), limit(1))));
+      if (!snapU.empty) matchedData = snapU.docs[0].data();
+    }
+
+    if (matchedData && matchedData.userId && !matchedData.isArchived && !isDemoUserId(matchedData.userId)) {
+      const cleanId = String(matchedData.userId).trim().toUpperCase();
+      matchedData = await hydrateUserMediaFromFirestore(fsDb, matchedData);
+      const merged = mergeUsersNonDestructive(loadUsersFromDisk(), [matchedData]);
+      saveUsersToDisk(merged);
+      return merged.find((u) => String(u.userId).toUpperCase() === cleanId) || matchedData;
     }
   } catch (err: any) {
     if (isQuotaOrResourceExhaustedError(err)) {
@@ -2390,8 +2540,8 @@ async function startServer() {
     }
   });
 
-  // API Route: Secure Admin Portal Login (Rate-limited + Timing-Safe + Signed 12h HMAC Token)
-  app.post("/api/admin/login", (req: Request, res: Response) => {
+  // API Route: Secure Admin Portal Login (Rate-limited + Timing-Safe + Cloud scrypt Fallback + Signed 12h HMAC Token)
+  app.post("/api/admin/login", async (req: Request, res: Response) => {
     try {
       if (isRateLimited(req, "admin-login-fail", 6, 15 * 60 * 1000, false)) {
         return res.status(429).json({
@@ -2402,9 +2552,22 @@ async function startServer() {
 
       const { adminPin } = req.body || {};
       const cleanPin = String(adminPin || "").trim().toUpperCase();
-      const expectedPin = getAdminPin().toUpperCase();
 
-      if (!cleanPin || !timingSafeStringEqual(cleanPin, expectedPin)) {
+      let pinMatched = false;
+      if (cleanPin) {
+        if (hasExplicitAdminPinEnv()) {
+          pinMatched = timingSafeStringEqual(cleanPin, getAdminPin().toUpperCase());
+        } else {
+          const cloudPinHash = await fetchCloudAdminPinHash(false) || await fetchCloudAdminPinHash(true);
+          if (cloudPinHash) {
+            pinMatched = verifyPassword(cleanPin, cloudPinHash);
+          } else {
+            pinMatched = timingSafeStringEqual(cleanPin, getAdminPin().toUpperCase());
+          }
+        }
+      }
+
+      if (!pinMatched) {
         recordRateLimitHit(req, "admin-login-fail", 15 * 60 * 1000);
         return res.status(401).json({
           success: false,
@@ -3066,13 +3229,15 @@ async function startServer() {
       let userIndex = findMatchIndex(users);
 
       if (userIndex === -1) {
-        if (!cleanInput.includes("@") && cleanInput.length >= 4 && inputDigits.length < 10) {
-          await fetchSingleUserFromFirestore(cleanInput.toUpperCase());
-          users = loadUsersFromDisk();
-          userIndex = findMatchIndex(users);
-        }
-        if (userIndex === -1) {
-          await hydrateServerFromFirestoreOnce(users.length <= 1);
+        await findSingleUserInFirestoreByIdentifier(identifier);
+        users = loadUsersFromDisk();
+        userIndex = findMatchIndex(users);
+
+        if (userIndex === -1 && users.length <= 1) {
+          await Promise.race([
+            hydrateServerFromFirestoreOnce(false),
+            new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+          ]);
           users = loadUsersFromDisk();
           userIndex = findMatchIndex(users);
         }
@@ -3411,14 +3576,22 @@ async function startServer() {
       const cleanAddress = address ? String(address).trim().toLowerCase() : "";
       const cleanSponsor = sponsorId ? String(sponsorId).trim().toLowerCase() : "";
 
-      const users = loadUsersFromDisk();
-      const user = users.find((u) => {
-        if (!u) return false;
-        const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
-        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
-        const mobileMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
-        return uidMatch || mobileMatch;
-      });
+      let users = loadUsersFromDisk();
+      const findIdentityMatch = (list: any[]) =>
+        list.find((u) => {
+          if (!u) return false;
+          const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
+          const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+          const mobileMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
+          return uidMatch || mobileMatch;
+        });
+
+      let user = findIdentityMatch(users);
+      if (!user) {
+        await findSingleUserInFirestoreByIdentifier(identifier);
+        users = loadUsersFromDisk();
+        user = findIdentityMatch(users);
+      }
 
       if (!user) {
         return res.status(404).json({
@@ -3472,7 +3645,7 @@ async function startServer() {
   });
 
   // API Route: Reset Password (Rate-limited + scrypt Hashing)
-  app.post("/api/users/reset-password", (req: Request, res: Response) => {
+  app.post("/api/users/reset-password", async (req: Request, res: Response) => {
     try {
       if (isRateLimited(req, "user-recovery", 15, 10 * 60 * 1000, true)) {
         return res.status(429).json({ success: false, error: "बहुत अधिक प्रयास! कृपया 10 मिनट बाद पुनः प्रयास करें।" });
@@ -3491,8 +3664,14 @@ async function startServer() {
       }
 
       const cleanId = String(userId).trim().toUpperCase();
-      const users = loadUsersFromDisk();
-      const userIndex = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+      let users = loadUsersFromDisk();
+      let userIndex = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+
+      if (userIndex === -1) {
+        await fetchSingleUserFromFirestore(cleanId);
+        users = loadUsersFromDisk();
+        userIndex = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+      }
 
       if (userIndex === -1) {
         return res.status(404).json({ success: false, error: "उपयोगकर्ता खाता नहीं मिला।" });
@@ -6012,8 +6191,9 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
   // Auto-hash any legacy plaintext passwords on disk cleanly at boot
   migratePlaintextPasswordsOnDisk();
 
-  // Hydrate users once from Firestore cleanly on boot (non-blocking)
+  // Hydrate users & sync hashed Admin PIN vault to Firestore cleanly on boot (non-blocking)
   void hydrateServerFromFirestoreOnce(false);
+  void syncAdminPinHashToFirestore();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`IOIS Server is running on port ${PORT}`);
