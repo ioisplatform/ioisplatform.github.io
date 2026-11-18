@@ -1,8 +1,10 @@
 import express, { Request, Response } from "express";
+import compression from "compression";
 import path from "path";
 import fs from "fs";
 import zlib from "zlib";
 import crypto from "crypto";
+import { promisify } from "util";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -47,6 +49,9 @@ const PROFILE_VISITS_FILE = path.join(DATA_DIR, "profile_visits.json");
 const PROFILE_LIKES_FILE = path.join(DATA_DIR, "social_likes.json");
 const HOME_POPUPS_FILE = path.join(DATA_DIR, "home-popups.json");
 const HOME_SLIDERS_FILE = path.join(DATA_DIR, "home-sliders.json");
+const SHEETS_CONFIG_FILE = path.join(DATA_DIR, "sheets-config.json");
+const SHEETS_QUEUE_FILE = path.join(DATA_DIR, "sheets-pending-queue.json");
+const DEFAULT_FIRESTORE_DB_ID = "ai-studio-ioisplatform-e876ace6-d20e-468d-b9e8-6300349cc3a7";
 
 // Ensure data & backup directories exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -102,12 +107,27 @@ function isHashedPassword(val?: string | null): boolean {
   return typeof val === "string" && val.startsWith("scrypt$");
 }
 
+const scryptAsync = promisify(crypto.scrypt) as (
+  password: crypto.BinaryLike,
+  salt: crypto.BinaryLike,
+  keylen: number
+) => Promise<Buffer>;
+
 function hashPassword(plain: string): string {
   const clean = String(plain || "").trim();
   if (!clean) return "";
   if (isHashedPassword(clean)) return clean;
   const salt = crypto.randomBytes(16).toString("hex");
   const derived = crypto.scryptSync(clean, salt, 64).toString("hex");
+  return `scrypt$${salt}$${derived}`;
+}
+
+async function hashPasswordAsync(plain: string): Promise<string> {
+  const clean = String(plain || "").trim();
+  if (!clean) return "";
+  if (isHashedPassword(clean)) return clean;
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derived = (await scryptAsync(clean, salt, 64)).toString("hex");
   return `scrypt$${salt}$${derived}`;
 }
 
@@ -128,6 +148,38 @@ function verifyPassword(plain: string, stored?: string | null): boolean {
       for (const c of candidates) {
         if (!c) continue;
         const actualBuf = crypto.scryptSync(c, salt, expectedBuf.length);
+        if (actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf)) {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  if (timingSafeStringEqual(candidate, s)) return true;
+  if (cleanCandidate !== candidate && timingSafeStringEqual(cleanCandidate, s)) return true;
+  return false;
+}
+
+async function verifyPasswordAsync(plain: string, stored?: string | null): Promise<boolean> {
+  if (!stored || !String(stored).trim()) return true;
+  const candidate = String(plain || "");
+  const cleanCandidate = candidate.trim();
+  const s = String(stored);
+
+  if (isHashedPassword(s)) {
+    const parts = s.split("$");
+    if (parts.length !== 3) return false;
+    const [, salt, hexHash] = parts;
+    if (!salt || !hexHash) return false;
+    try {
+      const expectedBuf = Buffer.from(hexHash, "hex");
+      const candidates = candidate === cleanCandidate ? [candidate] : [candidate, cleanCandidate];
+      for (const c of candidates) {
+        if (!c) continue;
+        const actualBuf = await scryptAsync(c, salt, expectedBuf.length);
         if (actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf)) {
           return true;
         }
@@ -291,22 +343,40 @@ function clearRateLimitHits(req: Request, bucketKey: string): void {
   rateLimitBuckets.delete(`${bucketKey}:${ip}`);
 }
 
-function writeJsonAtomic(filePath: string, data: any): void {
-  const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
-  const jsonStr = JSON.stringify(data, null, 2);
+const jsonArrayCache = new Map<string, any[]>();
+const jsonObjectCache = new Map<string, Record<string, any>>();
+let cachedMessagesMemory: any[] | null = null;
+
+function writeJsonAtomic(filePath: string, data: any, compact = false): void {
+  const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
+  const useCompact = compact || (Array.isArray(data) && data.length > 10);
+  const jsonStr = useCompact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
   fs.writeFileSync(tmpPath, jsonStr, "utf-8");
   fs.renameSync(tmpPath, filePath);
 }
 
+async function writeJsonAtomicAsync(filePath: string, data: any, compact = true): Promise<void> {
+  const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
+  const useCompact = compact || (Array.isArray(data) && data.length > 10);
+  const jsonStr = useCompact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+  await fs.promises.writeFile(tmpPath, jsonStr, "utf-8");
+  await fs.promises.rename(tmpPath, filePath);
+}
+
 function loadJsonArray(filePath: string): any[] {
+  const cached = jsonArrayCache.get(filePath);
+  if (cached) return [...cached];
   try {
     if (!fs.existsSync(filePath)) {
       writeJsonAtomic(filePath, []);
+      jsonArrayCache.set(filePath, []);
       return [];
     }
     const raw = fs.readFileSync(filePath, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    const arr = Array.isArray(data) ? data : [];
+    jsonArrayCache.set(filePath, arr);
+    return [...arr];
   } catch (err) {
     console.error(`Error reading ${filePath}:`, err);
     return [];
@@ -314,22 +384,29 @@ function loadJsonArray(filePath: string): any[] {
 }
 
 function saveJsonArray(filePath: string, items: any[]): void {
+  const copy = Array.isArray(items) ? [...items] : [];
+  jsonArrayCache.set(filePath, copy);
   try {
-    writeJsonAtomic(filePath, items);
+    writeJsonAtomic(filePath, copy);
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);
   }
 }
 
 function loadJsonObject(filePath: string): Record<string, any> {
+  const cached = jsonObjectCache.get(filePath);
+  if (cached) return { ...cached };
   try {
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify({}, null, 2), "utf-8");
+      writeJsonAtomic(filePath, {});
+      jsonObjectCache.set(filePath, {});
       return {};
     }
     const raw = fs.readFileSync(filePath, "utf-8");
     const data = JSON.parse(raw);
-    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    const obj = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    jsonObjectCache.set(filePath, obj);
+    return { ...obj };
   } catch (err) {
     console.error(`Error reading ${filePath}:`, err);
     return {};
@@ -337,22 +414,28 @@ function loadJsonObject(filePath: string): Record<string, any> {
 }
 
 function saveJsonObject(filePath: string, obj: Record<string, any>): void {
+  const copy = obj && typeof obj === "object" && !Array.isArray(obj) ? { ...obj } : {};
+  jsonObjectCache.set(filePath, copy);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), "utf-8");
+    writeJsonAtomic(filePath, copy);
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);
   }
 }
 
 function loadMessagesFromDisk(): any[] {
+  if (cachedMessagesMemory !== null) return [...cachedMessagesMemory];
   try {
     if (!fs.existsSync(MESSAGES_FILE)) {
-      fs.writeFileSync(MESSAGES_FILE, JSON.stringify([], null, 2), "utf-8");
+      writeJsonAtomic(MESSAGES_FILE, []);
+      cachedMessagesMemory = [];
       return [];
     }
     const raw = fs.readFileSync(MESSAGES_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    const arr = Array.isArray(data) ? data : [];
+    cachedMessagesMemory = arr;
+    return [...arr];
   } catch (err) {
     console.error("Error reading messages from disk:", err);
     return [];
@@ -360,8 +443,10 @@ function loadMessagesFromDisk(): any[] {
 }
 
 function saveMessagesToDisk(items: any[]): void {
+  const copy = Array.isArray(items) ? [...items] : [];
+  cachedMessagesMemory = copy;
   try {
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(items, null, 2), "utf-8");
+    writeJsonAtomic(MESSAGES_FILE, copy);
   } catch (err) {
     console.error("Error writing messages to disk:", err);
   }
@@ -545,14 +630,19 @@ function sanitizeEditHistoryArray(logs: any): any[] {
     .slice(0, 100);
 }
 
-function compactUserForPublicDirectory(u: any): any {
+function compactUserForPublicDirectory(u: any, opts: { lite?: boolean } = {}): any {
   if (!u || typeof u !== "object") return u;
   const privacy = (u.privacySettings && typeof u.privacySettings === "object") ? u.privacySettings : {};
+  const rawPhoto = typeof u.photoUrl === "string" ? u.photoUrl : "";
+  const rawCover = typeof u.coverUrl === "string" ? u.coverUrl : "";
+  const photoUrl = opts.lite && rawPhoto.startsWith("data:") && rawPhoto.length > 16000 ? "" : rawPhoto;
+  const coverUrl = opts.lite && rawCover.startsWith("data:") && rawCover.length > 16000 ? undefined : (rawCover || undefined);
   return {
     userId: u.userId,
     username: u.username || undefined,
     fullName: u.fullName,
-    photoUrl: u.photoUrl || "",
+    photoUrl,
+    hasPhoto: Boolean(rawPhoto),
     googleDrivePhotoLink: u.googleDrivePhotoLink || undefined,
     selectedPlanId: u.selectedPlanId,
     role: u.role,
@@ -565,7 +655,7 @@ function compactUserForPublicDirectory(u: any): any {
     profileFrameId: u.profileFrameId,
     privacySettings: u.privacySettings,
     bio: u.bio || undefined,
-    coverUrl: u.coverUrl || undefined,
+    coverUrl,
     profileViews: u.profileViews || 0,
     profileLikes: Array.isArray(u.profileLikes) ? u.profileLikes : undefined,
     friends: Array.isArray(u.friends) ? u.friends : undefined,
@@ -624,7 +714,7 @@ function getServerFirestore(): Firestore | null {
     const databaseId =
       cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)"
         ? cfg.firestoreDatabaseId
-        : undefined;
+        : DEFAULT_FIRESTORE_DB_ID;
     serverFirestoreDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
     return serverFirestoreDb;
   } catch (err) {
@@ -848,6 +938,268 @@ async function syncSingleUserToFirestore(user: any): Promise<boolean> {
   }
 }
 
+// =========================================================================
+// Quota-Optimized 1-Read Firestore Snapshot & Google Sheets Config/Webhook
+// =========================================================================
+let snapshotSyncTimer: NodeJS.Timeout | null = null;
+let lastSyncedSnapshotSignature = "";
+
+interface ServerSheetsConfig {
+  spreadsheetId: string;
+  spreadsheetUrl: string;
+  sheetTitle: string;
+  tabName: string;
+  webhookUrl: string;
+  autoPushEnabled: boolean;
+  lastSyncedAt?: string;
+  lastSyncedCount?: number;
+  lastSyncStatus?: string;
+  updatedAt?: string;
+}
+
+const DEFAULT_SERVER_SHEETS_CONFIG: ServerSheetsConfig = {
+  spreadsheetId: "",
+  spreadsheetUrl: "",
+  sheetTitle: "IOIS Master User Database",
+  tabName: "Members",
+  webhookUrl: "",
+  autoPushEnabled: true,
+};
+
+function loadSheetsConfigFromDisk(): ServerSheetsConfig {
+  const obj = loadJsonObject(SHEETS_CONFIG_FILE);
+  return { ...DEFAULT_SERVER_SHEETS_CONFIG, ...(obj || {}) };
+}
+
+function saveSheetsConfigToDisk(partial: Partial<ServerSheetsConfig>): ServerSheetsConfig {
+  const prev = loadSheetsConfigFromDisk();
+  const next: ServerSheetsConfig = {
+    ...prev,
+    ...partial,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    writeJsonAtomic(SHEETS_CONFIG_FILE, next);
+  } catch (err) {
+    console.warn("[Sheets Config Save Note]:", err);
+  }
+  return next;
+}
+
+function compactUserForSnapshot(u: any): any {
+  if (!u || typeof u !== "object") return u;
+  const clean = sanitizeDocForFirestore({
+    ...u,
+    ...(u.password && String(u.password).trim() ? { password: hashPassword(String(u.password)) } : {}),
+  });
+  const hasPhoto = Boolean(clean.photoUrl && String(clean.photoUrl).trim().length > 10);
+  const hasReceipt = Boolean(
+    (clean.paymentScreenshotUrl && String(clean.paymentScreenshotUrl).trim().length > 10) ||
+      (clean.registrationFormData?.paymentScreenshotUrl &&
+        String(clean.registrationFormData.paymentScreenshotUrl).trim().length > 10)
+  );
+  if (typeof clean.photoUrl === "string" && clean.photoUrl.startsWith("data:") && clean.photoUrl.length > 2048) {
+    clean.photoUrl = "";
+  }
+  if (typeof clean.coverUrl === "string" && clean.coverUrl.startsWith("data:") && clean.coverUrl.length > 2048) {
+    clean.coverUrl = "";
+  }
+  if (
+    typeof clean.paymentScreenshotUrl === "string" &&
+    clean.paymentScreenshotUrl.startsWith("data:") &&
+    clean.paymentScreenshotUrl.length > 2048
+  ) {
+    clean.paymentScreenshotUrl = "";
+  }
+  if (clean.registrationFormData && typeof clean.registrationFormData === "object") {
+    const rfd = { ...clean.registrationFormData };
+    if (typeof rfd.paymentScreenshotUrl === "string" && rfd.paymentScreenshotUrl.startsWith("data:") && rfd.paymentScreenshotUrl.length > 2048) {
+      rfd.paymentScreenshotUrl = "";
+    }
+    if (typeof rfd.photoUrl === "string" && rfd.photoUrl.startsWith("data:") && rfd.photoUrl.length > 2048) {
+      rfd.photoUrl = "";
+    }
+    if (typeof rfd.signatureUrl === "string" && rfd.signatureUrl.startsWith("data:") && rfd.signatureUrl.length > 2048) {
+      rfd.signatureUrl = "";
+    }
+    clean.registrationFormData = rfd;
+  }
+  if (Array.isArray(clean.editHistory) && clean.editHistory.length > 10) {
+    clean.editHistory = clean.editHistory.slice(0, 10);
+  }
+  clean.hasPhoto = hasPhoto;
+  clean.hasPaymentScreenshot = hasReceipt;
+  clean.hasServerMedia = hasPhoto || hasReceipt;
+  return clean;
+}
+
+function serializeUserForSheetRowServer(u: any): (string | number)[] {
+  const hasPhoto = Boolean(u.photoUrl && String(u.photoUrl).trim().length > 5) || Boolean(u.hasPhoto);
+  const hasReceipt =
+    Boolean(u.paymentScreenshotUrl && String(u.paymentScreenshotUrl).trim().length > 5) ||
+    Boolean(u.hasPaymentScreenshot);
+
+  const compact = compactUserForSnapshot(u);
+  const { password: _omitPwd, ...metaSafe } = compact || {};
+  let metaJson = JSON.stringify(metaSafe || {});
+  if (metaJson.length > 48000) {
+    metaJson = JSON.stringify({
+      ...metaSafe,
+      editHistory: Array.isArray(metaSafe?.editHistory) ? metaSafe.editHistory.slice(0, 5) : [],
+    }).slice(0, 48000);
+  }
+
+  return [
+    String(u.userId || "").trim().toUpperCase(),
+    String(u.fullName || ""),
+    String(u.username || ""),
+    String(u.mobileNumber || ""),
+    String(u.email || ""),
+    Number(u.selectedPlanId || 1),
+    String(u.role || ""),
+    String(u.sponsorId || ""),
+    String(u.paymentStatus || "pending"),
+    String(u.paymentUtr || ""),
+    String(u.payoutUpi || ""),
+    String(u.address || ""),
+    String(u.state || ""),
+    String(u.district || ""),
+    String(u.pincode || ""),
+    hasPhoto ? "YES" : "NO",
+    hasReceipt ? "YES" : "NO",
+    String(u.createdAt || ""),
+    String(u.verifiedAt || ""),
+    u.password && isHashedPassword(String(u.password)) ? String(u.password) : "",
+    metaJson,
+  ];
+}
+
+function computeUsersSnapshotSignature(users: any[]): string {
+  return users
+    .map((u) => `${u.userId}:${u.paymentStatus}:${u.selectedPlanId}:${u.password ? 1 : 0}:${u.lastLoginAt || ""}:${u.editHistory?.length || 0}`)
+    .join("|");
+}
+
+async function syncUsersSnapshotToFirestore(force = false): Promise<boolean> {
+  if (Date.now() < firestoreQuotaBlockedUntil) return false;
+  const fsDb = getServerFirestore();
+  if (!fsDb) return false;
+  try {
+    const users = loadUsersFromDisk();
+    if (users.length === 0) return false;
+    const sig = computeUsersSnapshotSignature(users);
+    if (!force && sig === lastSyncedSnapshotSignature) return true;
+
+    let compactUsers = users.map(compactUserForSnapshot);
+    let payload: any = {
+      version: 1,
+      count: compactUsers.length,
+      updatedAt: new Date().toISOString(),
+      users: compactUsers,
+    };
+
+    // Guard against Firestore 1MB single-document size ceiling
+    if (Buffer.byteLength(JSON.stringify(payload), "utf-8") > 780_000) {
+      compactUsers = compactUsers.map((u) => ({ ...u, editHistory: [], registrationFormData: undefined }));
+      payload.users = compactUsers;
+    }
+    if (Buffer.byteLength(JSON.stringify(payload), "utf-8") > 780_000) {
+      compactUsers = [...compactUsers]
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 600);
+      payload.users = compactUsers;
+      payload.count = compactUsers.length;
+    }
+
+    await setDoc(doc(fsDb, "app_settings", "users_snapshot_v1"), payload, { merge: false });
+    lastSyncedSnapshotSignature = sig;
+    return true;
+  } catch (err: any) {
+    if (isQuotaOrResourceExhaustedError(err)) {
+      firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+    }
+    return false;
+  }
+}
+
+function scheduleSnapshotSyncToFirestore(): void {
+  if (snapshotSyncTimer) clearTimeout(snapshotSyncTimer);
+  snapshotSyncTimer = setTimeout(() => {
+    snapshotSyncTimer = null;
+    void syncUsersSnapshotToFirestore(false);
+  }, 1800);
+}
+
+function loadSheetsQueueIds(): string[] {
+  const arr = loadJsonArray(SHEETS_QUEUE_FILE);
+  return Array.from(new Set(arr.map((x) => String(x || "").trim().toUpperCase()).filter(Boolean))).slice(0, 500);
+}
+
+function saveSheetsQueueIds(ids: string[]): void {
+  saveJsonArray(SHEETS_QUEUE_FILE, Array.from(new Set(ids)).slice(0, 500));
+}
+
+async function pushUsersToAppsScriptWebhook(
+  usersToPush: any[],
+  opts: { overrideWebhookUrl?: string; skipIfAutoDisabled?: boolean } = {}
+): Promise<{ ok: boolean; count: number; error?: string }> {
+  const cfg = loadSheetsConfigFromDisk();
+  const webhookUrl = String(opts.overrideWebhookUrl || cfg.webhookUrl || "").trim();
+  if (!webhookUrl) return { ok: false, count: 0, error: "Webhook URL not configured" };
+  if (opts.skipIfAutoDisabled !== false && !cfg.autoPushEnabled && !opts.overrideWebhookUrl) {
+    return { ok: false, count: 0, error: "Auto-push disabled" };
+  }
+  const cleanUsers = (usersToPush || []).filter((u) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId));
+  if (cleanUsers.length === 0) return { ok: true, count: 0 };
+
+  try {
+    const rows = cleanUsers.map(serializeUserForSheetRowServer);
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "iois-platform",
+        updatedAt: new Date().toISOString(),
+        rows,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const pushedIds = new Set(cleanUsers.map((u) => String(u.userId).trim().toUpperCase()));
+    const remainingQueue = loadSheetsQueueIds().filter((id) => !pushedIds.has(id));
+    saveSheetsQueueIds(remainingQueue);
+    saveSheetsConfigToDisk({
+      lastSyncedAt: new Date().toISOString(),
+      lastSyncedCount: loadUsersFromDisk().length,
+      lastSyncStatus: `Webhook pushed ${cleanUsers.length} row(s)`,
+    });
+    return { ok: true, count: cleanUsers.length };
+  } catch (err: any) {
+    const existingQ = loadSheetsQueueIds();
+    const failedIds = cleanUsers.map((u) => String(u.userId).trim().toUpperCase());
+    saveSheetsQueueIds([...existingQ, ...failedIds]);
+    return { ok: false, count: 0, error: err?.message || "Webhook push failed" };
+  }
+}
+
+async function flushSheetsWebhookQueue(): Promise<void> {
+  const cfg = loadSheetsConfigFromDisk();
+  if (!cfg.webhookUrl || !cfg.autoPushEnabled) return;
+  const queuedIds = loadSheetsQueueIds();
+  if (queuedIds.length === 0) return;
+  const users = loadUsersFromDisk();
+  const qSet = new Set(queuedIds);
+  const toPush = users.filter((u) => u && qSet.has(String(u.userId).toUpperCase()));
+  if (toPush.length > 0) {
+    await pushUsersToAppsScriptWebhook(toPush, { skipIfAutoDisabled: false });
+  }
+}
+
 function mergeUsersNonDestructive(...lists: any[][]): any[] {
   const map = new Map<string, any>();
 
@@ -988,7 +1340,7 @@ async function fetchCloudAdminPinHash(forceRefresh = false): Promise<string | nu
   try {
     const snap = await Promise.race([
       getDoc(doc(fsDb, "app_settings", "admin_security")),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Admin hash timeout")), 5000)),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Admin hash timeout")), 1800)),
     ]);
     lastCloudAdminPinFetchAt = Date.now();
     if (snap.exists()) {
@@ -1061,47 +1413,75 @@ async function findSingleUserInFirestoreByIdentifier(identifier: string): Promis
 
   try {
     const usersCol = collection(fsDb, "users");
-    const withTimeout = <T>(p: Promise<T>): Promise<T> =>
+    const withTimeout = <T>(p: Promise<T>, ms = 1800): Promise<T> =>
       Promise.race([
         p,
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore query timeout")), 6000)),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore query timeout")), ms)),
       ]);
 
-    let matchedData: any | null = null;
+    const candidatePromises: Array<Promise<any | null>> = [];
 
     if (!cleanLower.includes("@") && !raw.startsWith("@") && cleanLower.length >= 4 && digits.length < 10) {
-      const snap = await withTimeout(getDoc(doc(fsDb, "users", cleanUpper)));
-      if (snap.exists()) matchedData = snap.data();
+      candidatePromises.push(
+        withTimeout(getDoc(doc(fsDb, "users", cleanUpper))).then((snap) => (snap.exists() ? snap.data() : null))
+      );
     }
 
-    if (!matchedData && digits.length >= 10) {
+    if (digits.length >= 10) {
       const last10 = digits.slice(-10);
-      const snapM1 = await withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", last10), limit(1))));
-      if (!snapM1.empty) {
-        matchedData = snapM1.docs[0].data();
-      } else {
-        const snapM2 = await withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", `+91${last10}`), limit(1))));
-        if (!snapM2.empty) matchedData = snapM2.docs[0].data();
+      candidatePromises.push(
+        withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", last10), limit(1)))).then((s) =>
+          !s.empty ? s.docs[0].data() : null
+        )
+      );
+      candidatePromises.push(
+        withTimeout(getDocs(query(usersCol, where("mobileNumber", "==", `+91${last10}`), limit(1)))).then((s) =>
+          !s.empty ? s.docs[0].data() : null
+        )
+      );
+    }
+
+    if (cleanLower.includes("@") && !raw.startsWith("@")) {
+      candidatePromises.push(
+        withTimeout(getDocs(query(usersCol, where("email", "==", cleanLower), limit(1)))).then((s) =>
+          !s.empty ? s.docs[0].data() : null
+        )
+      );
+      if (raw !== cleanLower) {
+        candidatePromises.push(
+          withTimeout(getDocs(query(usersCol, where("email", "==", raw), limit(1)))).then((s) =>
+            !s.empty ? s.docs[0].data() : null
+          )
+        );
       }
     }
 
-    if (!matchedData && cleanLower.includes("@") && !raw.startsWith("@")) {
-      const snapE = await withTimeout(getDocs(query(usersCol, where("email", "==", cleanLower), limit(1))));
-      if (!snapE.empty) {
-        matchedData = snapE.docs[0].data();
-      } else if (raw !== cleanLower) {
-        const snapERaw = await withTimeout(getDocs(query(usersCol, where("email", "==", raw), limit(1))));
-        if (!snapERaw.empty) matchedData = snapERaw.docs[0].data();
+    if (cleanLower.length >= 2 && digits.length < 10 && !cleanLower.includes("@")) {
+      candidatePromises.push(
+        withTimeout(getDocs(query(usersCol, where("username", "==", cleanLower), limit(1)))).then((s) =>
+          !s.empty ? s.docs[0].data() : null
+        )
+      );
+    }
+
+    let matchedData: any | null = null;
+    if (candidatePromises.length > 0) {
+      const settled = await Promise.allSettled(candidatePromises);
+      for (const r of settled) {
+        if (r.status === "fulfilled" && r.value) {
+          matchedData = r.value;
+          break;
+        }
+        if (r.status === "rejected" && isQuotaOrResourceExhaustedError(r.reason)) {
+          firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+          return null;
+        }
       }
     }
 
-    if (!matchedData && cleanLower.length >= 2) {
-      const snapU = await withTimeout(getDocs(query(usersCol, where("username", "==", cleanLower), limit(1))));
-      if (!snapU.empty) matchedData = snapU.docs[0].data();
-    }
-
-    if (!matchedData) {
-      const snapAll = await withTimeout(getDocs(usersCol));
+    // Only run collection scan if disk was sparse and targeted queries missed
+    if (!matchedData && loadUsersFromDisk().length <= 1 && Date.now() >= firestoreQuotaBlockedUntil) {
+      const snapAll = await withTimeout(getDocs(usersCol), 2000);
       snapAll.forEach((d) => {
         if (matchedData) return;
         const u: any = d.data();
@@ -1155,13 +1535,21 @@ function readCleanUsersFile(filePath: string): any[] | null {
   }
 }
 
+let cachedArchivedUsersMemory: any[] | null = null;
+let userBackupWriteChain: Promise<void> = Promise.resolve();
+
 function loadArchivedUsersFromDisk(): any[] {
-  return readCleanUsersFile(DELETED_USERS_FILE) || [];
+  if (cachedArchivedUsersMemory !== null) return [...cachedArchivedUsersMemory];
+  const loaded = readCleanUsersFile(DELETED_USERS_FILE) || [];
+  cachedArchivedUsersMemory = loaded;
+  return [...loaded];
 }
 
 function saveArchivedUsersToDisk(archived: any[]): void {
+  const copy = Array.isArray(archived) ? [...archived] : [];
+  cachedArchivedUsersMemory = copy;
   try {
-    writeJsonAtomic(DELETED_USERS_FILE, archived);
+    writeJsonAtomic(DELETED_USERS_FILE, copy, true);
   } catch (err) {
     console.error("Error writing deleted-users-archive.json:", err);
   }
@@ -1203,14 +1591,14 @@ function migratePlaintextPasswordsOnDisk(): void {
 
 function loadUsersFromDisk(): any[] {
   if (cachedUsersMemory !== null) {
-    return cachedUsersMemory;
+    return [...cachedUsersMemory];
   }
 
   try {
     const primary = readCleanUsersFile(USERS_FILE);
     const backup = readCleanUsersFile(USERS_BACKUP_FILE);
 
-    let archivedIds = new Set(
+    const archivedIds = new Set(
       loadArchivedUsersFromDisk().map((u: any) => String(u.userId).toUpperCase())
     );
 
@@ -1220,7 +1608,7 @@ function loadUsersFromDisk(): any[] {
     } else if (backup !== null && backup.length > 0) {
       console.warn("[Users Recovery] Primary users.json empty/corrupt — recovering from users-backup.json!");
       resolved = backup;
-      writeJsonAtomic(USERS_FILE, resolved);
+      writeJsonAtomic(USERS_FILE, resolved, true);
     } else if (primary !== null) {
       resolved = primary;
     } else {
@@ -1236,8 +1624,8 @@ function loadUsersFromDisk(): any[] {
           if (snap && snap.length > 0) {
             console.warn(`[Users Recovery] Restoring from snapshot ${f} (${snap.length} users)`);
             resolved = snap;
-            writeJsonAtomic(USERS_FILE, resolved);
-            writeJsonAtomic(USERS_BACKUP_FILE, resolved);
+            writeJsonAtomic(USERS_FILE, resolved, true);
+            writeJsonAtomic(USERS_BACKUP_FILE, resolved, true);
             break;
           }
         }
@@ -1249,7 +1637,7 @@ function loadUsersFromDisk(): any[] {
       (u: any) => u && !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
     );
     cachedUsersMemory = resolved;
-    return resolved;
+    return [...resolved];
   } catch (err) {
     console.error("Error reading users from disk:", err);
     return [];
@@ -1278,36 +1666,40 @@ function saveUsersToDisk(users: any[], options: { allowShrink?: boolean } = {}):
           (u: any) => !u.isArchived && !archivedIds.has(String(u.userId).toUpperCase())
         );
 
-    // Protect existing non-empty list into backup BEFORE overwriting primary
-    if (existing.length > 0) {
-      writeJsonAtomic(USERS_BACKUP_FILE, existing);
-    }
-
     cachedUsersMemory = nextList;
-    writeJsonAtomic(USERS_FILE, nextList);
+    // Write primary file atomically ONCE synchronously (compact JSON for ~40% smaller & faster I/O)
+    writeJsonAtomic(USERS_FILE, nextList, true);
 
     if (nextList.length > 0) {
-      writeJsonAtomic(USERS_BACKUP_FILE, nextList);
       lastBackupAtIso = new Date().toISOString();
-
-      // Write rolling timestamped snapshot every 10 mins or when user count grows
       const now = Date.now();
-      if (now - lastSnapshotTimestamp > 10 * 60 * 1000 || nextList.length > existing.length) {
+      const shouldWriteSnapshot = now - lastSnapshotTimestamp > 10 * 60 * 1000 || nextList.length > existing.length;
+      if (shouldWriteSnapshot) {
         lastSnapshotTimestamp = now;
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        writeJsonAtomic(path.join(BACKUPS_DIR, `users-${stamp}.json`), nextList);
-        // Keep last 12 rolling snapshots
-        try {
-          const snaps = fs
-            .readdirSync(BACKUPS_DIR)
-            .filter((f) => f.startsWith("users-") && f.endsWith(".json"))
-            .sort()
-            .reverse();
-          for (const old of snaps.slice(12)) {
-            fs.unlinkSync(path.join(BACKUPS_DIR, old));
-          }
-        } catch {}
       }
+      const listToBackup = nextList;
+      // Queue secondary backup & rolling snapshot writes asynchronously so HTTP responses never block
+      userBackupWriteChain = userBackupWriteChain
+        .then(async () => {
+          await writeJsonAtomicAsync(USERS_BACKUP_FILE, listToBackup, true);
+          if (shouldWriteSnapshot) {
+            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+            await writeJsonAtomicAsync(path.join(BACKUPS_DIR, `users-${stamp}.json`), listToBackup, true);
+            try {
+              const snaps = (await fs.promises.readdir(BACKUPS_DIR))
+                .filter((f) => f.startsWith("users-") && f.endsWith(".json"))
+                .sort()
+                .reverse();
+              for (const old of snaps.slice(12)) {
+                await fs.promises.unlink(path.join(BACKUPS_DIR, old)).catch(() => {});
+              }
+            } catch {}
+          }
+        })
+        .catch((err) => {
+          console.warn("[Async Backup Queue Note]:", err?.message || err);
+        });
+      scheduleSnapshotSyncToFirestore();
     }
   } catch (err) {
     console.error("Error writing users to disk:", err);
@@ -1331,23 +1723,62 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
     const fsDb = getServerFirestore();
     if (!fsDb) return { synced: loadUsersFromDisk().length, error: "Firestore unavailable" };
     try {
-      const snap = await Promise.race([
-        getDocs(collection(fsDb, "users")),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore timeout")), 25000)),
-      ]);
-      lastFirestoreHydrationAt = Date.now();
-      const cloudActive: any[] = [];
-      const cloudArchived: any[] = [];
-      snap.forEach((d) => {
-        const u = d.data();
-        if (!u || !u.userId) return;
-        if (isDemoUserId(u.userId)) return;
-        if (u.isArchived) {
-          cloudArchived.push(u);
-        } else {
-          cloudActive.push(u);
+      // Sync Google Sheets config from Firestore if disk config is blank
+      try {
+        const localSheetsCfg = loadSheetsConfigFromDisk();
+        if (!localSheetsCfg.spreadsheetId && !localSheetsCfg.webhookUrl) {
+          const cfgSnap = await Promise.race([
+            getDoc(doc(fsDb, "app_settings", "google_sheets_config")),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          ]);
+          if (cfgSnap && cfgSnap.exists()) {
+            saveSheetsConfigToDisk(cfgSnap.data() as Partial<ServerSheetsConfig>);
+          }
         }
-      });
+      } catch {}
+
+      let cloudActive: any[] = [];
+      const cloudArchived: any[] = [];
+      let usedSingleReadSnapshot = false;
+
+      // 1-READ SNAPSHOT FAST PATH (Saves ~95% Spark Free Tier Firestore reads)
+      if (!force) {
+        try {
+          const snapDoc = await Promise.race([
+            getDoc(doc(fsDb, "app_settings", "users_snapshot_v1")),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+          ]);
+          if (snapDoc && snapDoc.exists()) {
+            const snapData: any = snapDoc.data();
+            if (Array.isArray(snapData?.users) && snapData.users.length > 0) {
+              cloudActive = snapData.users.filter(
+                (u: any) => u && u.userId && !u.isArchived && !isDemoUserId(u.userId)
+              );
+              usedSingleReadSnapshot = cloudActive.length > 0;
+            }
+          }
+        } catch {}
+      }
+
+      // Full collection scan only when forced by Admin or snapshot does not exist yet
+      if (!usedSingleReadSnapshot) {
+        const snap = await Promise.race([
+          getDocs(collection(fsDb, "users")),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore timeout")), 25000)),
+        ]);
+        snap.forEach((d) => {
+          const u = d.data();
+          if (!u || !u.userId) return;
+          if (isDemoUserId(u.userId)) return;
+          if (u.isArchived) {
+            cloudArchived.push(u);
+          } else {
+            cloudActive.push(u);
+          }
+        });
+      }
+
+      lastFirestoreHydrationAt = Date.now();
 
       if (cloudArchived.length > 0) {
         const curArch = loadArchivedUsersFromDisk();
@@ -1356,7 +1787,7 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
 
       const localDisk = loadUsersFromDisk();
 
-      // Restore split high-res media for any cloud users whose disk record is absent or lacks media
+      // Restore split high-res media only when forcing or for users without local media
       const localById = new Map<string, any>();
       for (const lu of localDisk) {
         if (lu?.userId) localById.set(String(lu.userId).toUpperCase(), lu);
@@ -1366,7 +1797,7 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
         const key = String(cu.userId).toUpperCase();
         const localRec = localById.get(key);
         const alreadyHasMedia = Boolean(localRec?.photoUrl && localRec?.paymentScreenshotUrl);
-        if (!alreadyHasMedia && (cu.hasServerMedia || !cu.photoUrl || !cu.paymentScreenshotUrl)) {
+        if (!alreadyHasMedia && (!usedSingleReadSnapshot || !localRec) && (cu.hasServerMedia || !cu.photoUrl || !cu.paymentScreenshotUrl)) {
           hydratedCloudActive.push(await hydrateUserMediaFromFirestore(fsDb, cu));
         } else {
           hydratedCloudActive.push(cu);
@@ -1376,6 +1807,10 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
       const merged = mergeUsersNonDestructive(hydratedCloudActive, localDisk);
       if (merged.length > 0) {
         saveUsersToDisk(merged);
+      }
+
+      if (!usedSingleReadSnapshot && merged.length > 0) {
+        void syncUsersSnapshotToFirestore(true);
       }
 
       // Backfill any server-only users cleanly to Firestore in background without blocking API response
@@ -1389,7 +1824,11 @@ async function hydrateServerFromFirestoreOnce(force = false): Promise<{ synced: 
         })();
       }
 
-      console.log(`[Server Firestore Hydration] Loaded ${cloudActive.length} cloud users, total merged: ${merged.length}`);
+      void flushSheetsWebhookQueue();
+
+      console.log(
+        `[Server Firestore Hydration] Loaded ${cloudActive.length} cloud users (${usedSingleReadSnapshot ? "1-read snapshot" : "full collection"}), total merged: ${merged.length}`
+      );
       return { synced: merged.length };
     } catch (err: any) {
       if (isQuotaOrResourceExhaustedError(err)) {
@@ -1436,15 +1875,24 @@ function maskName(name?: string): string {
 // Temporary in-memory tokens for real-identity verified password resets (token -> { userId, expiresAt })
 const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
 
+let cachedTicketsMemory: any[] | null = null;
+let cachedKnowledgeMemory: any[] | null = null;
+let cachedUnansweredMemory: any[] | null = null;
+let cachedInterviewsMemory: any[] | null = null;
+
 function loadTicketsFromDisk(): any[] {
+  if (cachedTicketsMemory !== null) return [...cachedTicketsMemory];
   try {
     if (!fs.existsSync(TICKETS_FILE)) {
-      fs.writeFileSync(TICKETS_FILE, JSON.stringify([], null, 2), "utf-8");
+      writeJsonAtomic(TICKETS_FILE, []);
+      cachedTicketsMemory = [];
       return [];
     }
     const raw = fs.readFileSync(TICKETS_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    const arr = Array.isArray(data) ? data : [];
+    cachedTicketsMemory = arr;
+    return [...arr];
   } catch (err) {
     console.error("Error reading tickets from disk:", err);
     return [];
@@ -1452,8 +1900,10 @@ function loadTicketsFromDisk(): any[] {
 }
 
 function saveTicketsToDisk(tickets: any[]): void {
+  const copy = Array.isArray(tickets) ? [...tickets] : [];
+  cachedTicketsMemory = copy;
   try {
-    fs.writeFileSync(TICKETS_FILE, JSON.stringify(tickets, null, 2), "utf-8");
+    writeJsonAtomic(TICKETS_FILE, copy);
   } catch (err) {
     console.error("Error writing tickets to disk:", err);
   }
@@ -1503,37 +1953,47 @@ const INITIAL_KNOWLEDGE = [
 ];
 
 function loadKnowledgeFromDisk(): any[] {
+  if (cachedKnowledgeMemory !== null) return [...cachedKnowledgeMemory];
   try {
     if (!fs.existsSync(KNOWLEDGE_FILE)) {
-      fs.writeFileSync(KNOWLEDGE_FILE, JSON.stringify(INITIAL_KNOWLEDGE, null, 2), "utf-8");
-      return INITIAL_KNOWLEDGE;
+      writeJsonAtomic(KNOWLEDGE_FILE, INITIAL_KNOWLEDGE);
+      cachedKnowledgeMemory = [...INITIAL_KNOWLEDGE];
+      return [...INITIAL_KNOWLEDGE];
     }
     const raw = fs.readFileSync(KNOWLEDGE_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : INITIAL_KNOWLEDGE;
+    const arr = Array.isArray(data) ? data : INITIAL_KNOWLEDGE;
+    cachedKnowledgeMemory = arr;
+    return [...arr];
   } catch (err) {
     console.error("Error reading knowledge from disk:", err);
-    return INITIAL_KNOWLEDGE;
+    return [...INITIAL_KNOWLEDGE];
   }
 }
 
 function saveKnowledgeToDisk(items: any[]): void {
+  const copy = Array.isArray(items) ? [...items] : [];
+  cachedKnowledgeMemory = copy;
   try {
-    fs.writeFileSync(KNOWLEDGE_FILE, JSON.stringify(items, null, 2), "utf-8");
+    writeJsonAtomic(KNOWLEDGE_FILE, copy);
   } catch (err) {
     console.error("Error writing knowledge to disk:", err);
   }
 }
 
 function loadUnansweredFromDisk(): any[] {
+  if (cachedUnansweredMemory !== null) return [...cachedUnansweredMemory];
   try {
     if (!fs.existsSync(UNANSWERED_FILE)) {
-      fs.writeFileSync(UNANSWERED_FILE, JSON.stringify([], null, 2), "utf-8");
+      writeJsonAtomic(UNANSWERED_FILE, []);
+      cachedUnansweredMemory = [];
       return [];
     }
     const raw = fs.readFileSync(UNANSWERED_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    const arr = Array.isArray(data) ? data : [];
+    cachedUnansweredMemory = arr;
+    return [...arr];
   } catch (err) {
     console.error("Error reading unanswered questions from disk:", err);
     return [];
@@ -1541,22 +2001,28 @@ function loadUnansweredFromDisk(): any[] {
 }
 
 function saveUnansweredToDisk(items: any[]): void {
+  const copy = Array.isArray(items) ? [...items] : [];
+  cachedUnansweredMemory = copy;
   try {
-    fs.writeFileSync(UNANSWERED_FILE, JSON.stringify(items, null, 2), "utf-8");
+    writeJsonAtomic(UNANSWERED_FILE, copy);
   } catch (err) {
     console.error("Error writing unanswered questions to disk:", err);
   }
 }
 
 function loadInterviewsFromDisk(): any[] {
+  if (cachedInterviewsMemory !== null) return [...cachedInterviewsMemory];
   try {
     if (!fs.existsSync(INTERVIEWS_FILE)) {
-      fs.writeFileSync(INTERVIEWS_FILE, JSON.stringify([], null, 2), "utf-8");
+      writeJsonAtomic(INTERVIEWS_FILE, []);
+      cachedInterviewsMemory = [];
       return [];
     }
     const raw = fs.readFileSync(INTERVIEWS_FILE, "utf-8");
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    const arr = Array.isArray(data) ? data : [];
+    cachedInterviewsMemory = arr;
+    return [...arr];
   } catch (err) {
     console.error("Error reading interviews from disk:", err);
     return [];
@@ -1564,8 +2030,10 @@ function loadInterviewsFromDisk(): any[] {
 }
 
 function saveInterviewsToDisk(items: any[]): void {
+  const copy = Array.isArray(items) ? [...items] : [];
+  cachedInterviewsMemory = copy;
   try {
-    fs.writeFileSync(INTERVIEWS_FILE, JSON.stringify(items, null, 2), "utf-8");
+    writeJsonAtomic(INTERVIEWS_FILE, copy);
   } catch (err) {
     console.error("Error writing interviews to disk:", err);
   }
@@ -1990,6 +2458,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Enable gzip/brotli compression across Vite dev modules, API routes, and prod assets
+  app.use(compression({ threshold: 1024 }));
+
   // Support large JSON payloads for screenshots & photo uploads (up to 50MB)
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -1997,6 +2468,15 @@ async function startServer() {
   // API Route: Health Check
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // API Route: Safe Google Maps Platform Demo/Runtime Public Key Config
+  app.get("/api/maps/config", (_req: Request, res: Response) => {
+    const apiKey =
+      process.env.VITE_GOOGLE_MAPS_API_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      "";
+    res.json({ apiKey: apiKey.trim() });
   });
 
   const getTodayServerDateKey = (): string => {
@@ -2136,147 +2616,161 @@ async function startServer() {
     }
   });
 
-  // In-memory cache for live news
+  // In-memory cache for live news & background warmer
   let cachedNewsArticles: any[] = [];
   let lastNewsFetchTimestamp = 0;
+  let liveNewsRefreshPromise: Promise<{ articles: any[]; fromCache: boolean; fallback?: boolean }> | null = null;
 
-  // API Route: Live Real News Feed from Live RSS APIs
-  app.get("/api/live-news", async (_req: Request, res: Response) => {
+  const FALLBACK_LIVE_NEWS = [
+    {
+      id: 'art-1',
+      title: 'डिजिटल इंडिया व ग्रामीण स्वरोजगार में युवाओं के लिए नए इंसेंटिव पैकेज की घोषणा',
+      category: 'jobs',
+      source: 'दैनिक जागरण',
+      time: '15 मिनट पहले',
+      summary: 'केंद्र व राज्य सरकारों ने डिजिटल साक्षरता और ऑनलाइन माइक्रो-अर्निंग योजनाओं के लिए नए पोर्टल लॉन्च किए हैं।',
+      readTime: '2 min read',
+      link: 'https://news.google.com'
+    },
+    {
+      id: 'art-2',
+      title: 'खरीफ फसलों की नई एमएसपी और प्रमुख मंडियों में गेहूं-सरसों की जोरदार आवक',
+      category: 'kisan',
+      source: 'कृषि जागरण',
+      time: '35 मिनट पहले',
+      summary: 'उत्तर प्रदेश, बिहार और मध्य प्रदेश की कृषि उपज मंडियों में दालों व तिलहन के दामों में स्थिरता देखी जा रही है।',
+      readTime: '3 min read',
+      link: 'https://news.google.com'
+    },
+    {
+      id: 'art-3',
+      title: 'सोने और चांदी के भाव में स्थिरता, अंतरराष्ट्रीय बाजार में बुलियन डिमांड बढ़ी',
+      category: 'business',
+      source: 'इकोनॉमिक टाइम्स',
+      time: '1 घंटा पहले',
+      summary: '24 कैरेट सोने की कीमत और चांदी के भाव में मजबूती का रुख जारी है।',
+      readTime: '2 min read',
+      link: 'https://news.google.com'
+    }
+  ];
+
+  async function refreshLiveNewsCache(): Promise<{ articles: any[]; fromCache: boolean; fallback?: boolean }> {
     const now = Date.now();
-    // Cache for 90 seconds
-    if (cachedNewsArticles.length > 0 && (now - lastNewsFetchTimestamp < 90000)) {
-      return res.json({ success: true, count: cachedNewsArticles.length, articles: cachedNewsArticles, fromCache: true });
+    if (cachedNewsArticles.length > 0 && now - lastNewsFetchTimestamp < 90_000) {
+      return { articles: cachedNewsArticles, fromCache: true };
     }
+    if (liveNewsRefreshPromise) return liveNewsRefreshPromise;
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-      const response = await fetch("https://news.google.com/rss?hl=hi&gl=IN&ceid=IN:hi", {
-        signal: controller.signal,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IOIS-News/1.0" }
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) throw new Error("Upstream RSS status not ok");
-      const xml = await response.text();
-
-      const items: any[] = [];
-      const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-      let match;
-      let idCounter = 1;
-
-      while ((match = itemRegex.exec(xml)) !== null && items.length < 30) {
-        const itemContent = match[1];
-        const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
-        const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
-        const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
-        const sourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/.exec(itemContent);
-
-        let rawTitle = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim() : "";
-        const link = linkMatch ? linkMatch[1].trim() : "https://news.google.com";
-        const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : "";
-        const source = sourceMatch ? sourceMatch[1].trim() : "राष्ट्रीय समाचार फ़ीड";
-
-        // Remove source suffix from title if present
-        if (rawTitle.includes(" - ")) {
-          const parts = rawTitle.split(" - ");
-          if (parts.length > 1) {
-            rawTitle = parts.slice(0, -1).join(" - ").trim();
-          }
-        }
-
-        if (!rawTitle) continue;
-
-        // Auto-categorize
-        let category = "national";
-        const lower = rawTitle.toLowerCase();
-        if (/नौकरी|भर्ती|परीक्षा|रिजल्ट|एडमिट|cgl|upsc|bpsc|ssc|वैकेंसी|फॉर्म|चयन/.test(lower)) {
-          category = "jobs";
-        } else if (/सोना|चांदी|बाजार|सेंसेक्स|रुपया|शेयर|बैंक|बजट|जीएसटी|व्यापार|कारोबार|कंपनी|टाटा|अंबानी/.test(lower)) {
-          category = "business";
-        } else if (/किसान|मौसम|बारिश|फसल|एमएसपी|मंडी|गेहूं|धान|खाद|सिंचाई|कृषि|तापमान/.test(lower)) {
-          category = "kisan";
-        } else if (/ai|टेक|मोबाइल|स्मार्टफोन|गूगल|इंटरनेट|कंप्यूटर|सॉफ्टवेयर|डिजिटल|5g/.test(lower)) {
-          category = "tech";
-        }
-
-        // Relative time calculation
-        let timeLabel = "कुछ समय पहले";
-        if (pubDateStr) {
-          try {
-            const pubTime = new Date(pubDateStr).getTime();
-            const diffMin = Math.max(1, Math.floor((now - pubTime) / 60000));
-            if (diffMin < 60) timeLabel = `${diffMin} मिनट पहले`;
-            else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)} घंटे पहले`;
-            else timeLabel = `${Math.floor(diffMin / 1440)} दिन पहले`;
-          } catch {}
-        }
-
-        items.push({
-          id: `live-rss-${idCounter++}`,
-          title: rawTitle,
-          category,
-          source,
-          time: timeLabel,
-          summary: `${source} द्वारा जारी ताजा खबर: ${rawTitle}। संपूर्ण विवरण व विश्लेषण के लिए क्लिक करें।`,
-          readTime: "2 min read",
-          link
+    liveNewsRefreshPromise = (async () => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3200);
+        const response = await fetch("https://news.google.com/rss?hl=hi&gl=IN&ceid=IN:hi", {
+          signal: controller.signal,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IOIS-News/1.0" },
         });
-      }
+        clearTimeout(timeout);
 
-      if (items.length > 0) {
-        cachedNewsArticles = items;
-        lastNewsFetchTimestamp = now;
-        return res.json({ success: true, count: items.length, articles: items, fromCache: false });
-      }
-      throw new Error("No items parsed");
-    } catch (err: any) {
-      if (cachedNewsArticles.length > 0) {
-        return res.json({ success: true, count: cachedNewsArticles.length, articles: cachedNewsArticles, fromCache: true, fallback: true });
-      }
-      res.json({
-        success: true,
-        count: 5,
-        articles: [
-          {
-            id: 'art-1',
-            title: 'डिजिटल इंडिया व ग्रामीण स्वरोजगार में युवाओं के लिए नए इंसेंटिव पैकेज की घोषणा',
-            category: 'jobs',
-            source: 'दैनिक जागरण',
-            time: '15 मिनट पहले',
-            summary: 'केंद्र व राज्य सरकारों ने डिजिटल साक्षरता और ऑनलाइन माइक्रो-अर्निंग योजनाओं के लिए नए पोर्टल लॉन्च किए हैं।',
-            readTime: '2 min read',
-            link: 'https://news.google.com'
-          },
-          {
-            id: 'art-2',
-            title: 'खरीफ फसलों की नई एमएसपी और प्रमुख मंडियों में गेहूं-सरसों की जोरदार आवक',
-            category: 'kisan',
-            source: 'कृषि जागरण',
-            time: '35 मिनट पहले',
-            summary: 'उत्तर प्रदेश, बिहार और मध्य प्रदेश की कृषि उपज मंडियों में दालों व तिलहन के दामों में स्थिरता देखी जा रही है।',
-            readTime: '3 min read',
-            link: 'https://news.google.com'
-          },
-          {
-            id: 'art-3',
-            title: 'सोने और चांदी के भाव में स्थिरता, अंतरराष्ट्रीय बाजार में बुलियन डिमांड बढ़ी',
-            category: 'business',
-            source: 'इकोनॉमिक टाइम्स',
-            time: '1 घंटा पहले',
-            summary: '24 कैरेट सोने की कीमत और चांदी के भाव में मजबूती का रुख जारी है।',
-            readTime: '2 min read',
-            link: 'https://news.google.com'
+        if (!response.ok) throw new Error("Upstream RSS status not ok");
+        const xml = await response.text();
+
+        const items: any[] = [];
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
+        let idCounter = 1;
+        const parseNow = Date.now();
+
+        while ((match = itemRegex.exec(xml)) !== null && items.length < 30) {
+          const itemContent = match[1];
+          const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
+          const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+          const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
+          const sourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/.exec(itemContent);
+
+          let rawTitle = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim() : "";
+          const link = linkMatch ? linkMatch[1].trim() : "https://news.google.com";
+          const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : "";
+          const source = sourceMatch ? sourceMatch[1].trim() : "राष्ट्रीय समाचार फ़ीड";
+
+          if (rawTitle.includes(" - ")) {
+            const parts = rawTitle.split(" - ");
+            if (parts.length > 1) {
+              rawTitle = parts.slice(0, -1).join(" - ").trim();
+            }
           }
-        ],
-        fallback: true
-      });
-    }
+
+          if (!rawTitle) continue;
+
+          let category = "national";
+          const lower = rawTitle.toLowerCase();
+          if (/नौकरी|भर्ती|परीक्षा|रिजल्ट|एडमिट|cgl|upsc|bpsc|ssc|वैकेंसी|फॉर्म|चयन/.test(lower)) {
+            category = "jobs";
+          } else if (/सोना|चांदी|बाजार|सेंसेक्स|रुपया|शेयर|बैंक|बजट|जीएसटी|व्यापार|कारोबार|कंपनी|टाटा|अंबानी/.test(lower)) {
+            category = "business";
+          } else if (/किसान|मौसम|बारिश|फसल|एमएसपी|मंडी|गेहूं|धान|खाद|सिंचाई|कृषि|तापमान/.test(lower)) {
+            category = "kisan";
+          } else if (/ai|टेक|मोबाइल|स्मार्टफोन|गूगल|इंटरनेट|कंप्यूटर|सॉफ्टवेयर|डिजिटल|5g/.test(lower)) {
+            category = "tech";
+          }
+
+          let timeLabel = "कुछ समय पहले";
+          if (pubDateStr) {
+            try {
+              const pubTime = new Date(pubDateStr).getTime();
+              const diffMin = Math.max(1, Math.floor((parseNow - pubTime) / 60000));
+              if (diffMin < 60) timeLabel = `${diffMin} मिनट पहले`;
+              else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)} घंटे पहले`;
+              else timeLabel = `${Math.floor(diffMin / 1440)} दिन पहले`;
+            } catch {}
+          }
+
+          items.push({
+            id: `live-rss-${idCounter++}`,
+            title: rawTitle,
+            category,
+            source,
+            time: timeLabel,
+            summary: `${source} द्वारा जारी ताजा खबर: ${rawTitle}। संपूर्ण विवरण व विश्लेषण के लिए क्लिक करें।`,
+            readTime: "2 min read",
+            link,
+          });
+        }
+
+        if (items.length > 0) {
+          cachedNewsArticles = items;
+          lastNewsFetchTimestamp = parseNow;
+          return { articles: items, fromCache: false };
+        }
+        throw new Error("No items parsed");
+      } catch {
+        if (cachedNewsArticles.length > 0) {
+          return { articles: cachedNewsArticles, fromCache: true, fallback: true };
+        }
+        return { articles: FALLBACK_LIVE_NEWS, fromCache: false, fallback: true };
+      } finally {
+        liveNewsRefreshPromise = null;
+      }
+    })();
+
+    return liveNewsRefreshPromise;
+  }
+
+  // API Route: Live Real News Feed from Live RSS APIs (Cached & pre-warmed)
+  app.get("/api/live-news", async (_req: Request, res: Response) => {
+    const result = await refreshLiveNewsCache();
+    return res.json({
+      success: true,
+      count: result.articles.length,
+      articles: result.articles,
+      fromCache: result.fromCache,
+      ...(result.fallback ? { fallback: true } : {}),
+    });
   });
 
   // In-memory cache for real-time recruitment / job updates
   let cachedLiveJobs: any[] = [];
   let lastLiveJobsFetchTimestamp = 0;
+  let liveJobsRefreshPromise: Promise<{ jobs: any[]; todayIst: string; fromCache: boolean; updatedAt: string }> | null = null;
 
   const getTodayIstIsoKey = (): string => {
     try {
@@ -2286,127 +2780,143 @@ async function startServer() {
     }
   };
 
-  // API Route: Real-Time Active & Upcoming Recruitment Updates (Auto-excludes expired dates)
-  app.get("/api/live-jobs", async (_req: Request, res: Response) => {
+  async function refreshLiveJobsCache(): Promise<{ jobs: any[]; todayIst: string; fromCache: boolean; updatedAt: string }> {
     const now = Date.now();
     const todayIst = getTodayIstIsoKey();
 
-    if (cachedLiveJobs.length > 0 && now - lastLiveJobsFetchTimestamp < 90000) {
+    if (cachedLiveJobs.length > 0 && now - lastLiveJobsFetchTimestamp < 90_000) {
       const activeCached = cachedLiveJobs.filter((job) => !job.lastDateIso || job.lastDateIso >= todayIst);
-      return res.json({
-        success: true,
-        todayIst,
+      return {
         jobs: activeCached,
+        todayIst,
         fromCache: true,
         updatedAt: new Date(lastLiveJobsFetchTimestamp).toISOString(),
-      });
+      };
     }
+    if (liveJobsRefreshPromise) return liveJobsRefreshPromise;
 
-    const liveItems: any[] = [];
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      const rssUrl =
-        "https://news.google.com/rss/search?q=%E0%A4%B8%E0%A4%B0%E0%A4%95%E0%A4%BE%E0%A4%B0%E0%A5%80+%E0%A4%AD%E0%A4%B0%E0%A5%8D%E0%A4%A4%E0%A5%80+OR+%E0%A4%A8%E0%A4%88+%E0%A4%B5%E0%A5%88%E0%A4%95%E0%A5%87%E0%A4%82%E0%A4%B8%E0%A5%80+OR+SSC+OR+RRB+OR+IBPS+OR+UPSC+recruitment&hl=hi&gl=IN&ceid=IN:hi";
-      const response = await fetch(rssUrl, {
-        signal: controller.signal,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IOIS-Jobs/1.0" },
-      });
-      clearTimeout(timeout);
+    liveJobsRefreshPromise = (async () => {
+      const liveItems: any[] = [];
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3200);
+        const rssUrl =
+          "https://news.google.com/rss/search?q=%E0%A4%B8%E0%A4%B0%E0%A4%95%E0%A4%BE%E0%A4%B0%E0%A5%80+%E0%A4%AD%E0%A4%B0%E0%A5%8D%E0%A4%A4%E0%A5%80+OR+%E0%A4%A8%E0%A4%88+%E0%A4%B5%E0%A5%88%E0%A4%95%E0%A5%87%E0%A4%82%E0%A4%B8%E0%A5%80+OR+SSC+OR+RRB+OR+IBPS+OR+UPSC+recruitment&hl=hi&gl=IN&ceid=IN:hi";
+        const response = await fetch(rssUrl, {
+          signal: controller.signal,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IOIS-Jobs/1.0" },
+        });
+        clearTimeout(timeout);
 
-      if (response.ok) {
-        const xml = await response.text();
-        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-        let match;
-        let idx = 1;
-        const maxAgeMs = 14 * 24 * 60 * 60 * 1000;
+        if (response.ok) {
+          const xml = await response.text();
+          const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+          let match;
+          let idx = 1;
+          const maxAgeMs = 14 * 24 * 60 * 60 * 1000;
+          const parseNow = Date.now();
 
-        while ((match = itemRegex.exec(xml)) !== null && liveItems.length < 10) {
-          const itemContent = match[1];
-          const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
-          const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
-          const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
-          const sourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/.exec(itemContent);
+          while ((match = itemRegex.exec(xml)) !== null && liveItems.length < 10) {
+            const itemContent = match[1];
+            const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
+            const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+            const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
+            const sourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/.exec(itemContent);
 
-          let rawTitle = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim() : "";
-          const link = linkMatch ? linkMatch[1].trim() : "https://ncs.gov.in";
-          const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : "";
-          const source = sourceMatch ? sourceMatch[1].trim() : "आधिकारिक रोजगार अपडेट";
+            let rawTitle = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim() : "";
+            const link = linkMatch ? linkMatch[1].trim() : "https://ncs.gov.in";
+            const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : "";
+            const source = sourceMatch ? sourceMatch[1].trim() : "आधिकारिक रोजगार अपडेट";
 
-          if (rawTitle.includes(" - ")) {
-            const parts = rawTitle.split(" - ");
-            if (parts.length > 1) {
-              rawTitle = parts.slice(0, -1).join(" - ").trim();
-            }
-          }
-          if (!rawTitle) continue;
-
-          // Exclude items older than 14 days so only current & active notifications appear
-          let timeLabel = "आज लाइव अपडेट";
-          let isRecent = true;
-          if (pubDateStr) {
-            const pubMs = new Date(pubDateStr).getTime();
-            if (!Number.isNaN(pubMs)) {
-              const ageMs = now - pubMs;
-              if (ageMs > maxAgeMs) {
-                isRecent = false;
-              } else {
-                const diffMin = Math.max(1, Math.floor(ageMs / 60000));
-                if (diffMin < 60) timeLabel = `${diffMin} मिनट पहले`;
-                else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)} घंटे पहले`;
-                else timeLabel = `${Math.floor(diffMin / 1440)} दिन पहले`;
+            if (rawTitle.includes(" - ")) {
+              const parts = rawTitle.split(" - ");
+              if (parts.length > 1) {
+                rawTitle = parts.slice(0, -1).join(" - ").trim();
               }
             }
+            if (!rawTitle) continue;
+
+            let timeLabel = "आज लाइव अपडेट";
+            let isRecent = true;
+            if (pubDateStr) {
+              const pubMs = new Date(pubDateStr).getTime();
+              if (!Number.isNaN(pubMs)) {
+                const ageMs = parseNow - pubMs;
+                if (ageMs > maxAgeMs) {
+                  isRecent = false;
+                } else {
+                  const diffMin = Math.max(1, Math.floor(ageMs / 60000));
+                  if (diffMin < 60) timeLabel = `${diffMin} मिनट पहले`;
+                  else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)} घंटे पहले`;
+                  else timeLabel = `${Math.floor(diffMin / 1440)} दिन पहले`;
+                }
+              }
+            }
+            if (!isRecent) continue;
+
+            const lower = rawTitle.toLowerCase();
+            const department = /ssc/.test(lower)
+              ? "कर्मचारी चयन आयोग (SSC Live)"
+              : /रेलवे|rrb|railway/.test(lower)
+                ? "भारतीय रेलवे (RRB Live)"
+                : /बैंक|ibps|sbi|rbi/.test(lower)
+                  ? "बैंकिंग भर्ती (IBPS / SBI Live)"
+                  : /upsc|ias|ips/.test(lower)
+                    ? "संघ लोक सेवा आयोग (UPSC Live)"
+                    : /पुलिस|constable|si|army|agniveer|defence/.test(lower)
+                      ? "रक्षा एवं पुलिस भर्ती (Defence / Police)"
+                      : source;
+
+            liveItems.push({
+              id: `live-rss-job-${idx++}`,
+              title: rawTitle,
+              department,
+              type: "govt",
+              totalPosts: "आधिकारिक नोटिफिकेशन देखें",
+              qualification: "पद अनुसार 10वीं / 12वीं / स्नातक",
+              ageLimit: "नियमानुसार पात्रता",
+              salary: "नियमानुसार सरकारी वेतनमान",
+              location: "भारत (India Live)",
+              lastDate: "आवेदन सक्रिय / आगामी (Live)",
+              statusType: "live",
+              publishedAt: timeLabel,
+              source,
+              applyUrl: link,
+              isNew: true,
+            });
           }
-          if (!isRecent) continue;
-
-          const lower = rawTitle.toLowerCase();
-          const department = /ssc/.test(lower)
-            ? "कर्मचारी चयन आयोग (SSC Live)"
-            : /रेलवे|rrb|railway/.test(lower)
-              ? "भारतीय रेलवे (RRB Live)"
-              : /बैंक|ibps|sbi|rbi/.test(lower)
-                ? "बैंकिंग भर्ती (IBPS / SBI Live)"
-                : /upsc|ias|ips/.test(lower)
-                  ? "संघ लोक सेवा आयोग (UPSC Live)"
-                  : /पुलिस|constable|si|army|agniveer|defence/.test(lower)
-                    ? "रक्षा एवं पुलिस भर्ती (Defence / Police)"
-                    : source;
-
-          liveItems.push({
-            id: `live-rss-job-${idx++}`,
-            title: rawTitle,
-            department,
-            type: "govt",
-            totalPosts: "आधिकारिक नोटिफिकेशन देखें",
-            qualification: "पद अनुसार 10वीं / 12वीं / स्नातक",
-            ageLimit: "नियमानुसार पात्रता",
-            salary: "नियमानुसार सरकारी वेतनमान",
-            location: "भारत (India Live)",
-            lastDate: "आवेदन सक्रिय / आगामी (Live)",
-            statusType: "live",
-            publishedAt: timeLabel,
-            source,
-            applyUrl: link,
-            isNew: true,
-          });
         }
+      } catch {
+        // Fallback safely handled on client & below
       }
-    } catch {
-      // Fallback safely handled on client & below
-    }
 
-    if (liveItems.length > 0) {
-      cachedLiveJobs = liveItems;
-      lastLiveJobsFetchTimestamp = now;
-    }
+      if (liveItems.length > 0) {
+        cachedLiveJobs = liveItems;
+        lastLiveJobsFetchTimestamp = Date.now();
+      }
 
-    res.json({
+      return {
+        jobs: liveItems.length > 0 ? liveItems : cachedLiveJobs,
+        todayIst,
+        fromCache: false,
+        updatedAt: new Date().toISOString(),
+      };
+    })().finally(() => {
+      liveJobsRefreshPromise = null;
+    });
+
+    return liveJobsRefreshPromise;
+  }
+
+  // API Route: Real-Time Active & Upcoming Recruitment Updates (Cached & pre-warmed)
+  app.get("/api/live-jobs", async (_req: Request, res: Response) => {
+    const result = await refreshLiveJobsCache();
+    return res.json({
       success: true,
-      todayIst,
-      jobs: liveItems.length > 0 ? liveItems : cachedLiveJobs,
-      fromCache: false,
-      updatedAt: new Date(now).toISOString(),
+      todayIst: result.todayIst,
+      jobs: result.jobs,
+      fromCache: result.fromCache,
+      updatedAt: result.updatedAt,
     });
   });
 
@@ -2453,7 +2963,8 @@ async function startServer() {
       hasMore = page < totalPages;
     }
 
-    const sanitized = pagedUsers.map(compactUserForPublicDirectory);
+    const isLite = String(req.query.lite || "") === "1";
+    const sanitized = pagedUsers.map((u) => compactUserForPublicDirectory(u, { lite: isLite }));
     return sendJsonCompressed(req, res, {
       success: true,
       count: sanitized.length,
@@ -2579,9 +3090,9 @@ async function startServer() {
         if (hasExplicitAdminPinEnv()) {
           pinMatched = timingSafeStringEqual(cleanPin, getAdminPin().toUpperCase());
         } else {
-          const cloudPinHash = await fetchCloudAdminPinHash(false) || await fetchCloudAdminPinHash(true);
+          const cloudPinHash = cachedCloudAdminPinHash || (await fetchCloudAdminPinHash(false));
           if (cloudPinHash) {
-            pinMatched = verifyPassword(cleanPin, cloudPinHash);
+            pinMatched = await verifyPasswordAsync(cleanPin, cloudPinHash);
           } else {
             pinMatched = timingSafeStringEqual(cleanPin, getAdminPin().toUpperCase());
           }
@@ -2617,16 +3128,17 @@ async function startServer() {
       let users = loadUsersFromDisk();
       let cloudError: string | undefined;
 
-      if (users.length <= 1 || forceCloud) {
+      if (users.length <= 1) {
         const hydration = await Promise.race([
-          hydrateServerFromFirestoreOnce(Boolean(forceCloud) && users.length <= 1),
+          hydrateServerFromFirestoreOnce(Boolean(forceCloud)),
           new Promise<{ synced: number; error?: string }>((resolve) =>
-            setTimeout(() => resolve({ synced: users.length, error: "cloud-background-sync" }), 5000)
+            setTimeout(() => resolve({ synced: users.length, error: "cloud-background-sync" }), 3500)
           ),
         ]);
         cloudError = hydration.error;
         users = loadUsersFromDisk();
-      } else if (Date.now() - lastFirestoreHydrationAt > 120_000 && Date.now() >= firestoreQuotaBlockedUntil) {
+      } else if (forceCloud && Date.now() >= firestoreQuotaBlockedUntil) {
+        // Non-blocking background cloud reconciliation when disk already has users
         void hydrateServerFromFirestoreOnce(false);
       }
 
@@ -2692,11 +3204,12 @@ async function startServer() {
     }
   });
 
-  // API Route: Admin On-Demand Cloud Sync
+  // API Route: Admin On-Demand Cloud Sync (Also refreshes 1-Read Firestore Snapshot)
   app.post("/api/admin/cloud-sync", async (req: Request, res: Response) => {
     try {
       if (!requireAdminRequest(req, res)) return;
       const result = await hydrateServerFromFirestoreOnce(true);
+      void syncUsersSnapshotToFirestore(true);
       const users = loadUsersFromDisk().map(sanitizeUserForAdmin);
       return sendJsonCompressed(req, res, {
         success: true,
@@ -2706,6 +3219,95 @@ async function startServer() {
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || "Cloud sync failed" });
+    }
+  });
+
+  // API Routes: Google Sheets Sync Configuration, Sheet-Safe Export & 24x7 Apps Script Webhook Bridge
+  app.get("/api/admin/sheets-config", (req: Request, res: Response) => {
+    try {
+      if (!requireAdminRequest(req, res)) return;
+      const config = loadSheetsConfigFromDisk();
+      const pendingQueueCount = loadSheetsQueueIds().length;
+      return res.json({ success: true, config, pendingQueueCount });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to load Google Sheets config" });
+    }
+  });
+
+  app.post("/api/admin/sheets-config", async (req: Request, res: Response) => {
+    try {
+      if (!requireAdminRequest(req, res)) return;
+      const body = req.body || {};
+      const allowedKeys: (keyof ServerSheetsConfig)[] = [
+        "spreadsheetId",
+        "spreadsheetUrl",
+        "sheetTitle",
+        "tabName",
+        "webhookUrl",
+        "autoPushEnabled",
+        "lastSyncedAt",
+        "lastSyncedCount",
+        "lastSyncStatus",
+      ];
+      const patch: Partial<ServerSheetsConfig> = {};
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) {
+          (patch as any)[key] = body[key];
+        }
+      }
+      const next = saveSheetsConfigToDisk(patch);
+      const fsDb = getServerFirestore();
+      if (fsDb && Date.now() >= firestoreQuotaBlockedUntil) {
+        void setDoc(doc(fsDb, "app_settings", "google_sheets_config"), sanitizeDocForFirestore(next), { merge: true }).catch(() => {});
+      }
+      return res.json({ success: true, config: next, pendingQueueCount: loadSheetsQueueIds().length });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to save Google Sheets config" });
+    }
+  });
+
+  app.get("/api/admin/users-for-sheet", (req: Request, res: Response) => {
+    try {
+      if (!requireAdminRequest(req, res)) return;
+      const users = loadUsersFromDisk().map((u) => {
+        const clean = compactUserForSnapshot(u);
+        return {
+          ...clean,
+          password: u.password && isHashedPassword(String(u.password)) ? String(u.password) : "",
+        };
+      });
+      return sendJsonCompressed(req, res, {
+        success: true,
+        count: users.length,
+        users,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Failed to prepare users for Google Sheet" });
+    }
+  });
+
+  app.post("/api/admin/sheets-webhook-sync", async (req: Request, res: Response) => {
+    try {
+      if (!requireAdminRequest(req, res)) return;
+      const overrideWebhookUrl = typeof req.body?.webhookUrl === "string" ? req.body.webhookUrl.trim() : "";
+      if (overrideWebhookUrl) {
+        saveSheetsConfigToDisk({ webhookUrl: overrideWebhookUrl });
+      }
+      const users = loadUsersFromDisk();
+      const result = await pushUsersToAppsScriptWebhook(users, {
+        overrideWebhookUrl: overrideWebhookUrl || undefined,
+        skipIfAutoDisabled: false,
+      });
+      if (!result.ok) {
+        return res.status(400).json({ success: false, error: result.error || "Webhook push failed" });
+      }
+      return res.json({
+        success: true,
+        syncedCount: result.count,
+        config: loadSheetsConfigFromDisk(),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || "Webhook sync failed" });
     }
   });
 
@@ -2773,19 +3375,24 @@ async function startServer() {
       const merged = mergeUsersNonDestructive(existingUsers, authorizedIncoming);
       saveUsersToDisk(merged);
 
-      if (authorizedIncoming.length > 0 && Date.now() >= firestoreQuotaBlockedUntil) {
+      if (authorizedIncoming.length > 0) {
         const mergedById = new Map<string, any>(
           merged.map((m) => [String(m.userId).toUpperCase(), m])
         );
-        void (async () => {
-          for (const u of authorizedIncoming.slice(0, 30)) {
-            const fullRecord = mergedById.get(String(u.userId).toUpperCase()) || u;
-            await syncSingleUserToFirestore(fullRecord);
-          }
-        })();
+        const syncedRecords = authorizedIncoming.map(
+          (u) => mergedById.get(String(u.userId).toUpperCase()) || u
+        );
+        if (Date.now() >= firestoreQuotaBlockedUntil) {
+          void (async () => {
+            for (const fullRecord of syncedRecords.slice(0, 30)) {
+              await syncSingleUserToFirestore(fullRecord);
+            }
+          })();
+        }
+        void pushUsersToAppsScriptWebhook(syncedRecords.slice(0, 50));
       }
 
-      const sanitizedMerged = merged.map(compactUserForPublicDirectory);
+      const sanitizedMerged = merged.map((u) => compactUserForPublicDirectory(u));
       return sendJsonCompressed(req, res, { success: true, count: sanitizedMerged.length, users: sanitizedMerged });
     } catch (e: any) {
       return res.status(500).json({ success: false, error: e.message });
@@ -2827,6 +3434,7 @@ async function startServer() {
       const nextActive = mergeUsersNonDestructive(currentActive, [restoredUser]);
       saveUsersToDisk(nextActive);
       void syncSingleUserToFirestore(restoredUser);
+      void pushUsersToAppsScriptWebhook([restoredUser]);
 
       return res.json({
         success: true,
@@ -3146,7 +3754,7 @@ async function startServer() {
       const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "") : undefined;
 
       const rawPassword = String(password || "1234").trim();
-      const hashedPassword = hashPassword(rawPassword);
+      const hashedPassword = await hashPasswordAsync(rawPassword);
       const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
 
       const newUser = {
@@ -3192,11 +3800,9 @@ async function startServer() {
       users.unshift(newUser);
       saveUsersToDisk(users);
 
-      // Persist immediately to Cloud Firestore (wait up to 3s cleanly so fast writes confirm before response)
-      await Promise.race([
-        syncSingleUserToFirestore(newUser),
-        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-      ]).catch(() => {});
+      // Persist to Cloud Firestore & Google Sheet Webhook asynchronously so registration completes instantaneously (< 100ms)
+      void syncSingleUserToFirestore(newUser);
+      void pushUsersToAppsScriptWebhook([newUser]);
 
       // Trigger Telegram Alert in background
       sendTelegramRegistrationAlert(newUser, req).catch((e) => {
@@ -3257,7 +3863,7 @@ async function startServer() {
         if (userIndex === -1 && users.length <= 1) {
           await Promise.race([
             hydrateServerFromFirestoreOnce(false),
-            new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+            new Promise<void>((resolve) => setTimeout(resolve, 2000)),
           ]);
           users = loadUsersFromDisk();
           userIndex = findMatchIndex(users);
@@ -3274,7 +3880,7 @@ async function startServer() {
 
       const user = users[userIndex];
 
-      if (user.password && (!password || !verifyPassword(String(password), user.password))) {
+      if (user.password && (!password || !(await verifyPasswordAsync(String(password), user.password)))) {
         recordRateLimitHit(req, "user-login", 10 * 60 * 1000);
         return res.status(401).json({
           success: false,
@@ -3287,7 +3893,7 @@ async function startServer() {
       // Auto-migrate legacy plaintext password into salted scrypt hash seamlessly on login
       const upgradedPassword =
         user.password && !isHashedPassword(user.password) && password
-          ? hashPassword(String(password))
+          ? await hashPasswordAsync(String(password))
           : user.password;
 
       const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
@@ -3430,7 +4036,7 @@ async function startServer() {
         mustChangePassword: true,
         selectedPlanId: Number(selectedPlanId),
         role: role ? String(role).trim() : "Verified Elite Member",
-        password: hashPassword(String(password).trim()),
+        password: await hashPasswordAsync(String(password).trim()),
         photoUrl: photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
         googleDrivePhotoLink: googleDrivePhotoLink ? String(googleDrivePhotoLink).trim() : undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || undefined,
@@ -3453,6 +4059,7 @@ async function startServer() {
         syncSingleUserToFirestore(newMember),
         new Promise<void>((resolve) => setTimeout(resolve, 3000)),
       ]).catch(() => {});
+      void pushUsersToAppsScriptWebhook([newMember]);
 
       sendTelegramRegistrationAlert(newMember, req).catch(() => {});
 
@@ -3491,7 +4098,7 @@ async function startServer() {
       const target = users[index];
       const hasSessionAuth = isSelfOrAdminAuthorized(req, cleanId, target);
       if (target.password) {
-        if (currentPassword && !verifyPassword(String(currentPassword), target.password)) {
+        if (currentPassword && !(await verifyPasswordAsync(String(currentPassword), target.password))) {
           return res.status(401).json({ success: false, error: "वर्तमान/अस्थायी पासवर्ड सही नहीं है।" });
         }
         if (!currentPassword && !hasSessionAuth) {
@@ -3499,7 +4106,7 @@ async function startServer() {
         }
       }
 
-      if (target.password && verifyPassword(String(newPassword).trim(), target.password)) {
+      if (target.password && (await verifyPasswordAsync(String(newPassword).trim(), target.password))) {
         return res.status(400).json({ success: false, error: "नया पासवर्ड पुराने अस्थायी पासवर्ड से अलग होना चाहिए।" });
       }
 
@@ -3508,7 +4115,7 @@ async function startServer() {
 
       users[index] = {
         ...target,
-        password: hashPassword(String(newPassword).trim()),
+        password: await hashPasswordAsync(String(newPassword).trim()),
         mustChangePassword: false,
         activeSessionToken: newSessionToken,
         lastLoginDevice: loginDevice,
@@ -3517,6 +4124,7 @@ async function startServer() {
 
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[index]);
+      void pushUsersToAppsScriptWebhook([users[index]]);
 
       const authToken = signAuthToken({ role: "member", userId: users[index].userId, sessionToken: newSessionToken });
 
@@ -3551,16 +4159,24 @@ async function startServer() {
       const cleanName = fullName ? String(fullName).trim().toLowerCase() : "";
 
       await ensureServerHydratedIfSparse();
-      const users = loadUsersFromDisk();
+      let users = loadUsersFromDisk();
 
-      const user = users.find((u) => {
-        if (!u) return false;
-        const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
-        const mobMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
-        const emailMatch = u.email && u.email.trim().toLowerCase() === cleanEmail;
-        const nameMatch = cleanName ? (u.fullName || "").trim().toLowerCase().includes(cleanName) : true;
-        return mobMatch && emailMatch && nameMatch;
-      });
+      const findRecoveryMatch = (list: any[]) =>
+        list.find((u) => {
+          if (!u) return false;
+          const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
+          const mobMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
+          const emailMatch = u.email && u.email.trim().toLowerCase() === cleanEmail;
+          const nameMatch = cleanName ? (u.fullName || "").trim().toLowerCase().includes(cleanName) : true;
+          return mobMatch && emailMatch && nameMatch;
+        });
+
+      let user = findRecoveryMatch(users);
+      if (!user && users.length <= 1 && cleanDigits.length >= 10) {
+        await findSingleUserInFirestoreByIdentifier(cleanDigits.slice(-10));
+        users = loadUsersFromDisk();
+        user = findRecoveryMatch(users);
+      }
 
       if (!user) {
         return res.status(404).json({
@@ -3731,9 +4347,10 @@ async function startServer() {
         });
       }
 
-      users[userIndex].password = hashPassword(String(newPassword).trim());
+      users[userIndex].password = await hashPasswordAsync(String(newPassword).trim());
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[userIndex]);
+      void pushUsersToAppsScriptWebhook([users[userIndex]]);
 
       return res.json({
         success: true,
@@ -3778,7 +4395,7 @@ async function startServer() {
       }
 
       if (typeof updates.password === "string" && updates.password.trim()) {
-        updates.password = hashPassword(updates.password.trim());
+        updates.password = await hashPasswordAsync(updates.password.trim());
       } else {
         delete updates.password;
       }
@@ -3827,6 +4444,7 @@ async function startServer() {
 
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(mergedUser);
+      void pushUsersToAppsScriptWebhook([mergedUser]);
 
       return res.json({
         success: true,
@@ -3876,6 +4494,7 @@ async function startServer() {
         syncSingleUserToFirestore(users[index]),
         new Promise<void>((resolve) => setTimeout(resolve, 2500)),
       ]).catch(() => {});
+      void pushUsersToAppsScriptWebhook([users[index]]);
 
       return res.json({
         success: true,
@@ -4258,11 +4877,37 @@ async function startServer() {
           isArchived: false,
         },
       ])[0];
+
+      // Allow admin to explicitly change paymentStatus (even downgrading from approved to pending/rejected),
+      // clear optional username/payoutUpi, and keep emailLower in sync when email is edited
+      if (updates.paymentStatus === "approved" || updates.paymentStatus === "pending" || updates.paymentStatus === "rejected") {
+        mergedUser.paymentStatus = updates.paymentStatus;
+      }
+      if (typeof updates.email === "string") {
+        mergedUser.email = updates.email.trim();
+        mergedUser.emailLower = mergedUser.email.toLowerCase();
+      }
+      if (typeof updates.username === "string") {
+        mergedUser.username = updates.username.trim().toLowerCase().replace(/^@/, "");
+      }
+      if (typeof updates.payoutUpi === "string") {
+        mergedUser.payoutUpi = updates.payoutUpi.trim();
+      }
+
       users[index] = mergedUser;
 
       saveUsersToDisk(users);
-      void syncSingleUserToFirestore(mergedUser);
-      return res.json({ success: true, message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!", user: sanitizeUserForAdmin(mergedUser) });
+      const fsSynced = await Promise.race([
+        syncSingleUserToFirestore(mergedUser),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+      ]);
+      void pushUsersToAppsScriptWebhook([mergedUser]);
+      return res.json({
+        success: true,
+        firestoreSynced: fsSynced,
+        message: "एडमिन द्वारा यूजर प्रोफाइल सफलतापूर्वक अपडेट की गई!",
+        user: sanitizeUserForAdmin(mergedUser),
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: "यूजर अपडेट में त्रुटि आई।" });
     }
@@ -6207,21 +6852,32 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        maxAge: "7d",
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith(".html")) {
+            res.setHeader("Cache-Control", "no-cache");
+          }
+        },
+      })
+    );
     app.get("*", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  // Auto-hash any legacy plaintext passwords on disk cleanly at boot
-  migratePlaintextPasswordsOnDisk();
-
-  // Hydrate users & sync hashed Admin PIN vault to Firestore cleanly on boot (non-blocking)
-  void hydrateServerFromFirestoreOnce(false);
-  void syncAdminPinHashToFirestore();
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`IOIS Server is running on port ${PORT}`);
+    // Defer warm-up, legacy password migration, and cloud sync after socket binds
+    setImmediate(() => {
+      migratePlaintextPasswordsOnDisk();
+      void hydrateServerFromFirestoreOnce(false);
+      void syncAdminPinHashToFirestore();
+      void refreshLiveNewsCache();
+      void refreshLiveJobsCache();
+    });
   });
 }
 

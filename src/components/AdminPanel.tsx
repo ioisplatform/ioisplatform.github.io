@@ -23,14 +23,23 @@ import {
   fetchArchivedUsersAsync,
   restoreArchivedUserAsync,
   triggerAdminCloudSyncAsync,
-  importUsersBackupAsync,
-  clearFirestoreQuotaCooldown
+  importUsersBackupAsync
 } from '../services/userService';
-import { AiKnowledgeManager } from './AiKnowledgeManager';
-import { InterviewListManager } from './InterviewListManager';
-import { StudentReferralHub } from './StudentReferralHub';
-import { IDCardGenerator } from './IDCardGenerator';
-import { PrivateChatMessenger } from './PrivateChatMessenger';
+const AiKnowledgeManager = React.lazy(() =>
+  import('./AiKnowledgeManager').then((m) => ({ default: m.AiKnowledgeManager }))
+);
+const InterviewListManager = React.lazy(() =>
+  import('./InterviewListManager').then((m) => ({ default: m.InterviewListManager }))
+);
+const StudentReferralHub = React.lazy(() =>
+  import('./StudentReferralHub').then((m) => ({ default: m.StudentReferralHub }))
+);
+const PrivateChatMessenger = React.lazy(() =>
+  import('./PrivateChatMessenger').then((m) => ({ default: m.PrivateChatMessenger }))
+);
+const GoogleWorkspaceHub = React.lazy(() =>
+  import('./GoogleWorkspaceHub').then((m) => ({ default: m.GoogleWorkspaceHub }))
+);
 import { 
   ShieldAlert, 
   CheckCircle2, 
@@ -82,8 +91,12 @@ import {
   Archive,
   ShieldCheck
 } from 'lucide-react';
-import { RegistrationModal } from './RegistrationModal';
-import { NotificationModal } from './NotificationModal';
+const RegistrationModal = React.lazy(() =>
+  import('./RegistrationModal').then((m) => ({ default: m.RegistrationModal }))
+);
+const NotificationModal = React.lazy(() =>
+  import('./NotificationModal').then((m) => ({ default: m.NotificationModal }))
+);
 import { getAdminUnreadCount, markChatMessagesAsRead } from '../services/notificationService';
 import {
   getStoredSliders,
@@ -110,6 +123,23 @@ import {
   AdminSocialMonitorPayload,
   AdminMonitorThread,
 } from '../services/socialChatService';
+import {
+  GoogleSheetsConfig,
+  DEFAULT_SHEETS_CONFIG,
+  APPS_SCRIPT_BRIDGE_TEMPLATE,
+  initGoogleSheetsAuth,
+  signInWithGoogleSheets,
+  signOutGoogleSheets,
+  getGoogleSheetsAccessToken,
+  getGoogleSheetsUser,
+  extractSpreadsheetIdFromInput,
+  getSheetsConfigAsync,
+  saveSheetsConfigAsync,
+  createMasterUserDatabaseSheet,
+  pushUsersToGoogleSheet,
+  pullUsersFromGoogleSheet,
+} from '../services/googleSheetsService';
+import { getAuthHeaders, isFirestoreInQuotaCooldown } from '../services/userService';
 
 interface AdminPanelProps {
   onUserStatusChange?: () => void;
@@ -121,7 +151,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [pinError, setPinError] = useState<string>('');
   const [isAdminLoggingIn, setIsAdminLoggingIn] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders' | 'social_monitor'>('approvals');
+  const [activeTab, setActiveTab] = useState<'approvals' | 'all_users' | 'genealogy' | 'audit_logs' | 'private_chat' | 'tickets' | 'ai_bot' | 'interviews' | 'sliders' | 'social_monitor' | 'workspace_hub'>('approvals');
   const [usersList, setUsersList] = useState<UserProfile[]>(() => getAllUsers());
   const [archivedUsers, setArchivedUsers] = useState<UserProfile[]>([]);
   const [ticketsList, setTicketsList] = useState<HelpTicket[]>(() => getHelpTickets());
@@ -131,6 +161,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [vaultNotice, setVaultNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
   const [serverFetchError, setServerFetchError] = useState<string>('');
   const restoreFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Google Sheets Workspace Integration State (OAuth access token stays strictly in memory)
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => getGoogleSheetsAccessToken());
+  const [googleUserEmail, setGoogleUserEmail] = useState<string>(() => getGoogleSheetsUser()?.email || '');
+  const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetsConfig>(DEFAULT_SHEETS_CONFIG);
+  const [sheetIdInput, setSheetIdInput] = useState<string>('');
+  const [webhookUrlInput, setWebhookUrlInput] = useState<string>('');
+  const [isSheetsBusy, setIsSheetsBusy] = useState<boolean>(false);
+  const [isGoogleAuthBusy, setIsGoogleAuthBusy] = useState<boolean>(false);
+  const [showWebhookSetup, setShowWebhookSetup] = useState<boolean>(false);
+  const [copiedAppsScript, setCopiedAppsScript] = useState<boolean>(false);
+  const [sheetConfirmModal, setSheetConfirmModal] = useState<{
+    action: 'create' | 'push' | 'pull' | 'webhook_push';
+    title: string;
+    description: string;
+    targetLabel: string;
+    affectedCount: number;
+  } | null>(null);
 
   // Silent Admin IOIS CHAT & HELP Surveillance State
   const [socialMonitorData, setSocialMonitorData] = useState<AdminSocialMonitorPayload | null>(null);
@@ -247,7 +295,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     try {
       const updatePayload: Parameters<typeof adminUpdateUserProfileAsync>[1] = {
         fullName: editFullName.trim(),
-        username: editUsername.trim().toLowerCase().replace(/^@/, '') || undefined,
+        username: editUsername.trim().toLowerCase().replace(/^@/, ''),
         mobileNumber: editMobile.trim(),
         email: editEmail.trim(),
         selectedPlanId: editPlanId,
@@ -261,15 +309,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       const updated = await adminUpdateUserProfileAsync(editingUser.userId, updatePayload);
 
       if (updated) {
-        setAdminEditSuccess('✅ यूजर प्रोफाइल सफलतापूर्वक अपडेट हो गई!');
-        await reloadData();
+        setUsersList((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)));
         if (inspectedUser && inspectedUser.userId === editingUser.userId) {
           setInspectedUser(updated);
         }
+        setAdminEditSuccess('✅ यूजर प्रोफाइल सफलतापूर्वक अपडेट हो गई!');
+        await reloadData(true);
         setTimeout(() => {
           setEditingUser(null);
           setAdminEditSuccess('');
-        }, 1500);
+        }, 1200);
       } else {
         setAdminEditError('यूजर प्रोफाइल अपडेट नहीं हो सकी।');
       }
@@ -285,44 +334,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     setTimeout(() => setVaultNotice(null), 5000);
   };
 
-  const reloadData = async (withCloud = false) => {
+  const mergeUsersPreservingMedia = (prev: UserProfile[], incoming: UserProfile[]): UserProfile[] => {
+    if (!prev || prev.length === 0) return incoming;
+    const prevById = new Map(prev.map((u) => [u.userId.toUpperCase(), u]));
+    return incoming.map((u) => {
+      const existing = prevById.get(u.userId.toUpperCase());
+      if (!existing) return u;
+      return {
+        ...u,
+        photoUrl: u.photoUrl || existing.photoUrl || '',
+        paymentScreenshotUrl: u.paymentScreenshotUrl || existing.paymentScreenshotUrl || '',
+      };
+    });
+  };
+
+  const reloadData = async (withCloud = false, opts?: { skipFullMedia?: boolean }) => {
     setIsRefreshing(true);
     setServerFetchError('');
     try {
-      if (withCloud) {
-        clearFirestoreQuotaCooldown();
-      }
-      // Step 1: Ultra-fast metadata load (<35KB) so ALL members appear in <300ms on any new device
-      const fastMeta = await fetchAdminFullUsersAsync({
-        includeMedia: false,
-        forceCloud: withCloud,
-      });
+      // Step 1: Ultra-fast parallel metadata (<35KB) + tickets load so Admin UI renders in <300ms
+      const [fastMeta, liveTickets] = await Promise.all([
+        fetchAdminFullUsersAsync({
+          includeMedia: false,
+          forceCloud: withCloud,
+        }),
+        fetchTicketsFromServer({ skipFirestore: !withCloud }),
+      ]);
+
       if (fastMeta.unauthorized) {
         setAdminSession(false);
         setIsAdminAuth(false);
         return;
       }
       if (fastMeta.users.length > 0) {
-        setUsersList(fastMeta.users);
+        setUsersList((prev) => mergeUsersPreservingMedia(prev, fastMeta.users));
       }
       setArchivedUsers(fastMeta.archivedUsers);
+      setTicketsList(liveTickets);
 
-      // Step 2: Hydrate full photos & payment receipts via gzipped /api/admin/users-full
-      let latestFull = await fetchAdminFullUsersAsync({
-        includeMedia: true,
-        forceCloud: withCloud,
-      });
-      if (latestFull.unauthorized) {
-        setAdminSession(false);
-        setIsAdminAuth(false);
-        return;
+      if (!fastMeta.serverReachable && fastMeta.errorMessage) {
+        setServerFetchError(fastMeta.errorMessage);
       }
 
-      if (!latestFull.serverReachable && latestFull.errorMessage) {
-        setServerFetchError(latestFull.errorMessage);
-      }
-
-      if (latestFull.users.length <= 1 && withCloud) {
+      if (fastMeta.users.length <= 1 && withCloud) {
         await fetchUsersFromServer({ skipFirestore: false, forceCloud: true });
         const cloudSyncRes = await triggerAdminCloudSyncAsync();
         if (cloudSyncRes.unauthorized) {
@@ -330,7 +384,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           setIsAdminAuth(false);
           return;
         }
-        latestFull = await fetchAdminFullUsersAsync({
+        const latestFull = await fetchAdminFullUsersAsync({
           includeMedia: true,
           forceCloud: true,
         });
@@ -345,15 +399,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
             `⚠️ क्लाउड रीड कोटा अस्थायी रूप से सीमित है। वर्तमान में ${latestFull.users.length} सदस्य दिख रहे हैं — आप JSON बैकअप से भी तुरंत रिस्टोर कर सकते हैं।`
           );
         }
+        if (latestFull.users.length > 0) {
+          setUsersList(latestFull.users);
+        }
+        setArchivedUsers(latestFull.archivedUsers);
+        return;
       }
 
-      if (latestFull.users.length > 0) {
-        setUsersList(latestFull.users);
+      // Step 2: Hydrate full photos & receipts once on manual/initial load (skip on 30s background polls)
+      if (!opts?.skipFullMedia) {
+        void fetchAdminFullUsersAsync({
+          includeMedia: true,
+          forceCloud: false,
+        })
+          .then((latestFull) => {
+            if (latestFull.unauthorized) {
+              setAdminSession(false);
+              setIsAdminAuth(false);
+              return;
+            }
+            if (latestFull.users.length > 0) {
+              setUsersList((prev) => mergeUsersPreservingMedia(prev, latestFull.users));
+            }
+            if (latestFull.archivedUsers.length > 0) {
+              setArchivedUsers(latestFull.archivedUsers);
+            }
+          })
+          .catch(() => {});
       }
-      setArchivedUsers(latestFull.archivedUsers);
-
-      const liveTickets = await fetchTicketsFromServer({ skipFirestore: !withCloud });
-      setTicketsList(liveTickets);
     } catch (e: any) {
       console.warn('Reload data failed', e);
       setServerFetchError(e?.message || 'सर्वर से सदस्य सूची लोड करने में समस्या आई।');
@@ -363,24 +436,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   };
 
   useEffect(() => {
+    const unsubscribe = initGoogleSheetsAuth(
+      (user, token) => {
+        setGoogleAccessToken(token);
+        setGoogleUserEmail(user.email || user.displayName || 'Google Account');
+      },
+      () => {
+        setGoogleAccessToken(null);
+        setGoogleUserEmail(getGoogleSheetsUser()?.email || '');
+      }
+    );
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isAdminAuth) return;
 
-    void reloadData(true);
+    void reloadData(false);
+    void getSheetsConfigAsync().then((cfg) => {
+      setSheetsConfig(cfg);
+      setSheetIdInput(cfg.spreadsheetUrl || cfg.spreadsheetId || '');
+      setWebhookUrlInput(cfg.webhookUrl || '');
+    });
 
-    // Background server refresh every 20s (uses single authoritative server vault without heavy client snapshot reads)
+    // Background server refresh every 30s using lite metadata (preserves loaded media, zero Firestore reads)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
-      void reloadData(false);
-    }, 20000);
+      void reloadData(false, { skipFullMedia: true });
+    }, 30000);
 
     return () => {
       clearInterval(interval);
     };
   }, [isAdminAuth]);
 
-  // On-demand high-res photo/receipt loader when opening Profile Inspector or Join Form on slow networks
+  // On-demand high-res photo/receipt loader when opening Profile Inspector, Join Form, Preview, Edit, or Impersonate modal
   useEffect(() => {
-    const target = inspectedUser || selectedFormUser;
+    const target = inspectedUser || selectedFormUser || previewUser || editingUser || impersonateUser;
     if (!target || !target.userId) return;
     if (target.photoUrl && target.paymentScreenshotUrl) return;
     let active = true;
@@ -391,12 +485,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         photoUrl: u.photoUrl || media.photoUrl || '',
         paymentScreenshotUrl: u.paymentScreenshotUrl || media.paymentScreenshotUrl || '',
       });
-      if (inspectedUser && inspectedUser.userId === target.userId) {
-        setInspectedUser((prev) => (prev ? patchUser(prev) : null));
-      }
-      if (selectedFormUser && selectedFormUser.userId === target.userId) {
-        setSelectedFormUser((prev) => (prev ? patchUser(prev) : null));
-      }
+      setInspectedUser((prev) => (prev && prev.userId === target.userId ? patchUser(prev) : prev));
+      setSelectedFormUser((prev) => (prev && prev.userId === target.userId ? patchUser(prev) : prev));
+      setPreviewUser((prev) => (prev && prev.userId === target.userId ? patchUser(prev) : prev));
+      setEditingUser((prev) => (prev && prev.userId === target.userId ? patchUser(prev) : prev));
+      setImpersonateUser((prev) => (prev && prev.userId === target.userId ? patchUser(prev) : prev));
       setUsersList((prev) =>
         prev.map((item) => (item.userId === target.userId ? patchUser(item) : item))
       );
@@ -404,7 +497,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     return () => {
       active = false;
     };
-  }, [inspectedUser?.userId, selectedFormUser?.userId]);
+  }, [inspectedUser?.userId, selectedFormUser?.userId, previewUser?.userId, editingUser?.userId, impersonateUser?.userId]);
 
   const handleManualCloudSync = async () => {
     setIsCloudSyncing(true);
@@ -500,6 +593,174 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       await reloadData(false);
       if (onUserStatusChange) onUserStatusChange();
       showVaultNotice('success', `✅ सदस्य ${restored.fullName} (${restored.userId}) को सफलतापूर्वक रिस्टोर कर दिया गया!`);
+    }
+  };
+
+  const handleGoogleSheetsSignIn = async () => {
+    setIsGoogleAuthBusy(true);
+    try {
+      const res = await signInWithGoogleSheets();
+      setGoogleAccessToken(res.accessToken);
+      setGoogleUserEmail(res.user.email || res.user.displayName || 'Google Account');
+      showVaultNotice('success', `✅ Google Sheets से जुड़ गया (${res.user.email || 'Authorized'})!`);
+    } catch (err: any) {
+      showVaultNotice('error', err?.message || 'Google लॉगिन रद्द या विफल हुआ।');
+    } finally {
+      setIsGoogleAuthBusy(false);
+    }
+  };
+
+  const handleGoogleSheetsSignOut = async () => {
+    await signOutGoogleSheets();
+    setGoogleAccessToken(null);
+    setGoogleUserEmail('');
+    showVaultNotice('info', 'Google Sheets सत्र सुरक्षित रूप से लॉगआउट किया गया।');
+  };
+
+  const handleSaveSheetLinkConfig = async () => {
+    const cleanId = extractSpreadsheetIdFromInput(sheetIdInput);
+    const cleanWebhook = webhookUrlInput.trim();
+    if (!cleanId && !cleanWebhook) {
+      showVaultNotice('error', 'कृपया कम से कम Google Spreadsheet URL/ID या Apps Script Webhook URL दर्ज करें।');
+      return;
+    }
+    setIsSheetsBusy(true);
+    try {
+      const next = await saveSheetsConfigAsync({
+        spreadsheetId: cleanId,
+        spreadsheetUrl: cleanId ? `https://docs.google.com/spreadsheets/d/${cleanId}/edit` : '',
+        webhookUrl: cleanWebhook,
+        autoPushEnabled: sheetsConfig.autoPushEnabled,
+      });
+      setSheetsConfig(next);
+      showVaultNotice('success', '✅ Google Sheets लिंक व ऑटो-सिंक सेटिंग्स सर्वर और क्लाउड पर सहेजी गईं!');
+    } catch (err: any) {
+      showVaultNotice('error', err?.message || 'सेटिंग्स सहेजने में त्रुटि आई।');
+    } finally {
+      setIsSheetsBusy(false);
+    }
+  };
+
+  const requestGoogleSheetAction = (action: 'create' | 'push' | 'pull' | 'webhook_push') => {
+    const targetId = extractSpreadsheetIdFromInput(sheetIdInput || sheetsConfig.spreadsheetId);
+    if (action === 'webhook_push') {
+      const hook = (webhookUrlInput || sheetsConfig.webhookUrl || '').trim();
+      if (!hook) {
+        showVaultNotice('error', 'कृपया पहले 24x7 Apps Script Web App URL दर्ज करें।');
+        return;
+      }
+      setSheetConfirmModal({
+        action: 'webhook_push',
+        title: '24x7 Apps Script Webhook सिंक की पुष्टि करें',
+        description: `सभी ${usersList.length} सक्रिय सदस्यों का रिकॉर्ड आपके कॉन्फ़िगर किए गए Google Apps Script Webhook पर भेजा जाएगा।`,
+        targetLabel: hook.slice(0, 60) + (hook.length > 60 ? '...' : ''),
+        affectedCount: usersList.length,
+      });
+      return;
+    }
+
+    if (!googleAccessToken) {
+      showVaultNotice('info', 'कृपया पहले "Sign in with Google" बटन से अपना Google अकाउंट कनेक्ट करें।');
+      return;
+    }
+
+    if (action === 'create') {
+      setSheetConfirmModal({
+        action: 'create',
+        title: 'नया Master User Database Google Sheet बनाएं?',
+        description: `आपके Google अकाउंट (${googleUserEmail || 'Google'}) में "IOIS Master User Database" नाम से नई स्प्रेडशीट (Members व Sync_Logs टैब सहित) बनाई जाएगी और लिंक सेव होगा।`,
+        targetLabel: 'IOIS Master User Database (New Spreadsheet)',
+        affectedCount: usersList.length,
+      });
+      return;
+    }
+
+    if (!targetId) {
+      showVaultNotice('error', 'कृपया Google Spreadsheet URL/ID दर्ज करें या "Create Master Sheet" दबाएं।');
+      return;
+    }
+
+    if (action === 'push') {
+      setSheetConfirmModal({
+        action: 'push',
+        title: 'Google Sheet डेटा अपडेट (Overwrite Push) की पुष्टि करें',
+        description: `Google Sheet "${sheetsConfig.sheetTitle || targetId}" के "${sheetsConfig.tabName || 'Members'}" टैब को वर्तमान ${usersList.length} सक्रिय सदस्यों (सुरक्षित scrypt पासवर्ड हैश सहित, बिना किसी सादा पासवर्ड लीक के) से अपडेट किया जाएगा।`,
+        targetLabel: sheetsConfig.sheetTitle || targetId,
+        affectedCount: usersList.length,
+      });
+    } else {
+      setSheetConfirmModal({
+        action: 'pull',
+        title: 'Google Sheet से डेटा रिस्टोर (Merge Pull) की पुष्टि करें',
+        description: `Google Sheet "${sheetsConfig.sheetTitle || targetId}" से सभी सदस्य रिकॉर्ड पढ़कर सर्वर डेटाबेस और ब्राउज़र वॉल्ट में सुरक्षित मर्ज किए जाएंगे।`,
+        targetLabel: sheetsConfig.sheetTitle || targetId,
+        affectedCount: usersList.length,
+      });
+    }
+  };
+
+  const executeConfirmedGoogleSheetAction = async () => {
+    if (!sheetConfirmModal) return;
+    const action = sheetConfirmModal.action;
+    setSheetConfirmModal(null);
+    setIsSheetsBusy(true);
+    try {
+      if (action === 'webhook_push') {
+        const res = await fetch('/api/admin/sheets-webhook-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+          body: JSON.stringify({ webhookUrl: (webhookUrlInput || sheetsConfig.webhookUrl || '').trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || 'Webhook सिंक विफल रहा।');
+        }
+        if (data.config) setSheetsConfig(data.config);
+        showVaultNotice('success', `✅ 24x7 Apps Script Webhook पर ${data.syncedCount} सदस्य सफलतापूर्वक पुश किए गए!`);
+        return;
+      }
+
+      if (!googleAccessToken) {
+        throw new Error('Google सत्र समाप्त हो गया है। कृपया पुनः "Sign in with Google" करें।');
+      }
+
+      const targetId = extractSpreadsheetIdFromInput(sheetIdInput || sheetsConfig.spreadsheetId);
+
+      if (action === 'create') {
+        const createdCfg = await createMasterUserDatabaseSheet(googleAccessToken, 'IOIS Master User Database');
+        setSheetsConfig(createdCfg);
+        setSheetIdInput(createdCfg.spreadsheetUrl || createdCfg.spreadsheetId);
+        // Immediately ask or wait — since create just created an empty sheet with headers, let admin click Push or auto-confirm? Let's inform clearly!
+        showVaultNotice('success', `✅ नई Google Sheet "${createdCfg.sheetTitle}" बन गई! अब "Push All to Google Sheet" से सभी ${usersList.length} सदस्य अपलोड करें।`);
+      } else if (action === 'push') {
+        const result = await pushUsersToGoogleSheet(
+          googleAccessToken,
+          targetId,
+          usersList,
+          sheetsConfig.tabName || 'Members'
+        );
+        const refreshedCfg = await getSheetsConfigAsync();
+        setSheetsConfig(refreshedCfg);
+        showVaultNotice('success', `✅ Google Sheet "${result.sheetTitle}" (${result.tabName}) में ${result.syncedCount} सदस्य सफलतापूर्वक सिंक हो गए!`);
+      } else if (action === 'pull') {
+        const result = await pullUsersFromGoogleSheet(
+          googleAccessToken,
+          targetId,
+          sheetsConfig.tabName || 'Members'
+        );
+        setUsersList(result.users);
+        const refreshedCfg = await getSheetsConfigAsync();
+        setSheetsConfig(refreshedCfg);
+        if (onUserStatusChange) onUserStatusChange();
+        showVaultNotice('success', `✅ Google Sheet से ${result.pulledCount} सदस्य पढ़े गए और डेटाबेस में कुल ${result.mergedCount} रिकॉर्ड सुरक्षित सिंक हुए!`);
+      }
+    } catch (err: any) {
+      if (!getGoogleSheetsAccessToken()) {
+        setGoogleAccessToken(null);
+      }
+      showVaultNotice('error', err?.message || 'Google Sheets ऑपरेशन में त्रुटि आई।');
+    } finally {
+      setIsSheetsBusy(false);
     }
   };
 
@@ -1068,80 +1329,304 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           </div>
           <div className="text-[11px] font-black text-white mt-0.5">गुप्त निगरानी व लॉग</div>
         </button>
+
+        <button
+          onClick={() => setActiveTab('workspace_hub')}
+          className={`p-2 sm:p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+            activeTab === 'workspace_hub'
+              ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-md ring-1 ring-emerald-400'
+              : 'glass-card border-slate-800 text-slate-300 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9.5px] font-bold text-emerald-300">Google Workspace</span>
+            <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          </div>
+          <div className="text-[11px] font-black text-white mt-0.5">Gmail + 12 ऐप्स हब</div>
+        </button>
       </div>
+
+      {activeTab === 'workspace_hub' && (
+        <React.Suspense
+          fallback={
+            <div className="p-8 text-center text-xs text-amber-300 font-bold">
+              Google Workspace हब लोड हो रहा है...
+            </div>
+          }
+        >
+          <GoogleWorkspaceHub usersList={usersList} />
+        </React.Suspense>
+      )}
 
       {/* TAB 1 & 2: USER VERIFICATIONS & DATABASE */}
       {(activeTab === 'approvals' || activeTab === 'all_users') && (
         <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-5">
 
-          {/* Compact Permanent Data Safety, Backup & Recovery Vault Bar */}
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <div className="text-xs font-black text-white flex items-center gap-2 flex-wrap">
-                  <span>डेटा सुरक्षा, बैकअप और रिकवरी वॉल्ट</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    {usersList.length} सक्रिय • {archivedUsers.length} आर्काइव्ड
-                  </span>
+          {/* Compact Permanent 4-Layer Data Safety, Google Sheets & Recovery Vault Bar */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/35 space-y-3.5">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4.5 h-4.5 text-emerald-400" />
                 </div>
-                <p className="text-[10.5px] text-slate-400">
-                  ऑटो-वॉल्ट बैकअप सक्रिय है — कोई भी सदस्य विवरण डिलीट या गायब नहीं होता।
-                </p>
+                <div>
+                  <div className="text-xs font-black text-white flex items-center gap-2 flex-wrap">
+                    <span>4-लेयर ज़ीरो-डेटा-लॉस वॉल्ट + Google Sheet बैकअप</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {usersList.length} सक्रिय • {archivedUsers.length} आर्काइव्ड
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-semibold">
+                      1️⃣ Server Disk Vault ✓
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-sky-950/80 text-sky-300 border border-sky-500/30 font-semibold">
+                      2️⃣ IndexedDB Vault ✓
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded border font-semibold ${
+                      isFirestoreInQuotaCooldown()
+                        ? 'bg-amber-950/80 text-amber-300 border-amber-500/30'
+                        : 'bg-indigo-950/80 text-indigo-300 border-indigo-500/30'
+                    }`}>
+                      3️⃣ Firestore 1-Read {isFirestoreInQuotaCooldown() ? '(Cooldown)' : '✓'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded border font-semibold ${
+                      sheetsConfig.spreadsheetId || sheetsConfig.webhookUrl
+                        ? 'bg-teal-950/80 text-teal-300 border-teal-500/30'
+                        : 'bg-slate-900 text-slate-400 border-slate-700'
+                    }`}>
+                      4️⃣ Google Sheet {sheetsConfig.spreadsheetId || sheetsConfig.webhookUrl ? 'Connected ✓' : '(Setup Ready)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={restoreFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportBackupFile}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleManualCloudSync}
+                  disabled={isCloudSyncing}
+                  className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isCloudSyncing ? 'सिंक जारी...' : 'Cloud Sync'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadJsonBackup}
+                  className="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>JSON बैकअप</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => restoreFileInputRef.current?.click()}
+                  className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>बैकअप रिस्टोर</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const list = await fetchArchivedUsersAsync();
+                    setArchivedUsers(list);
+                    setIsArchiveModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-400" />
+                  <span>आर्काइव वॉल्ट ({archivedUsers.length})</span>
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={restoreFileInputRef}
-                type="file"
-                accept=".json,application/json"
-                onChange={handleImportBackupFile}
-                className="hidden"
-              />
+            {/* Official Google Sheets + 1P OAuth Integration Panel */}
+            <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-emerald-300">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Google Sheets लाइव सिंक</span>
+                  </div>
 
-              <button
-                type="button"
-                onClick={handleManualCloudSync}
-                disabled={isCloudSyncing}
-                className="px-2.5 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
-                <span>{isCloudSyncing ? 'सिंक जारी...' : 'Cloud Sync'}</span>
-              </button>
+                  {!googleAccessToken ? (
+                    <button
+                      type="button"
+                      onClick={handleGoogleSheetsSignIn}
+                      disabled={isGoogleAuthBusy}
+                      className="gsi-material-button"
+                    >
+                      <div className="gsi-material-button-state"></div>
+                      <div className="gsi-material-button-content-wrapper">
+                        <div className="gsi-material-button-icon">
+                          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block' }}>
+                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                            <path fill="none" d="M0 0h48v48H0z"></path>
+                          </svg>
+                        </div>
+                        <span className="gsi-material-button-contents">
+                          {isGoogleAuthBusy ? 'कनेक्ट हो रहा है...' : 'Sign in with Google'}
+                        </span>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-[11px]">
+                      <span className="text-emerald-300 font-bold">🟢 {googleUserEmail || 'Google Connected'}</span>
+                      <button
+                        type="button"
+                        onClick={handleGoogleSheetsSignOut}
+                        className="text-slate-400 hover:text-white underline text-[10px] cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
 
-              <button
-                type="button"
-                onClick={handleDownloadJsonBackup}
-                className="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>JSON बैकअप</span>
-              </button>
+                  {sheetsConfig.lastSyncedAt && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Last Sync: {new Date(sheetsConfig.lastSyncedAt).toLocaleString('hi-IN')} ({sheetsConfig.lastSyncStatus || 'OK'})
+                    </span>
+                  )}
+                </div>
 
-              <button
-                type="button"
-                onClick={() => restoreFileInputRef.current?.click()}
-                className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>बैकअप रिस्टोर</span>
-              </button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isSheetsBusy}
+                    onClick={() => requestGoogleSheetAction('create')}
+                    className="px-2.5 py-1.5 bg-teal-600/20 hover:bg-teal-600/30 border border-teal-500/40 text-teal-200 font-bold rounded-xl text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>नया Master Sheet बनाएं</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={async () => {
-                  const list = await fetchArchivedUsersAsync();
-                  setArchivedUsers(list);
-                  setIsArchiveModalOpen(true);
-                }}
-                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl text-[11px] flex items-center gap-1.5 cursor-pointer transition"
-              >
-                <Archive className="w-3.5 h-3.5 text-amber-400" />
-                <span>आर्काइव वॉल्ट ({archivedUsers.length})</span>
-              </button>
+                  <button
+                    type="button"
+                    disabled={isSheetsBusy}
+                    onClick={() => requestGoogleSheetAction('push')}
+                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[11px] flex items-center gap-1 cursor-pointer shadow disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isSheetsBusy ? 'सिंक...' : 'Push All to Sheet'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSheetsBusy}
+                    onClick={() => requestGoogleSheetAction('pull')}
+                    className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold rounded-xl text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Restore from Sheet</span>
+                  </button>
+
+                  {sheetsConfig.spreadsheetId && (
+                    <a
+                      href={sheetsConfig.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${sheetsConfig.spreadsheetId}/edit`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-sky-300 font-bold rounded-xl text-[11px] flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Sheet</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  value={sheetIdInput}
+                  onChange={(e) => setSheetIdInput(e.target.value)}
+                  placeholder="Google Spreadsheet URL या Sheet ID पेस्ट करें (या ऊपर 'नया Master Sheet बनाएं' दबाएं)..."
+                  className="flex-1 bg-slate-900 border border-slate-700 focus:border-emerald-400 text-white rounded-xl px-3 py-1.5 text-[11px] outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveSheetLinkConfig}
+                  disabled={isSheetsBusy}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold rounded-xl text-[11px] cursor-pointer shrink-0"
+                >
+                  लिंक सेव करें
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowWebhookSetup((p) => !p)}
+                  className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold rounded-xl text-[11px] cursor-pointer shrink-0"
+                >
+                  {showWebhookSetup ? '▲ Auto-Webhook बंद करें' : '⚙️ 24x7 Auto-Sync Webhook'}
+                </button>
+              </div>
+
+              {showWebhookSetup && (
+                <div className="p-3 rounded-xl bg-slate-900/90 border border-indigo-500/30 space-y-2.5 text-[11px]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="font-black text-indigo-300">
+                        24x7 बैकग्राउंड ऑटो-सिंक (Apps Script Web App Bridge)
+                      </div>
+                      <p className="text-[10.5px] text-slate-400">
+                        नए रजिस्ट्रेशन और एडिट अपने आप Google Sheet में भेजने के लिए अपनी Sheet में Apps Script Deploy करें और Web App URL नीचे सेव करें।
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(APPS_SCRIPT_BRIDGE_TEMPLATE);
+                        setCopiedAppsScript(true);
+                        setTimeout(() => setCopiedAppsScript(false), 2500);
+                      }}
+                      className="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-amber-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {copiedAppsScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedAppsScript ? 'कोड कॉपी हो गया!' : 'Apps Script कोड कॉपी करें'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <input
+                      type="url"
+                      value={webhookUrlInput}
+                      onChange={(e) => setWebhookUrlInput(e.target.value)}
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-400 text-white rounded-xl px-3 py-1.5 text-[11px] outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveSheetLinkConfig}
+                      disabled={isSheetsBusy}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl cursor-pointer shrink-0"
+                    >
+                      Webhook सेव करें
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => requestGoogleSheetAction('webhook_push')}
+                      disabled={isSheetsBusy}
+                      className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl cursor-pointer shrink-0"
+                    >
+                      Test Push All
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2127,12 +2612,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 }
 
                 return (
-                  <PrivateChatMessenger
-                    userId={activeTargetId}
-                    targetUserName={targetUser.fullName}
-                    currentRole="admin"
-                    adminName="IOIS Official Admin"
-                  />
+                  <React.Suspense fallback={null}>
+                    <PrivateChatMessenger
+                      userId={activeTargetId}
+                      targetUserName={targetUser.fullName}
+                      currentRole="admin"
+                      adminName="IOIS Official Admin"
+                    />
+                  </React.Suspense>
                 );
               })()}
             </div>
@@ -2247,12 +2734,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
       {/* TAB 5: AI BOT KNOWLEDGE BASE & TRAINING */}
       {activeTab === 'ai_bot' && (
-        <AiKnowledgeManager />
+        <React.Suspense fallback={null}>
+          <AiKnowledgeManager />
+        </React.Suspense>
       )}
 
       {/* TAB 6: 15-QUESTION INTERVIEWS */}
       {activeTab === 'interviews' && (
-        <InterviewListManager />
+        <React.Suspense fallback={null}>
+          <InterviewListManager />
+        </React.Suspense>
       )}
 
       {/* ========================================================================= */}
@@ -3014,7 +3505,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
             {/* Embedded Live Student Referral Hub for this user */}
             <div className="p-1">
-              <StudentReferralHub user={impersonateUser} />
+              <React.Suspense fallback={null}>
+                <StudentReferralHub user={impersonateUser} />
+              </React.Suspense>
             </div>
 
             <div className="pt-3 border-t border-slate-800 flex justify-end">
@@ -4380,17 +4873,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {/* ========================================================================= */}
       {/* 3D NOTIFICATION SYSTEM MODAL (INSTANT ADMIN NOTIFICATIONS & DIRECT REPLY)  */}
       {/* ========================================================================= */}
-      <NotificationModal
-        isOpen={isNotificationModalOpen}
-        onClose={() => setIsNotificationModalOpen(false)}
-        role="admin"
-        onOpenChat={(targetUserId) => {
-          setSelectedChatUserId(targetUserId);
-          setActiveTab('private_chat');
-          markChatMessagesAsRead(targetUserId, 'admin');
-          setAdminUnreadCount(getAdminUnreadCount());
-        }}
-      />
+      {isNotificationModalOpen && (
+        <React.Suspense fallback={null}>
+          <NotificationModal
+            isOpen={isNotificationModalOpen}
+            onClose={() => setIsNotificationModalOpen(false)}
+            role="admin"
+            onOpenChat={(targetUserId) => {
+              setSelectedChatUserId(targetUserId);
+              setActiveTab('private_chat');
+              markChatMessagesAsRead(targetUserId, 'admin');
+              setAdminUnreadCount(getAdminUnreadCount());
+            }}
+          />
+        </React.Suspense>
+      )}
 
       {/* ========================================================================= */}
       {/* MEMBER REGISTRATION / JOIN APPLICATION FORM POPUP MODAL (PRINT & VERIFY)  */}
@@ -5268,20 +5765,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       )}
 
       {/* ========================================================================= */}
+      {/* EXPLICIT GOOGLE SHEETS CONFIRMATION MODAL (WORKSPACE COMPLIANCE)         */}
+      {/* ========================================================================= */}
+      {sheetConfirmModal && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-950 border-2 border-emerald-500/60 rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">{sheetConfirmModal.title}</h3>
+                  <p className="text-[11px] text-emerald-300 font-mono truncate max-w-[260px]">
+                    {sheetConfirmModal.targetLabel}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSheetConfirmModal(null)}
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs text-slate-200 leading-relaxed">
+              <p>{sheetConfirmModal.description}</p>
+              <div className="text-[11px] font-mono text-amber-300 pt-1 border-t border-slate-800">
+                प्रभावित रिकॉर्ड: <b>{sheetConfirmModal.affectedCount}</b> सक्रिय सदस्य
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setSheetConfirmModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+              >
+                रद्द करें (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeConfirmedGoogleSheetAction()}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow"
+              >
+                हाँ, पुष्टि करें (Confirm)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
       {/* DIRECT JOIN PAGE / REGISTRATION POPUP MODAL (MANUAL REGISTRATION BY ADMIN) */}
       {/* ========================================================================= */}
-      <RegistrationModal
-        isOpen={isJoinModalOpen}
-        onClose={() => setIsJoinModalOpen(false)}
-        onRegisterSuccess={(newUser) => {
-          setUsersList(getAllUsers());
-          setIsJoinModalOpen(false);
-          if (onUserStatusChange) onUserStatusChange();
-        }}
-        onOpenLogin={() => {
-          setIsJoinModalOpen(false);
-        }}
-      />
+      {isJoinModalOpen && (
+        <React.Suspense fallback={null}>
+          <RegistrationModal
+            isOpen={isJoinModalOpen}
+            onClose={() => setIsJoinModalOpen(false)}
+            onRegisterSuccess={(newUser) => {
+              setUsersList(getAllUsers());
+              setIsJoinModalOpen(false);
+              if (onUserStatusChange) onUserStatusChange();
+            }}
+            onOpenLogin={() => {
+              setIsJoinModalOpen(false);
+            }}
+          />
+        </React.Suspense>
+      )}
 
     </section>
   );

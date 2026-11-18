@@ -34,7 +34,8 @@ import {
   Pause,
   Image as ImageIcon,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  MapPin
 } from 'lucide-react';
 import { MultiHeaderPopupNav } from './MultiHeaderPopupNav';
 import { scrollAppToTop } from '../utils/scrollUtils';
@@ -301,6 +302,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       color: 'text-blue-400',
       badge: 'योजनाएं',
       action: () => handleNavOrPopup('govt-schemes')
+    },
+    {
+      id: 'maps-explorer' as PageType,
+      label: 'केंद्र व मैप लोकेटर',
+      desc: 'Google Maps पर शहर व IOIS केंद्र खोजें',
+      icon: MapPin,
+      color: 'text-rose-400',
+      badge: 'Google Maps',
+      action: () => handleNavOrPopup('maps-explorer')
     },
   ];
 

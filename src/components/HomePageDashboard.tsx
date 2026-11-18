@@ -16,7 +16,9 @@ import {
 import { HomeHeaderWatch } from './HomeHeaderWatch';
 import { FestiveHomeSlider } from './FestiveHomeSlider';
 import { PlansGrid } from './PlansGrid';
-import { IoisExplainerGuideModal } from './IoisExplainerGuideModal';
+const IoisExplainerGuideModal = React.lazy(() =>
+  import('./IoisExplainerGuideModal').then((m) => ({ default: m.IoisExplainerGuideModal }))
+);
 import { AdminHomePhotoPopup } from './AdminHomePhotoPopup';
 
 interface HomePageDashboardProps {
@@ -324,15 +326,19 @@ export const HomePageDashboard: React.FC<HomePageDashboardProps> = ({
       </section>
 
       {/* Comprehensive IOIS Explainer Modal Popup */}
-      <IoisExplainerGuideModal
-        isOpen={isExplainerModalOpen}
-        onClose={() => setIsExplainerModalOpen(false)}
-        currentUser={currentUser}
-        onSelectPlanForRegister={onSelectPlanForRegister}
-        onNavigateToPlans={() => onNavigate('plans')}
-        onOpenRegister={onOpenRegister}
-        onOpenSponsorAddMember={onOpenSponsorAddMember}
-      />
+      {isExplainerModalOpen && (
+        <React.Suspense fallback={null}>
+          <IoisExplainerGuideModal
+            isOpen={isExplainerModalOpen}
+            onClose={() => setIsExplainerModalOpen(false)}
+            currentUser={currentUser}
+            onSelectPlanForRegister={onSelectPlanForRegister}
+            onNavigateToPlans={() => onNavigate('plans')}
+            onOpenRegister={onOpenRegister}
+            onOpenSponsorAddMember={onOpenSponsorAddMember}
+          />
+        </React.Suspense>
+      )}
 
     </div>
   );

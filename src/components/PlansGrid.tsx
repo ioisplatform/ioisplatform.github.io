@@ -158,6 +158,22 @@ export const PlansGrid: React.FC<PlansGridProps> = ({
             <span>{showComparison ? 'तुलना टूल छुपाएं' : 'दो प्लान की तुलना करें (Compare)'}</span>
           </button>
         </div>
+
+        {/* Beginner-Friendly Inline IOIS Brief Introduction Card */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 text-left space-y-2.5 max-w-4xl mx-auto shadow-lg">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-sm sm:text-base font-black text-amber-300 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>नए उपयोगकर्ताओं के लिए IOIS प्लेटफ़ॉर्म का सरल परिचय</span>
+            </h3>
+            <span className="text-[11px] font-bold text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+              सीखें और कमाएं (50%–70% पेआउट)
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+            IOIS एक स्वदेशी डिजिटल शिक्षा, करियर मार्गदर्शन और नागरिक सेवा सहयोग मंच है। आप अपनी आवश्यकता के अनुसार Plan 01 (₹10) से लेकर Plan 07 (₹999) तक कोई भी प्लान चुन सकते हैं। उदाहरण के लिए, यदि आप Plan 01 (₹10) से शुरुआत करके 10 मित्रों को जोड़ते हैं, तो प्रति सदस्य ₹7 (70%) के हिसाब से आपको सीधे ₹70 UPI पेआउट मिलता है; वहीं Plan 07 (₹999) में प्रत्येक सफल रेफरल पर ₹499 (50%) की आय होती है और सभी डिजिटल कोर्स आजीवन अनलॉक हो जाते हैं।
+          </p>
+        </div>
       </div>
 
       {/* ========================================================================= */}

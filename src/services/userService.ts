@@ -56,6 +56,10 @@ let memoryCurrentUser: UserProfile | null | undefined = undefined;
 let memoryTickets: HelpTicket[] | null = null;
 let idbHydrationPromise: Promise<void> | null = null;
 let lastClientFirestoreFetchAt = 0;
+let inFlightUsersFetchPromise: Promise<UserProfile[]> | null = null;
+let lastUsersFetchCompletedAt = 0;
+let lastSavedUsersSig = '';
+let lastSavedCurrentUserSig = '';
 
 export const isFirestoreInQuotaCooldown = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -184,7 +188,7 @@ export const loginAdminAsync = async (
   // 1. Primary server verification
   try {
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 8000);
+    const tid = setTimeout(() => controller.abort(), 5000);
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -197,7 +201,6 @@ export const loginAdminAsync = async (
       if (res.ok && data?.success && data?.adminToken) {
         setAdminAuthToken(data.adminToken);
         setAdminSession(true);
-        clearFirestoreQuotaCooldown();
         return { success: true };
       }
       if (res.status === 429) {
@@ -217,13 +220,12 @@ export const loginAdminAsync = async (
     // Fallback to Firestore scrypt vault if server endpoint is unreachable (static host / another device proxy)
   }
 
-  // 2. Cross-Device Firestore Encrypted PIN Vault Fallback (supports GitHub Pages & containers without ADMIN_PIN secret)
-  if (db) {
+  // 2. Cross-Device Firestore Encrypted PIN Vault Fallback (only when backend server was unreachable / static host)
+  if (!gotJsonUnauthorized && db && !isFirestoreInQuotaCooldown()) {
     try {
-      clearFirestoreQuotaCooldown();
       const snap = await Promise.race([
         getDoc(doc(db, 'app_settings', 'admin_security')),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
       ]);
       if (snap && snap.exists()) {
         const vault = snap.data() as { pinHash?: string };
@@ -232,7 +234,6 @@ export const loginAdminAsync = async (
           if (ok) {
             setAdminAuthToken('firestore_verified');
             setAdminSession(true);
-            clearFirestoreQuotaCooldown();
             return { success: true };
           }
           return {
@@ -246,8 +247,8 @@ export const loginAdminAsync = async (
         setAdminSession(true);
         return { success: true };
       }
-    } catch {
-      // Fall through cleanly
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
     }
   }
 
@@ -879,20 +880,25 @@ export const fetchKnowledgeFromFirestore = async (): Promise<KnowledgeItem[]> =>
   try {
     if (db && !isFirestoreInQuotaCooldown()) {
       const col = collection(db, 'ai_knowledge');
-      const snap = await getDocs(col);
-      const items: KnowledgeItem[] = [];
-      snap.forEach((d) => {
-        const data = d.data() as KnowledgeItem;
-        if (data && data.id) items.push(data);
-      });
-      if (items.length > 0) {
-        if (typeof window !== 'undefined') {
-          void idbSet(STORAGE_KNOWLEDGE_KEY, items);
-          safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(items), {
-            maxBytes: 600_000,
-          });
+      const snap = await Promise.race([
+        getDocs(col),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+      if (snap) {
+        const items: KnowledgeItem[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as KnowledgeItem;
+          if (data && data.id) items.push(data);
+        });
+        if (items.length > 0) {
+          if (typeof window !== 'undefined') {
+            void idbSet(STORAGE_KNOWLEDGE_KEY, items);
+            safeLocalStorageSet(STORAGE_KNOWLEDGE_KEY, JSON.stringify(items), {
+              maxBytes: 600_000,
+            });
+          }
+          return items;
         }
-        return items;
       }
     }
   } catch (e) {
@@ -1260,16 +1266,39 @@ export const saveUsers = (users: UserProfile[], options?: { allowShrink?: boolea
       : incomingClean;
 
   // 1. Always preserve full user records (including photos & screenshots) in memory + dual IndexedDB vaults
+  const nextSig = cleanUsers
+    .map(
+      (u) =>
+        `${u.userId}|${u.paymentStatus}|${u.selectedPlanId}|${u.username || ''}|${u.fullName}|${u.lastLoginAt || ''}|${u.editHistory?.length || 0}|${u.photoUrl?.length || 0}|${u.paymentScreenshotUrl?.length || 0}`
+    )
+    .join(';');
   memoryUsers = cleanUsers;
+  if (nextSig === lastSavedUsersSig) {
+    return;
+  }
+  lastSavedUsersSig = nextSig;
+
   void idbSet(STORAGE_USERS_KEY, cleanUsers);
-  void idbSet(STORAGE_USERS_VAULT_KEY, cleanUsers);
+  setTimeout(() => {
+    void idbSet(STORAGE_USERS_VAULT_KEY, cleanUsers);
+  }, 150);
 
   // 2. Write a quota-safe snapshot to localStorage (never wipe member list on overflow)
   try {
-    const fullSerialized = JSON.stringify(cleanUsers);
-    if (fullSerialized.length <= 900_000) {
-      if (safeLocalStorageSet(STORAGE_USERS_KEY, fullSerialized, { evictKeysOnQuota: BULKY_EVICT_KEYS })) {
-        return;
+    const hasOversizedMedia = cleanUsers.some(
+      (u) =>
+        (typeof u.photoUrl === 'string' && u.photoUrl.startsWith('data:') && u.photoUrl.length > 16000) ||
+        (typeof u.paymentScreenshotUrl === 'string' &&
+          u.paymentScreenshotUrl.startsWith('data:') &&
+          u.paymentScreenshotUrl.length > 16000) ||
+        (typeof u.coverUrl === 'string' && u.coverUrl.startsWith('data:') && u.coverUrl.length > 16000)
+    );
+    if (!hasOversizedMedia) {
+      const fullSerialized = JSON.stringify(cleanUsers);
+      if (fullSerialized.length <= 900_000) {
+        if (safeLocalStorageSet(STORAGE_USERS_KEY, fullSerialized, { evictKeysOnQuota: BULKY_EVICT_KEYS })) {
+          return;
+        }
       }
     }
 
@@ -1526,12 +1555,41 @@ export const validateSponsorIdAsync = async (
     };
   }
 
-  // 3. Firestore Cloud Check (Direct document lookup)
-  if (db) {
+  // 3. Fast Server API Check first (avoids burning Firestore reads or waiting on quota)
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(clean)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson && res.ok && data) {
+      if (data.isValid) {
+        return {
+          isValid: true,
+          sponsorId: data.sponsorId || clean,
+          sponsorName: data.sponsorName || 'सत्यापित सदस्य',
+        };
+      }
+      return {
+        isValid: false,
+        error: `अमान्य स्पॉन्सर ID "${clean}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
+      };
+    }
+  } catch (e) {
+    console.warn('Server sponsor check note:', e);
+  }
+
+  // 4. Firestore Cloud Check fallback (Direct document lookup, quota-guarded)
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const docRef = doc(db, 'users', clean);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
+      const snap = await Promise.race([
+        getDoc(docRef),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      ]);
+      if (snap && snap.exists()) {
         const data = snap.data() as UserProfile;
         return {
           isValid: true,
@@ -1540,25 +1598,9 @@ export const validateSponsorIdAsync = async (
         };
       }
     } catch (e) {
+      markFirestoreQuotaExhausted(e);
       console.warn('Firestore sponsor check note:', e);
     }
-  }
-
-  // 4. Server API Check
-  try {
-    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(clean)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.isValid) {
-        return {
-          isValid: true,
-          sponsorId: data.sponsorId || clean,
-          sponsorName: data.sponsorName || 'सत्यापित सदस्य',
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('Server sponsor check note:', e);
   }
 
   // 5. If not found in any source -> Strictly Invalid Random Sponsor ID!
@@ -1733,11 +1775,15 @@ export const verifyUserIdentityAsync = async (
   }
 
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 3500);
     const res = await fetch('/api/users/verify-identity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, fullName, email, address, sponsorId }),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     const { isJson, data } = await parseJsonResponseSafe(res);
     if (isJson) {
       if (res.ok && data?.success) {
@@ -1757,34 +1803,61 @@ export const verifyUserIdentityAsync = async (
       }
     }
   } catch {
-    // offline / static host fallback to Firestore + local storage
+    // offline / static host fallback to local storage + parallel Firestore
   }
 
   const findUserInFirestoreForRecovery = async (): Promise<UserProfile | null> => {
-    if (!db) return null;
+    if (!db || isFirestoreInQuotaCooldown()) return null;
     try {
-      clearFirestoreQuotaCooldown();
       const raw = identifier.trim();
       const cleanLow = raw.toLowerCase().replace(/^@/, '');
       const digitsOnly = cleanLow.replace(/\D/g, '');
       const col = collection(db, 'users');
 
+      const tasks: Promise<UserProfile | null>[] = [];
       if (!cleanLow.includes('@') && !raw.startsWith('@') && cleanLow.length >= 4 && digitsOnly.length < 10) {
-        const snap = await getDoc(doc(db, 'users', raw.toUpperCase()));
-        if (snap.exists()) return snap.data() as UserProfile;
+        tasks.push(
+          getDoc(doc(db, 'users', raw.toUpperCase()))
+            .then((snap) => (snap.exists() ? (snap.data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            })
+        );
       }
       if (digitsOnly.length >= 10) {
         const last10 = digitsOnly.slice(-10);
-        const snapM = await getDocs(query(col, where('mobileNumber', '==', last10), limit(1)));
-        if (!snapM.empty) return snapM.docs[0].data() as UserProfile;
-        const snapM91 = await getDocs(query(col, where('mobileNumber', '==', `+91${last10}`), limit(1)));
-        if (!snapM91.empty) return snapM91.docs[0].data() as UserProfile;
+        tasks.push(
+          getDocs(query(col, where('mobileNumber', '==', last10), limit(1)))
+            .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            }),
+          getDocs(query(col, where('mobileNumber', '==', `+91${last10}`), limit(1)))
+            .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            })
+        );
       }
-    } catch {}
+      if (tasks.length === 0) return null;
+
+      const settled = await Promise.race([
+        Promise.allSettled(tasks),
+        new Promise<PromiseSettledResult<UserProfile | null>[]>((resolve) => setTimeout(() => resolve([]), 3500)),
+      ]);
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) return r.value;
+      }
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
     return null;
   };
 
-  // Firestore + Local fallback verification
+  // Local cache FIRST (instant 0ms), then parallel Firestore fallback
   const cleanInput = identifier.trim().toLowerCase();
   const inputDigits = cleanInput.replace(/\D/g, '');
   const cleanName = fullName.trim().toLowerCase();
@@ -1792,17 +1865,19 @@ export const verifyUserIdentityAsync = async (
   const cleanAddress = (address || '').trim().toLowerCase();
   const cleanSponsor = (sponsorId || '').trim().toLowerCase();
 
-  let user: UserProfile | null = await findUserInFirestoreForRecovery();
+  await hydrateUsersFromIdb();
+  const users = getAllUsers();
+  let user: UserProfile | null =
+    users.find((u) => {
+      if (!u) return false;
+      const uidMatch = (u.userId || '').toLowerCase() === cleanInput;
+      const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
+      const mobMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
+      return uidMatch || mobMatch;
+    }) || null;
+
   if (!user) {
-    const users = getAllUsers();
-    user =
-      users.find((u) => {
-        if (!u) return false;
-        const uidMatch = (u.userId || '').toLowerCase() === cleanInput;
-        const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
-        const mobMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
-        return uidMatch || mobMatch;
-      }) || null;
+    user = await findUserInFirestoreForRecovery();
   }
 
   if (!user) {
@@ -1861,20 +1936,24 @@ export const resetPasswordWithTokenAsync = async (
   }
 
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 6000);
     const res = await fetch('/api/users/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, verificationToken, newPassword, confirmPassword, fallbackIdentity }),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     const { isJson, data } = await parseJsonResponseSafe(res);
     if (isJson) {
       if (res.ok && data?.success) {
-        const hashed = await hashPasswordBrowserAsync(newPassword.trim());
         const users = getAllUsers();
         const idx = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
         if (idx !== -1) {
-          users[idx].password = hashed;
+          delete users[idx].password;
           users[idx].passwordProtected = true;
+          users[idx].passwordStatus = '🔒 Encrypted (scrypt)';
           saveUsers(users);
         }
         return { success: true, message: data.message || 'पासवर्ड सफलतापूर्वक बदल दिया गया है!' };
@@ -1891,16 +1970,23 @@ export const resetPasswordWithTokenAsync = async (
   const hashed = await hashPasswordBrowserAsync(newPassword.trim());
   let updatedAnywhere = false;
 
-  if (db) {
+  if (db && !isFirestoreInQuotaCooldown()) {
     try {
-      clearFirestoreQuotaCooldown();
       const userRef = doc(db, 'users', cleanId);
-      const snap = await getDoc(userRef);
-      if (snap.exists()) {
-        await setDoc(userRef, { password: hashed, passwordProtected: true }, { merge: true });
+      const snap = await Promise.race([
+        getDoc(userRef),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+      if (snap && snap.exists()) {
+        await Promise.race([
+          setDoc(userRef, { password: hashed, passwordProtected: true }, { merge: true }),
+          new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+        ]);
         updatedAnywhere = true;
       }
-    } catch {}
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
   }
 
   const users = getAllUsers();
@@ -1938,34 +2024,42 @@ export const secureRecoverUserIdAsync = async (
   }
 
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 3500);
     const res = await fetch('/api/users/recover-id', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mobile, email, fullName }),
+      signal: controller.signal,
     });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      return {
-        success: true,
-        userId: data.userId,
-        maskedName: data.maskedName,
-      };
-    } else {
-      return {
-        success: false,
-        error: data.error || 'इस मोबाइल नंबर और ईमेल से कोई खाता नहीं मिला।',
-      };
+    clearTimeout(tid);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (isJson) {
+      if (res.ok && data?.success) {
+        return {
+          success: true,
+          userId: data.userId,
+          maskedName: data.maskedName,
+        };
+      }
+      if (res.status === 400 || res.status === 404 || res.status === 429) {
+        return {
+          success: false,
+          error: data?.error || 'इस मोबाइल नंबर और ईमेल से कोई खाता नहीं मिला।',
+        };
+      }
     }
-  } catch (e) {
-    // Local fallback
+  } catch {
+    // Local / Firestore fallback
   }
 
   const cleanDigits = mobile.replace(/\D/g, '');
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = (fullName || '').trim().toLowerCase();
+  await hydrateUsersFromIdb();
   const users = getAllUsers();
 
-  const user = users.find((u) => {
+  let user: UserProfile | undefined = users.find((u) => {
     if (!u) return false;
     const uDigits = (u.mobileNumber || '').replace(/\D/g, '');
     const mobMatch = cleanDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
@@ -1973,6 +2067,36 @@ export const secureRecoverUserIdAsync = async (
     const nameMatch = !cleanName || (u.fullName || '').trim().toLowerCase().includes(cleanName);
     return mobMatch && emailMatch && nameMatch;
   });
+
+  if (!user && db && !isFirestoreInQuotaCooldown() && cleanDigits.length >= 10) {
+    try {
+      const last10 = cleanDigits.slice(-10);
+      const col = collection(db, 'users');
+      const settled = await Promise.race([
+        Promise.allSettled([
+          getDocs(query(col, where('mobileNumber', '==', last10), limit(2))),
+          getDocs(query(col, where('mobileNumber', '==', `+91${last10}`), limit(2))),
+        ]),
+        new Promise<PromiseSettledResult<any>[]>((resolve) => setTimeout(() => resolve([]), 3500)),
+      ]);
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value && !r.value.empty) {
+          for (const d of r.value.docs) {
+            const candidate = d.data() as UserProfile;
+            if (candidate && candidate.email && candidate.email.trim().toLowerCase() === cleanEmail) {
+              if (!cleanName || (candidate.fullName || '').trim().toLowerCase().includes(cleanName)) {
+                user = candidate;
+                break;
+              }
+            }
+          }
+          if (user) break;
+        }
+      }
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
+  }
 
   if (!user) {
     return {
@@ -2018,119 +2142,149 @@ const serverNeedsSelfHealSync = (merged: UserProfile[], serverUsers: UserProfile
 export const fetchUsersFromServer = async (
   options?: { skipFirestore?: boolean; forceCloud?: boolean }
 ): Promise<UserProfile[]> => {
-  await hydrateUsersFromIdb();
-  void flushPendingUserSyncsAsync();
-  if (options?.forceCloud) {
-    clearFirestoreQuotaCooldown();
+  if (!options?.forceCloud && memoryUsers && memoryUsers.length > 0 && Date.now() - lastUsersFetchCompletedAt < 2500) {
+    return memoryUsers;
   }
-  const localUsers = getAllUsers();
-  const firestoreUsers: UserProfile[] = [];
-  let serverUsers: UserProfile[] = [];
-  let firestoreSucceededCleanly = false;
-
-  // 1. FAST PATH: Fetch from backend server with 12000ms timeout
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-    const res = await fetch('/api/users', { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.users)) {
-        serverUsers = data.users;
-      }
-    }
-  } catch (err) {
-    console.warn('Server users fetch note, falling back to local/cloud cache:', err);
+  if (inFlightUsersFetchPromise && !options?.forceCloud) {
+    return inFlightUsersFetchPromise;
   }
 
-  // 2. Quota-protected Firestore read (allows 20s timeout when forced or sparse server so slow 4G connections finish)
-  const shouldQueryFirestore =
-    Boolean(db) &&
-    !options?.skipFirestore &&
-    (options?.forceCloud || !isFirestoreInQuotaCooldown()) &&
-    (options?.forceCloud ||
-      serverUsers.length <= 1 ||
-      Date.now() - lastClientFirestoreFetchAt > 180_000);
+  const runFetch = async (): Promise<UserProfile[]> => {
+    await hydrateUsersFromIdb();
+    void flushPendingUserSyncsAsync();
+    const localUsers = getAllUsers();
+    const firestoreUsers: UserProfile[] = [];
+    let serverUsers: UserProfile[] = [];
+    let firestoreSucceededCleanly = false;
 
-  if (shouldQueryFirestore && db) {
+    // 1. FAST PATH: Fetch lightweight directory from backend server (4000ms timeout, ~15KB vs 2.4MB)
     try {
-      const col = collection(db, 'users');
-      let timedOut = false;
-      const timeoutPromise = new Promise<void>((resolve) =>
-        setTimeout(() => {
-          timedOut = true;
-          resolve();
-        }, 20000)
-      );
-      const fetchPromise = (async () => {
-        const snap = await getDocs(col);
-        snap.forEach((d) => {
-          const u = d.data() as UserProfile;
-          if (u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) {
-            firestoreUsers.push(u);
-          }
-        });
-        lastClientFirestoreFetchAt = Date.now();
-        firestoreSucceededCleanly = true;
-      })();
-      await Promise.race([fetchPromise, timeoutPromise]);
-      if (timedOut) {
-        console.warn('Firestore fetch timeout after 20000ms');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch('/api/users?lite=1', { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.users)) {
+          serverUsers = data.users;
+        }
       }
-    } catch (e) {
-      markFirestoreQuotaExhausted(e);
-      console.warn('Firestore background users sync note:', e);
+    } catch (err) {
+      console.warn('Server users fetch note, falling back to local/cloud cache:', err);
     }
-  }
 
-  // Respect explicit archive markers if any came back from Firestore
-  const firestoreArchived = firestoreUsers.filter((u) => u.isArchived);
-  if (firestoreArchived.length > 0) {
-    const nextArchMap = new Map<string, UserProfile>();
-    for (const a of [...memoryArchivedUsers, ...firestoreArchived]) {
-      if (a?.userId) nextArchMap.set(a.userId.trim().toUpperCase(), a);
+    // 2. Quota-protected Firestore read ONLY when explicitly forced or server disk is sparse (<= 1 user)
+    const shouldQueryFirestore =
+      Boolean(db) &&
+      !options?.skipFirestore &&
+      !isFirestoreInQuotaCooldown() &&
+      (Boolean(options?.forceCloud) || serverUsers.length <= 1);
+
+    if (shouldQueryFirestore && db) {
+      try {
+        let timedOut = false;
+        const timeoutPromise = new Promise<void>((resolve) =>
+          setTimeout(() => {
+            timedOut = true;
+            resolve();
+          }, 4000)
+        );
+        const fetchPromise = (async () => {
+          let usedSnapshot = false;
+          if (!options?.forceCloud) {
+            try {
+              const snapDoc = await getDoc(doc(db, 'app_settings', 'users_snapshot_v1'));
+              if (snapDoc.exists()) {
+                const snapData = snapDoc.data() as { users?: UserProfile[] };
+                if (Array.isArray(snapData?.users) && snapData.users.length > 0) {
+                  for (const u of snapData.users) {
+                    if (u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) {
+                      firestoreUsers.push(u);
+                    }
+                  }
+                  usedSnapshot = firestoreUsers.length > 0;
+                }
+              }
+            } catch {}
+          }
+
+          if (!usedSnapshot) {
+            const col = collection(db, 'users');
+            const snap = await getDocs(col);
+            snap.forEach((d) => {
+              const u = d.data() as UserProfile;
+              if (u && u.userId && !DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) {
+                firestoreUsers.push(u);
+              }
+            });
+          }
+          lastClientFirestoreFetchAt = Date.now();
+          firestoreSucceededCleanly = true;
+        })();
+        await Promise.race([fetchPromise, timeoutPromise]);
+        if (timedOut) {
+          console.warn('Firestore fetch timeout after 4000ms');
+        }
+      } catch (e) {
+        markFirestoreQuotaExhausted(e);
+        console.warn('Firestore background users sync note:', e);
+      }
     }
-    memoryArchivedUsers = Array.from(nextArchMap.values());
-    void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
-  }
-  const archivedIds = new Set(
-    memoryArchivedUsers.map((u) => u?.userId?.trim().toUpperCase()).filter(Boolean)
-  );
 
-  // Merge non-destructively (local -> server -> firestore so non-empty fields accumulate)
-  const allMerged = mergeUserLists(
-    localUsers,
-    serverUsers,
-    firestoreUsers.filter((u) => !u.isArchived),
-    INITIAL_DEMO_USERS
-  ).filter((u) => !archivedIds.has(u.userId.trim().toUpperCase()));
-
-  saveUsers(allMerged);
-
-  // 3. Bidirectional Auto-Heal: Push client/cloud records back up to server disk only when authenticated
-  if (
-    allMerged.length > 0 &&
-    serverNeedsSelfHealSync(allMerged, serverUsers) &&
-    (getAdminAuthToken() || getMemberAuthToken() || getDeviceSessionToken())
-  ) {
-    fetch('/api/users/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
-      body: JSON.stringify({ users: allMerged }),
-    }).catch(() => {});
-  }
-
-  // 4. Backfill any server/local users missing in Firestore (only if Firestore read succeeded cleanly)
-  if (firestoreSucceededCleanly && !isFirestoreInQuotaCooldown()) {
-    const fsIds = new Set(firestoreUsers.map((u) => u.userId?.trim().toUpperCase()));
-    const missingInCloud = allMerged.filter((u) => !fsIds.has(u.userId?.trim().toUpperCase()));
-    for (const m of missingInCloud.slice(0, 15)) {
-      void syncUserToFirestore(m);
+    // Respect explicit archive markers if any came back from Firestore
+    const firestoreArchived = firestoreUsers.filter((u) => u.isArchived);
+    if (firestoreArchived.length > 0) {
+      const nextArchMap = new Map<string, UserProfile>();
+      for (const a of [...memoryArchivedUsers, ...firestoreArchived]) {
+        if (a?.userId) nextArchMap.set(a.userId.trim().toUpperCase(), a);
+      }
+      memoryArchivedUsers = Array.from(nextArchMap.values());
+      void idbSet(STORAGE_ARCHIVE_VAULT_KEY, memoryArchivedUsers);
     }
-  }
+    const archivedIds = new Set(
+      memoryArchivedUsers.map((u) => u?.userId?.trim().toUpperCase()).filter(Boolean)
+    );
 
-  return allMerged;
+    // Merge non-destructively (local -> server -> firestore so non-empty fields accumulate)
+    const allMerged = mergeUserLists(
+      localUsers,
+      serverUsers,
+      firestoreUsers.filter((u) => !u.isArchived),
+      INITIAL_DEMO_USERS
+    ).filter((u) => !archivedIds.has(u.userId.trim().toUpperCase()));
+
+    saveUsers(allMerged);
+
+    // 3. Bidirectional Auto-Heal: Push client/cloud records back up to server disk only when authenticated
+    if (
+      allMerged.length > 0 &&
+      serverNeedsSelfHealSync(allMerged, serverUsers) &&
+      (getAdminAuthToken() || getMemberAuthToken() || getDeviceSessionToken())
+    ) {
+      fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
+        body: JSON.stringify({ users: allMerged }),
+      }).catch(() => {});
+    }
+
+    // 4. Backfill any server/local users missing in Firestore (only if Firestore read succeeded cleanly)
+    if (firestoreSucceededCleanly && !isFirestoreInQuotaCooldown()) {
+      const fsIds = new Set(firestoreUsers.map((u) => u.userId?.trim().toUpperCase()));
+      const missingInCloud = allMerged.filter((u) => !fsIds.has(u.userId?.trim().toUpperCase()));
+      for (const m of missingInCloud.slice(0, 15)) {
+        void syncUserToFirestore(m);
+      }
+    }
+
+    lastUsersFetchCompletedAt = Date.now();
+    return allMerged;
+  };
+
+  inFlightUsersFetchPromise = runFetch().finally(() => {
+    inFlightUsersFetchPromise = null;
+  });
+  return inFlightUsersFetchPromise;
 };
 
 export const registerNewUserAsync = async (
@@ -2158,15 +2312,15 @@ export const registerNewUserAsync = async (
     }
   }
 
-  // 4. Strict Sponsor ID Verification (Random non-existent sponsor IDs are strictly prohibited)
+  // 4 & 5. Parallel Sponsor ID Verification & Duplicate Check (2x faster)
   const currentUsers = getAllUsers();
-  const sponsorCheck = await validateSponsorIdAsync(data.sponsorId, currentUsers);
+  const [sponsorCheck, dupCheck] = await Promise.all([
+    validateSponsorIdAsync(data.sponsorId, currentUsers),
+    checkUserAlreadyExists(mobileCheck.cleanDigits, data.email),
+  ]);
   if (!sponsorCheck.isValid) {
     throw new Error(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।');
   }
-
-  // 5. Strict Duplicate Check before creating any account (Masked privacy preserved)
-  const dupCheck = await checkUserAlreadyExists(mobileCheck.cleanDigits, data.email);
   if (dupCheck.exists) {
     const matchedLabel = dupCheck.matchedBy === 'both' ? 'मोबाइल नंबर और ईमेल' : dupCheck.matchedBy === 'mobile' ? 'मोबाइल नंबर' : 'ईमेल';
     const err: any = new Error(
@@ -2194,12 +2348,12 @@ export const registerNewUserAsync = async (
     createdAt: new Date().toISOString(),
   };
 
-  // 3. Contact backend server with generous 20000ms timeout (for photo/screenshot uploads on mobile 4G)
+  // 3. Contact backend server (12000ms timeout; server responds immediately after disk save & syncs Firestore asynchronously)
   let serverSaved = false;
   let serverUser: UserProfile | null = null;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     const serverRes = await fetch('/api/users/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2235,14 +2389,18 @@ export const registerNewUserAsync = async (
     console.warn('Server registration endpoint note:', err);
   }
 
-  // Fallback sync if /api/users/register timed out or had transient error
+  // Fallback sync only if /api/users/register failed transients
   if (!serverSaved) {
     try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 6000);
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
         body: JSON.stringify({ users: [newUser] }),
+        signal: controller.signal,
       });
+      clearTimeout(tid);
       if (syncRes.ok) serverSaved = true;
     } catch {}
   }
@@ -2260,27 +2418,31 @@ export const registerNewUserAsync = async (
   saveUsers(updatedList);
   setCurrentUser(savedLocalUser);
 
-  // 5. Cloud Firestore persistence (await up to 12000ms so registration is safely persisted across devices)
-  const firestoreSaved = await Promise.race([
-    syncUserToFirestore(savedLocalUser),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
-  ]).catch(() => false);
+  // 5. Only run client Firestore upload if server was unreachable; when serverSaved===true server already handles cloud sync asynchronously
+  if (!serverSaved) {
+    const firestoreSaved = !isFirestoreInQuotaCooldown()
+      ? await Promise.race([
+          syncUserToFirestore(savedLocalUser),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+        ]).catch(() => false)
+      : false;
 
-  if (!serverSaved && firestoreSaved && db && newUser.password && String(newUser.password).trim()) {
-    try {
-      const hashedPwd = await hashPasswordBrowserAsync(String(newUser.password).trim());
-      if (hashedPwd) {
-        await setDoc(
-          doc(db, 'users', savedLocalUser.userId.trim().toUpperCase()),
-          { password: hashedPwd, passwordProtected: true },
-          { merge: true }
-        );
-      }
-    } catch {}
-  }
+    if (firestoreSaved && db && newUser.password && String(newUser.password).trim()) {
+      try {
+        const hashedPwd = await hashPasswordBrowserAsync(String(newUser.password).trim());
+        if (hashedPwd) {
+          await setDoc(
+            doc(db, 'users', savedLocalUser.userId.trim().toUpperCase()),
+            { password: hashedPwd, passwordProtected: true },
+            { merge: true }
+          );
+        }
+      } catch {}
+    }
 
-  if (!serverSaved || !firestoreSaved) {
-    void enqueuePendingUserSync(savedLocalUser, 'register');
+    if (!firestoreSaved) {
+      void enqueuePendingUserSync(savedLocalUser, 'register');
+    }
   }
 
   return savedLocalUser;
@@ -2709,10 +2871,10 @@ export const loginUserAsync = async (
   let issuedToken = '';
   let fromServer = false;
 
-  // 1. Try Server API Login FIRST (14s timeout) so single-device sessionToken rotates reliably
+  // 1. Try Server API Login FIRST (8s timeout) so single-device sessionToken rotates reliably
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 14000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     const res = await fetch('/api/users/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2738,62 +2900,78 @@ export const loginUserAsync = async (
     // Fallback to Firestore / local cache if server endpoint unreachable or non-JSON
   }
 
-  // 2. Targeted Firestore query fallback (clear cooldown on explicit user login attempt)
-  if (!matchedUser && db) {
+  // 2. Parallel Targeted Firestore query fallback (only when server did not return user & not in quota cooldown)
+  if (!matchedUser && db && !isFirestoreInQuotaCooldown()) {
     try {
-      clearFirestoreQuotaCooldown();
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000));
-      const firestorePromise = (async (): Promise<UserProfile | null> => {
-        if (cleanId.length >= 4 && !cleanId.startsWith('@') && !cleanId.includes('@')) {
-          const docRef = doc(db, 'users', cleanUpper);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) return snap.data() as UserProfile;
-        }
-        const col = collection(db, 'users');
-        if (digits.length >= 10) {
-          const last10 = digits.slice(-10);
-          const q = query(col, where('mobileNumber', '==', last10), limit(1));
-          const snap = await getDocs(q);
-          if (!snap.empty) return snap.docs[0].data() as UserProfile;
+      const col = collection(db, 'users');
+      const tasks: Promise<UserProfile | null>[] = [];
 
-          const qPrefixed = query(col, where('mobileNumber', '==', `+91${last10}`), limit(1));
-          const snapPref = await getDocs(qPrefixed);
-          if (!snapPref.empty) return snapPref.docs[0].data() as UserProfile;
+      if (cleanId.length >= 4 && !cleanId.startsWith('@') && !cleanId.includes('@')) {
+        tasks.push(
+          getDoc(doc(db, 'users', cleanUpper))
+            .then((snap) => (snap.exists() ? (snap.data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            })
+        );
+      }
+      if (digits.length >= 10) {
+        const last10 = digits.slice(-10);
+        tasks.push(
+          getDocs(query(col, where('mobileNumber', '==', last10), limit(1)))
+            .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            }),
+          getDocs(query(col, where('mobileNumber', '==', `+91${last10}`), limit(1)))
+            .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            })
+        );
+      }
+      if (cleanLower.includes('@') && !cleanId.startsWith('@')) {
+        tasks.push(
+          getDocs(query(col, where('email', '==', cleanLower), limit(1)))
+            .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+            .catch((e) => {
+              markFirestoreQuotaExhausted(e);
+              return null;
+            })
+        );
+        if (cleanId !== cleanLower) {
+          tasks.push(
+            getDocs(query(col, where('email', '==', cleanId), limit(1)))
+              .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+              .catch((e) => {
+                markFirestoreQuotaExhausted(e);
+                return null;
+              })
+          );
         }
-        if (cleanLower.includes('@') && !cleanId.startsWith('@')) {
-          const qEmail = query(col, where('email', '==', cleanLower), limit(1));
-          const snapE = await getDocs(qEmail);
-          if (!snapE.empty) return snapE.docs[0].data() as UserProfile;
-          if (cleanId !== cleanLower) {
-            const qEmailRaw = query(col, where('email', '==', cleanId), limit(1));
-            const snapERaw = await getDocs(qEmailRaw);
-            if (!snapERaw.empty) return snapERaw.docs[0].data() as UserProfile;
-          }
+      }
+      tasks.push(
+        getDocs(query(col, where('username', '==', cleanLower), limit(1)))
+          .then((snap) => (!snap.empty ? (snap.docs[0].data() as UserProfile) : null))
+          .catch((e) => {
+            markFirestoreQuotaExhausted(e);
+            return null;
+          })
+      );
+
+      const settled = await Promise.race([
+        Promise.allSettled(tasks),
+        new Promise<PromiseSettledResult<UserProfile | null>[]>((resolve) => setTimeout(() => resolve([]), 3500)),
+      ]);
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) {
+          matchedUser = r.value;
+          break;
         }
-        const qUname = query(col, where('username', '==', cleanLower), limit(1));
-        const snapU = await getDocs(qUname);
-        if (!snapU.empty) return snapU.docs[0].data() as UserProfile;
-
-        // Bounded collection scan for mixed-case emails or non-standard phone formatting
-        const snapAll = await getDocs(col);
-        let fallbackFound: UserProfile | null = null;
-        snapAll.forEach((d) => {
-          if (fallbackFound) return;
-          const u = d.data() as UserProfile;
-          if (!u || !u.userId || u.isArchived) return;
-          const uidMatch = u.userId.toLowerCase() === cleanLower;
-          const unameMatch = Boolean(u.username && u.username.toLowerCase().replace(/^@/, '') === cleanLower);
-          const mobileMatch =
-            digits.length >= 10 && (u.mobileNumber || '').replace(/\D/g, '').endsWith(digits.slice(-10));
-          const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === cleanLower);
-          if (uidMatch || unameMatch || mobileMatch || emailMatch) {
-            fallbackFound = u;
-          }
-        });
-        return fallbackFound;
-      })();
-
-      matchedUser = await Promise.race([firestorePromise, timeoutPromise]);
+      }
     } catch (e) {
       markFirestoreQuotaExhausted(e);
     }
@@ -2818,12 +2996,11 @@ export const loginUserAsync = async (
 
   // Strict Password Verification in fallback mode (supports Node-compatible scrypt$ in browser!)
   if (!fromServer) {
-    if (!matchedUser.password && matchedUser.passwordProtected && db) {
+    if (!matchedUser.password && matchedUser.passwordProtected && db && !isFirestoreInQuotaCooldown()) {
       try {
-        clearFirestoreQuotaCooldown();
         const docSnap = await Promise.race([
           getDoc(doc(db, 'users', matchedUser.userId.trim().toUpperCase())),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
         ]);
         if (docSnap && docSnap.exists()) {
           const cloudRec = docSnap.data() as UserProfile;
@@ -2831,7 +3008,9 @@ export const loginUserAsync = async (
             matchedUser = { ...matchedUser, password: cloudRec.password };
           }
         }
-      } catch {}
+      } catch (e) {
+        markFirestoreQuotaExhausted(e);
+      }
     }
 
     if (matchedUser.password && String(matchedUser.password).startsWith('scrypt$')) {
@@ -2852,7 +3031,7 @@ export const loginUserAsync = async (
     }
   }
 
-  // Ensure sessionToken is set and synced to Firestore + server for real-time cross-device invalidation
+  // Ensure sessionToken is set and synced non-destructively (no blocking 1.5s Firestore wait when server already handled it)
   if (!issuedToken) {
     issuedToken = createClientSessionToken();
   }
@@ -2874,18 +3053,18 @@ export const loginUserAsync = async (
   saveUsers(merged);
   setCurrentUser(updatedUser);
 
-  // Sync updated activeSessionToken to Firestore (wait up to 1.5s so real-time listener sees new token first)
-  await Promise.race([
-    syncUserToFirestore(updatedUser),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1500)),
-  ]).catch(() => false);
-  // If user came from Firestore/local rather than server, push full record back to server disk if authorized
-  if (!fromServer && (getMemberAuthToken() || getAdminAuthToken())) {
-    fetch('/api/users/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
-      body: JSON.stringify({ users: [updatedUser] }),
-    }).catch(() => {});
+  // Non-blocking background sync only when fallback mode succeeded without server
+  if (!fromServer) {
+    if (!isFirestoreInQuotaCooldown()) {
+      void syncUserToFirestore(updatedUser);
+    }
+    if (getMemberAuthToken() || getAdminAuthToken()) {
+      fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
+        body: JSON.stringify({ users: [updatedUser] }),
+      }).catch(() => {});
+    }
   }
 
   return { success: true, user: updatedUser, sessionToken: issuedToken };
@@ -2960,6 +3139,7 @@ export const setCurrentUser = (user: UserProfile | null): void => {
   if (typeof window === 'undefined') return;
   if (!user) {
     memoryCurrentUser = null;
+    lastSavedCurrentUserSig = '';
     safeLocalStorageRemove(STORAGE_CURRENT_USER_KEY);
     void idbRemove(STORAGE_CURRENT_USER_KEY);
     return;
@@ -2977,40 +3157,58 @@ export const setCurrentUser = (user: UserProfile | null): void => {
       ? mergeUserLists(prevSame ? [prevSame] : [], memMatch ? [memMatch] : [], [user])[0]
       : user;
 
+  const userSig = `${enrichedUser.userId}|${enrichedUser.paymentStatus}|${enrichedUser.selectedPlanId}|${enrichedUser.fullName}|${enrichedUser.username || ''}|${enrichedUser.lastLoginAt || ''}|${enrichedUser.activeSessionToken || ''}|${enrichedUser.editHistory?.length || 0}|${enrichedUser.photoUrl?.length || 0}|${enrichedUser.paymentScreenshotUrl?.length || 0}`;
   memoryCurrentUser = enrichedUser;
+  if (userSig === lastSavedCurrentUserSig) {
+    return;
+  }
+  lastSavedCurrentUserSig = userSig;
 
   // Always save full user record to IndexedDB
   void idbSet(STORAGE_CURRENT_USER_KEY, enrichedUser);
 
   try {
-    const serialized = JSON.stringify(enrichedUser);
-    if (
-      serialized.length <= 1_200_000 &&
-      safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, serialized, {
-        evictKeysOnQuota: BULKY_EVICT_KEYS,
-      })
-    ) {
-      return;
+    const hasHugeReceipt =
+      typeof enrichedUser.paymentScreenshotUrl === 'string' &&
+      enrichedUser.paymentScreenshotUrl.startsWith('data:') &&
+      enrichedUser.paymentScreenshotUrl.length > 16000;
+    const hasHugePhoto =
+      typeof enrichedUser.photoUrl === 'string' &&
+      enrichedUser.photoUrl.startsWith('data:') &&
+      enrichedUser.photoUrl.length > 16000;
+
+    if (!hasHugeReceipt && !hasHugePhoto) {
+      const serialized = JSON.stringify(enrichedUser);
+      if (
+        serialized.length <= 1_200_000 &&
+        safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, serialized, {
+          evictKeysOnQuota: BULKY_EVICT_KEYS,
+        })
+      ) {
+        return;
+      }
     }
 
     // Fallback 1: omit large paymentScreenshotUrl in localStorage session copy (rarely needed in active session header)
-    const withoutReceipt: UserProfile = {
-      ...enrichedUser,
-      paymentScreenshotUrl:
-        enrichedUser.paymentScreenshotUrl &&
-        enrichedUser.paymentScreenshotUrl.startsWith('data:') &&
-        enrichedUser.paymentScreenshotUrl.length > 4096
-          ? ''
-          : enrichedUser.paymentScreenshotUrl,
-    };
-    const withoutReceiptJson = JSON.stringify(withoutReceipt);
-    if (
-      withoutReceiptJson.length <= 1_200_000 &&
-      safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, withoutReceiptJson, {
-        evictKeysOnQuota: BULKY_EVICT_KEYS,
-      })
-    ) {
-      return;
+    if (!hasHugePhoto) {
+      const withoutReceipt: UserProfile = {
+        ...enrichedUser,
+        paymentScreenshotUrl:
+          enrichedUser.paymentScreenshotUrl &&
+          enrichedUser.paymentScreenshotUrl.startsWith('data:') &&
+          enrichedUser.paymentScreenshotUrl.length > 4096
+            ? ''
+            : enrichedUser.paymentScreenshotUrl,
+      };
+      const withoutReceiptJson = JSON.stringify(withoutReceipt);
+      if (
+        withoutReceiptJson.length <= 1_200_000 &&
+        safeLocalStorageSet(STORAGE_CURRENT_USER_KEY, withoutReceiptJson, {
+          evictKeysOnQuota: BULKY_EVICT_KEYS,
+        })
+      ) {
+        return;
+      }
     }
 
     // Fallback 2: strip any huge inline data URLs in localStorage session copy while memoryCurrentUser & IDB retain them
@@ -3045,7 +3243,7 @@ export const refreshCurrentUserFullAsync = async (userId: string): Promise<UserP
   try {
     const authHeaders = getAuthHeaders(false);
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 12000);
+    const tid = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(`/api/users/profile/${encodeURIComponent(cleanId)}?self=1`, {
       headers: authHeaders,
       signal: controller.signal,
@@ -3060,11 +3258,11 @@ export const refreshCurrentUserFullAsync = async (userId: string): Promise<UserP
     }
   } catch {}
 
-  if (db && !isFirestoreInQuotaCooldown()) {
+  if (!serverFull && db && !isFirestoreInQuotaCooldown()) {
     try {
       const snap = await Promise.race([
         getDoc(doc(db, 'users', cleanId)),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
       ]);
       if (snap && snap.exists()) {
         const d = snap.data() as UserProfile;
@@ -3737,9 +3935,13 @@ export const fetchTicketsFromServer = async (options?: { skipFirestore?: boolean
     const isAdmin = isAdminLoggedIn();
     const curUser = getCurrentUser();
     const qs = !isAdmin && curUser?.userId ? `?userId=${encodeURIComponent(curUser.userId)}` : '';
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`/api/tickets${qs}`, {
       headers: getAuthHeaders(isAdmin),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.tickets)) {
@@ -3755,15 +3957,20 @@ export const fetchTicketsFromServer = async (options?: { skipFirestore?: boolean
   try {
     if (db && !options?.skipFirestore && !isFirestoreInQuotaCooldown()) {
       const col = collection(db, 'tickets');
-      const snap = await getDocs(col);
-      const firestoreTickets: HelpTicket[] = [];
-      snap.forEach((d) => {
-        const t = d.data() as HelpTicket;
-        if (t && t.id) firestoreTickets.push(t);
-      });
-      if (firestoreTickets.length > 0) {
-        saveTicketsLocally(firestoreTickets);
-        return firestoreTickets;
+      const snap = await Promise.race([
+        getDocs(col),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+      if (snap) {
+        const firestoreTickets: HelpTicket[] = [];
+        snap.forEach((d) => {
+          const t = d.data() as HelpTicket;
+          if (t && t.id) firestoreTickets.push(t);
+        });
+        if (firestoreTickets.length > 0) {
+          saveTicketsLocally(firestoreTickets);
+          return firestoreTickets;
+        }
       }
     }
   } catch (e) {
@@ -3956,31 +4163,15 @@ export const fetchPrivateChatMessagesAsync = async (userId: string): Promise<Adm
   const cleanId = userId.trim().toUpperCase();
   const local = getLocalPrivateChatMessages(cleanId);
 
-  // Firestore check
-  if (db) {
-    try {
-      const col = collection(db, 'private_messages');
-      const snap = await getDocs(col);
-      const list: AdminPrivateMessage[] = [];
-      snap.forEach((d) => {
-        const m = d.data() as AdminPrivateMessage;
-        if (m && m.userId && m.userId.toUpperCase() === cleanId) {
-          list.push(m);
-        }
-      });
-      if (list.length > 0) {
-        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        saveLocalPrivateChatMessages(cleanId, list);
-        return list;
-      }
-    } catch {}
-  }
-
-  // Server API check
+  // 1. Server API check FIRST (fast, zero Firestore read quota)
   try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`/api/messages/${encodeURIComponent(cleanId)}`, {
       headers: getAuthHeaders(isAdminLoggedIn()),
+      signal: controller.signal,
     });
+    clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.messages)) {
@@ -3989,6 +4180,31 @@ export const fetchPrivateChatMessagesAsync = async (userId: string): Promise<Adm
       }
     }
   } catch {}
+
+  // 2. Targeted Firestore fallback only if server missed and not in quota cooldown
+  if (db && !isFirestoreInQuotaCooldown()) {
+    try {
+      const col = collection(db, 'private_messages');
+      const snap = await Promise.race([
+        getDocs(query(col, where('userId', '==', cleanId))),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+      if (snap) {
+        const list: AdminPrivateMessage[] = [];
+        snap.forEach((d) => {
+          const m = d.data() as AdminPrivateMessage;
+          if (m && m.userId) list.push(m);
+        });
+        if (list.length > 0) {
+          list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          saveLocalPrivateChatMessages(cleanId, list);
+          return list;
+        }
+      }
+    } catch (e) {
+      markFirestoreQuotaExhausted(e);
+    }
+  }
 
   return local;
 };
@@ -4093,14 +4309,24 @@ export const adminUpdateUserProfileAsync = async (
   });
 
   const { password: rawAdminPassUpdate, ...safeAdminUpdates } = updates as any;
-  const nonEmptyUpdates = Object.fromEntries(
-    Object.entries(safeAdminUpdates).filter(([, v]) => v !== undefined && v !== '')
-  ) as Partial<UserProfile>;
+  const allowClearFields = new Set(['username', 'payoutUpi', 'address']);
+  const sanitizedUpdates: Record<string, any> = {};
+  for (const [k, v] of Object.entries(safeAdminUpdates)) {
+    if (v === undefined) continue;
+    if (v === '' && !allowClearFields.has(k)) continue;
+    sanitizedUpdates[k] = typeof v === 'string' ? v.trim() : v;
+  }
+  if (typeof sanitizedUpdates.email === 'string') {
+    sanitizedUpdates.emailLower = sanitizedUpdates.email.toLowerCase();
+  }
+  if (typeof sanitizedUpdates.username === 'string') {
+    sanitizedUpdates.username = sanitizedUpdates.username.toLowerCase().replace(/^@/, '');
+  }
 
-  const updatedUser: UserProfile = mergeUserLists([existing], [
+  let updatedUser: UserProfile = mergeUserLists([existing], [
     {
       ...existing,
-      ...nonEmptyUpdates,
+      ...sanitizedUpdates,
       ...(rawAdminPassUpdate && String(rawAdminPassUpdate).trim()
         ? { passwordProtected: true, passwordStatus: '🔒 Encrypted (scrypt)' }
         : {}),
@@ -4109,44 +4335,138 @@ export const adminUpdateUserProfileAsync = async (
     },
   ])[0];
 
-  users[index] = updatedUser;
-  saveUsers(users);
+  // Ensure explicit admin edits (like status change from approved -> pending/rejected or clearing optional fields) are never reverted by mergeUserLists
+  if (
+    sanitizedUpdates.paymentStatus === 'approved' ||
+    sanitizedUpdates.paymentStatus === 'pending' ||
+    sanitizedUpdates.paymentStatus === 'rejected'
+  ) {
+    updatedUser.paymentStatus = sanitizedUpdates.paymentStatus;
+  }
+  if (typeof sanitizedUpdates.username === 'string') {
+    updatedUser.username = sanitizedUpdates.username;
+  }
+  if (typeof sanitizedUpdates.payoutUpi === 'string') {
+    updatedUser.payoutUpi = sanitizedUpdates.payoutUpi;
+  }
+  if (typeof sanitizedUpdates.email === 'string') {
+    updatedUser.email = sanitizedUpdates.email;
+    (updatedUser as any).emailLower = sanitizedUpdates.email.toLowerCase();
+  }
 
-  // Sanitized + quota-protected Firestore + Server sync with retry queue
-  void (async () => {
-    clearFirestoreQuotaCooldown();
-    const fsOk = await syncUserToFirestore(updatedUser);
-    let srvOk = false;
-    try {
-      const res = await fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) srvOk = true;
-    } catch {}
-    if (!srvOk) {
-      try {
-        const syncRes = await fetch('/api/users/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
-          body: JSON.stringify({ users: [updatedUser] }),
-        });
-        if (syncRes.ok) srvOk = true;
-      } catch {}
+  const isCloudVerifiedMode = getAdminAuthToken() === 'firestore_verified';
+  let srvOk = false;
+  let serverErrorMsg = '';
+  let serverUnauthorized = false;
+
+  // 1. Await authoritative server PUT /api/admin/users/:userId
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(cleanId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+      body: JSON.stringify(updates),
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (res.status === 401 || res.status === 403) {
+      serverUnauthorized = true;
+      serverErrorMsg = (isJson && data?.error) || 'एडमिन सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।';
+    } else if (isJson && res.ok && data?.success) {
+      srvOk = true;
+      if (data.user && typeof data.user === 'object') {
+        updatedUser = {
+          ...updatedUser,
+          ...data.user,
+          photoUrl: data.user.photoUrl || updatedUser.photoUrl,
+          paymentScreenshotUrl: data.user.paymentScreenshotUrl || updatedUser.paymentScreenshotUrl,
+        };
+      }
+    } else if (isJson && data?.error) {
+      serverErrorMsg = data.error;
     }
-    if (!srvOk && fsOk && db && rawAdminPassUpdate && String(rawAdminPassUpdate).trim()) {
+  } catch (err: any) {
+    serverErrorMsg = err?.message || 'सर्वर से संपर्क नहीं हो सका।';
+  }
+
+  // If real server session expired (not cross-device cloud-verified mode), fail loudly instead of faking success
+  if (serverUnauthorized && !isCloudVerifiedMode) {
+    setAdminSession(false);
+    throw new Error(serverErrorMsg || 'एडमिन सत्र समाप्त हो गया है। कृपया एडमिन पैनल में पुनः लॉगिन करें।');
+  }
+
+  // 2. Fallback server sync if PUT failed with transient error (and authorized)
+  if (!srvOk && !serverUnauthorized) {
+    try {
+      const syncRes = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+        body: JSON.stringify({ users: [updatedUser] }),
+      });
+      const { isJson, data } = await parseJsonResponseSafe(syncRes);
+      if (isJson && syncRes.ok && data?.success) {
+        srvOk = true;
+      }
+    } catch {}
+  }
+
+  // 3. Firestore persistence: server already synced to Firestore on PUT; only block on client Firestore if server failed
+  let fsOk = false;
+  if (!srvOk && !isFirestoreInQuotaCooldown()) {
+    fsOk = await Promise.race([
+      syncUserToFirestore(updatedUser),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
+    ]);
+
+    if (db && rawAdminPassUpdate && String(rawAdminPassUpdate).trim()) {
       try {
         const hashed = await hashPasswordBrowserAsync(String(rawAdminPassUpdate).trim());
         if (hashed) {
-          await setDoc(doc(db, 'users', cleanId), { password: hashed, passwordProtected: true }, { merge: true });
+          await setDoc(
+            doc(db, 'users', cleanId),
+            { password: hashed, passwordProtected: true },
+            { merge: true }
+          );
+          fsOk = true;
         }
-      } catch {}
+      } catch (e) {
+        markFirestoreQuotaExhausted(e);
+      }
     }
-    if (!srvOk || !fsOk) {
-      await enqueuePendingUserSync(updatedUser, 'admin-update');
-    }
-  })();
+  }
+
+  if (!srvOk && !fsOk) {
+    await enqueuePendingUserSync(updatedUser, 'admin-update');
+    throw new Error(
+      serverErrorMsg || 'सर्वर और क्लाउड डेटाबेस पर अपडेट सेव नहीं हो सका। कृपया इंटरनेट जाँचें और पुनः प्रयास करें।'
+    );
+  }
+
+  if (!srvOk) {
+    await enqueuePendingUserSync(updatedUser, 'admin-update');
+  }
+
+  // Persist locally only after server/cloud save succeeded
+  const latestUsers = getAllUsers();
+  const latestIdx = latestUsers.findIndex((u) => u.userId?.toUpperCase() === cleanId);
+  if (latestIdx !== -1) {
+    latestUsers[latestIdx] = updatedUser;
+  } else {
+    latestUsers.push(updatedUser);
+  }
+  saveUsers(latestUsers);
+
+  const cur = getCurrentUser();
+  if (cur && cur.userId?.toUpperCase() === cleanId) {
+    setCurrentUser({
+      ...cur,
+      ...updatedUser,
+      photoUrl: updatedUser.photoUrl || cur.photoUrl,
+      paymentScreenshotUrl: updatedUser.paymentScreenshotUrl || cur.paymentScreenshotUrl,
+    });
+  }
 
   return updatedUser;
 };
@@ -4209,7 +4529,7 @@ export const fetchAdminFullUsersAsync = async (
   let errorMessage: string | undefined;
 
   const includeMedia = options.includeMedia !== false;
-  const timeoutMs = includeMedia ? 45000 : 15000;
+  const timeoutMs = includeMedia ? 25000 : 6000;
   const isCloudVerifiedMode = getAdminAuthToken() === 'firestore_verified';
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -4261,27 +4581,53 @@ export const fetchAdminFullUsersAsync = async (
     }
   }
 
-  // Fallback directly to Firestore when running on static/cross-device fallback without Express admin route
+  // Fallback directly to Firestore ONLY when running on static/cross-device fallback without Express admin route and quota allows
   let cloudFallbackUsers: UserProfile[] = [];
-  if (!serverReachable && !unauthorized && db) {
+  if (!serverReachable && !unauthorized && db && !isFirestoreInQuotaCooldown()) {
     try {
-      clearFirestoreQuotaCooldown();
-      const snap = await Promise.race([
-        getDocs(collection(db, 'users')),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
-      ]);
-      if (snap) {
-        snap.forEach((d) => {
-          const u = d.data() as UserProfile;
-          if (!u || !u.userId || DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) return;
-          if (u.isArchived) {
-            serverArchived.push(u);
-          } else {
-            cloudFallbackUsers.push(u);
+      let usedSnapshot = false;
+      if (!options?.forceCloud) {
+        try {
+          const snapDoc = await Promise.race([
+            getDoc(doc(db, 'app_settings', 'users_snapshot_v1')),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          ]);
+          if (snapDoc && snapDoc.exists()) {
+            const snapData = snapDoc.data() as { users?: UserProfile[] };
+            if (Array.isArray(snapData?.users) && snapData.users.length > 0) {
+              for (const u of snapData.users) {
+                if (!u || !u.userId || DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) continue;
+                if (u.isArchived) {
+                  serverArchived.push(u);
+                } else {
+                  cloudFallbackUsers.push(u);
+                }
+              }
+              usedSnapshot = cloudFallbackUsers.length > 0;
+              if (usedSnapshot) errorMessage = undefined;
+            }
           }
-        });
-        if (cloudFallbackUsers.length > 0 || serverArchived.length > 0) {
-          errorMessage = undefined;
+        } catch {}
+      }
+
+      if (!usedSnapshot) {
+        const snap = await Promise.race([
+          getDocs(collection(db, 'users')),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (snap) {
+          snap.forEach((d) => {
+            const u = d.data() as UserProfile;
+            if (!u || !u.userId || DEMO_USER_IDS.includes(u.userId.trim().toUpperCase())) return;
+            if (u.isArchived) {
+              serverArchived.push(u);
+            } else {
+              cloudFallbackUsers.push(u);
+            }
+          });
+          if (cloudFallbackUsers.length > 0 || serverArchived.length > 0) {
+            errorMessage = undefined;
+          }
         }
       }
     } catch (e: any) {

@@ -180,6 +180,7 @@ export type PageType =
   | 'admin' 
   | 'dashboard' 
   | 'chat-help'
+  | 'maps-explorer'
   | 'contact'
   | 'about'
   | 'privacy-policy'

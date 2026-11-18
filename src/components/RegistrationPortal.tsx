@@ -374,7 +374,16 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       return false;
     }
 
-    const sponsorCheck = await validateSponsorIdAsync(sponsorId);
+    const [sponsorCheck, dupCheck] = await Promise.all([
+      sponsorStatus === 'valid'
+        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }>({
+            isValid: true,
+            sponsorName: sponsorVerifiedName || 'सत्यापित स्पॉन्सर',
+          })
+        : validateSponsorIdAsync(sponsorId),
+      checkUserAlreadyExists(mobCheck.cleanDigits, email),
+    ]);
+
     if (!sponsorCheck.isValid) {
       setSponsorStatus('invalid');
       setSponsorError(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
@@ -384,8 +393,6 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     setSponsorStatus('valid');
     setSponsorVerifiedName(sponsorCheck.sponsorName || 'सत्यापित स्पॉन्सर');
 
-    // 5. Duplicate Check
-    const dupCheck = await checkUserAlreadyExists(mobCheck.cleanDigits, email);
     if (dupCheck.exists) {
       setDuplicateNotice({
         exists: true,
@@ -441,10 +448,21 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
-    const step1Ok = await validateStep1();
-    if (!step1Ok) {
-      setCurrentStep(1);
-      return;
+    // Run synchronous field validations immediately; only re-run async Step 1 checks if not already verified cleanly
+    const needsAsyncStep1 =
+      sponsorStatus !== 'valid' ||
+      Boolean(duplicateNotice?.exists) ||
+      !validateFullName(fullName).isValid ||
+      !validateMobileNumber(mobileNumber).isValid ||
+      (Boolean(email.trim()) && !validateEmailAddress(email).isValid) ||
+      !sponsorId.trim();
+
+    if (needsAsyncStep1) {
+      const step1Ok = await validateStep1();
+      if (!step1Ok) {
+        setCurrentStep(1);
+        return;
+      }
     }
 
     const step2Ok = validateStep2();

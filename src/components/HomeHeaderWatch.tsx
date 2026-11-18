@@ -137,28 +137,207 @@ interface SJewelButton {
   onClick: () => void;
 }
 
-export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
-  currentUser,
-  onNavigate,
-  onOpenLogin,
-  onOpenRegister,
-  onOpenSponsorAddMember,
-  onOpenChatHelp,
-  onOpenDashboard,
-  onOpenIdCard,
-  onOpenFestivalModal,
-  onOpenRashifalModal,
-  onOpenPhotoCompressor,
-  onOpenAiChat,
-}) => {
-  const [time, setTime] = useState<Date>(new Date());
-  const [selectedTopic, setSelectedTopic] = useState<SystemTopicKey | null>(null);
-  const [hoveredJewel, setHoveredJewel] = useState<SJewelButton | null>(null);
+const WATCH_HOUR_NUMBERS = [
+  { num: '12', angle: 0 },
+  { num: '1', angle: 30 },
+  { num: '2', angle: 60 },
+  { num: '3', angle: 90 },
+  { num: '4', angle: 120 },
+  { num: '5', angle: 150 },
+  { num: '6', angle: 180 },
+  { num: '7', angle: 210 },
+  { num: '8', angle: 240 },
+  { num: '9', angle: 270 },
+  { num: '10', angle: 300 },
+  { num: '11', angle: 330 },
+];
 
-  const goPage = (page: PageType) => {
-    onNavigate?.(page);
-    scrollAppToTop();
+const WATCH_MINUTE_TICKS = Array.from({ length: 60 }).map((_, i) => {
+  const isHour = i % 5 === 0;
+  const angle = i * 6;
+  const r1 = 96;
+  const r2 = isHour ? 86 : 91;
+  const rad = (angle - 90) * (Math.PI / 180);
+  return {
+    x1: 120 + r1 * Math.cos(rad),
+    y1: 120 + r1 * Math.sin(rad),
+    x2: 120 + r2 * Math.cos(rad),
+    y2: 120 + r2 * Math.sin(rad),
+    isHour,
   };
+});
+
+const WATCH_FLUTED_FACETS = Array.from({ length: 60 }).map((_, i) => {
+  const angle = i * 6;
+  const r1 = 115;
+  const r2 = 104;
+  const rad = (angle - 90) * (Math.PI / 180);
+  return {
+    x1: 120 + r1 * Math.cos(rad),
+    y1: 120 + r1 * Math.sin(rad),
+    x2: 120 + r2 * Math.cos(rad),
+    y2: 120 + r2 * Math.sin(rad),
+  };
+});
+
+const StaticODialLayers = React.memo(() => (
+  <>
+    <defs>
+      <linearGradient id="goldFluted" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FFF5C8" />
+        <stop offset="20%" stopColor="#E4BF5E" />
+        <stop offset="40%" stopColor="#8C6510" />
+        <stop offset="60%" stopColor="#FFF8D4" />
+        <stop offset="80%" stopColor="#D4AF37" />
+        <stop offset="100%" stopColor="#7A5600" />
+      </linearGradient>
+
+      <linearGradient id="platinumRing" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#334155" />
+        <stop offset="30%" stopColor="#94A3B8" />
+        <stop offset="70%" stopColor="#E2E8F0" />
+        <stop offset="100%" stopColor="#1E293B" />
+      </linearGradient>
+
+      <radialGradient id="sunburstDial" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#1E293B" />
+        <stop offset="45%" stopColor="#0F172A" />
+        <stop offset="85%" stopColor="#020617" />
+        <stop offset="100%" stopColor="#000000" />
+      </radialGradient>
+
+      <linearGradient id="tricolorAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FF9933" />
+        <stop offset="50%" stopColor="#FFFFFF" />
+        <stop offset="100%" stopColor="#138808" />
+      </linearGradient>
+
+      <radialGradient id="subdialBg" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#111C33" />
+        <stop offset="100%" stopColor="#020617" />
+      </radialGradient>
+
+      <filter id="luxuryHandShadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.9" />
+      </filter>
+
+      <filter id="goldenGlowText" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="0" dy="0" stdDeviation="0.9" floodColor="#F59E0B" floodOpacity="0.95" />
+        <feDropShadow dx="0" dy="0" stdDeviation="2.2" floodColor="#D97706" floodOpacity="0.75" />
+      </filter>
+
+      <linearGradient id="royalCrownGold" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FFFBEB" />
+        <stop offset="25%" stopColor="#FDE047" />
+        <stop offset="60%" stopColor="#D97706" />
+        <stop offset="100%" stopColor="#78350F" />
+      </linearGradient>
+    </defs>
+
+    <circle cx="120" cy="120" r="115" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="1.5" />
+
+    {WATCH_FLUTED_FACETS.map((facet, idx) => (
+      <line
+        key={idx}
+        x1={facet.x1}
+        y1={facet.y1}
+        x2={facet.x2}
+        y2={facet.y2}
+        stroke={idx % 2 === 0 ? '#FFF5C2' : '#7A5600'}
+        strokeWidth="1.2"
+        opacity="0.9"
+      />
+    ))}
+
+    <circle cx="120" cy="120" r="103" fill="none" stroke="url(#platinumRing)" strokeWidth="2.5" />
+    <circle cx="120" cy="120" r="100" fill="none" stroke="url(#tricolorAccent)" strokeWidth="1.6" opacity="0.92" />
+    <circle cx="120" cy="120" r="98" fill="url(#sunburstDial)" />
+    {/* Sapphire AR Blue-Champagne Edge Chamfer */}
+    <circle cx="120" cy="120" r="97" fill="none" stroke="rgba(56,189,248,0.28)" strokeWidth="0.9" />
+
+    {/* Guilloché Concentric Precision Rings */}
+    <circle cx="120" cy="120" r="88" fill="none" stroke="#D4AF37" strokeWidth="0.45" opacity="0.34" />
+    <circle cx="120" cy="120" r="76" fill="none" stroke="#475569" strokeWidth="0.6" strokeDasharray="1.5 3" opacity="0.45" />
+    <circle cx="120" cy="120" r="54" fill="none" stroke="#475569" strokeWidth="0.5" strokeDasharray="1.5 3" opacity="0.35" />
+
+    {WATCH_MINUTE_TICKS.map((tick, idx) => (
+      <line
+        key={idx}
+        x1={tick.x1}
+        y1={tick.y1}
+        x2={tick.x2}
+        y2={tick.y2}
+        stroke={tick.isHour ? '#FFD700' : '#64748B'}
+        strokeWidth={tick.isHour ? '2.2' : '0.8'}
+        strokeLinecap="round"
+        opacity={tick.isHour ? '1' : '0.55'}
+      />
+    ))}
+
+    {WATCH_HOUR_NUMBERS.map((item) => {
+      const rad = (item.angle - 90) * (Math.PI / 180);
+      const radius = 79;
+      const x = 120 + radius * Math.cos(rad);
+      const y = 120 + radius * Math.sin(rad) + 4.5;
+      const isCardinal = item.num === '12' || item.num === '3' || item.num === '6' || item.num === '9';
+      return (
+        <g key={item.num}>
+          {isCardinal && (
+            <circle cx={x} cy={y - 4} r="9.5" fill="#020617" stroke="#F59E0B" strokeWidth="1.2" />
+          )}
+          <text
+            x={x}
+            y={y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={isCardinal ? '#FFD700' : '#F1F5F9'}
+            fontSize={isCardinal ? '13' : '11'}
+            fontWeight="900"
+            fontFamily="system-ui, -apple-system, sans-serif"
+          >
+            {item.num}
+          </text>
+        </g>
+      );
+    })}
+
+    {/* Static Royal Crown & IOIS INDIA Brand Text */}
+    <g transform="translate(120, 68)">
+      <g filter="url(#goldenGlowText)">
+        <path
+          d="M -11 -6 L -14 -16 L -7 -9.5 L 0 -19 L 7 -9.5 L 14 -16 L 11 -6 Z"
+          fill="url(#royalCrownGold)"
+          stroke="#FFE082"
+          strokeWidth="0.8"
+          strokeLinejoin="round"
+        />
+        <circle cx="-14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+        <circle cx="-7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+        <circle cx="0" cy="-19" r="1.8" fill="#FFFFFF" stroke="#D97706" strokeWidth="0.6" />
+        <circle cx="7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+        <circle cx="14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
+        <rect x="-10" y="-6.2" width="20" height="2.2" rx="1" fill="url(#goldFluted)" stroke="#78350F" strokeWidth="0.5" />
+      </g>
+
+      <text
+        x="0"
+        y="6"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#FFD700"
+        fontSize="9.2"
+        fontWeight="900"
+        fontFamily="system-ui, -apple-system, sans-serif"
+        letterSpacing="1.6"
+      >
+        IOIS INDIA
+      </text>
+    </g>
+  </>
+));
+
+const WatchChronometerStage = React.memo(({ letterSNode }: { letterSNode: React.ReactNode }) => {
+  const [time, setTime] = useState<Date>(() => new Date());
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -172,14 +351,12 @@ export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
   const seconds = time.getSeconds();
   const dayOfMonth = time.getDate();
 
-  // Digital 12-hour components
   const hours12 = hours % 12 || 12;
   const hhStr = String(hours12).padStart(2, '0');
   const mmStr = String(minutes).padStart(2, '0');
   const ssStr = String(seconds).padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
 
-  // Angular calculations for Analog O-Clock (Center: 120, 120)
   const secDeg = seconds * 6;
   const minDeg = minutes * 6 + seconds * 0.1;
   const hourDeg = (hours % 12) * 30 + minutes * 0.5;
@@ -207,51 +384,277 @@ export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
     greetingIcon = '🌙';
   }
 
-  // 12 Main Hour Indices
-  const numbers = [
-    { num: '12', angle: 0 },
-    { num: '1', angle: 30 },
-    { num: '2', angle: 60 },
-    { num: '3', angle: 90 },
-    { num: '4', angle: 120 },
-    { num: '5', angle: 150 },
-    { num: '6', angle: 180 },
-    { num: '7', angle: 210 },
-    { num: '8', angle: 240 },
-    { num: '9', angle: 270 },
-    { num: '10', angle: 300 },
-    { num: '11', angle: 330 },
-  ];
+  return (
+    <>
+      {/* Top Unified Masthead — Precision Chronometer Header */}
+      <div className="flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 rounded-lg bg-slate-950/75 border border-amber-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-300/20 via-amber-500/15 to-slate-900 border border-amber-400/40 flex items-center justify-center text-xs sm:text-sm shrink-0 shadow-inner">
+            {greetingIcon}
+          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[10.5px] sm:text-xs font-black tracking-wide bg-gradient-to-r from-amber-100 via-amber-300 to-yellow-200 bg-clip-text text-transparent truncate">
+              {greeting}
+            </span>
+            <span aria-hidden="true" className="text-amber-500/50 text-[10px] hidden xs:inline">·</span>
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-300 truncate hidden xs:inline">
+              IOIS INDIA लाइव क्रोनोमीटर
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 px-2 py-0.5 rounded-md bg-slate-900/90 border border-slate-700/70">
+          <span className="text-[9.5px] sm:text-[11px] font-mono tabular-nums font-bold text-amber-200 tracking-wider">
+            {hhStr}:{mmStr}:{ssStr} {ampm}
+          </span>
+          <span aria-hidden="true" className="text-slate-600 text-[10px]">|</span>
+          <span className="text-[9px] sm:text-[10px] font-mono font-bold text-emerald-300 tracking-wider">
+            IST +5:30
+          </span>
+        </div>
+      </div>
 
-  // 60 Minute Ticks
-  const minuteTicks = Array.from({ length: 60 }).map((_, i) => {
-    const isHour = i % 5 === 0;
-    const angle = i * 6;
-    const r1 = 96;
-    const r2 = isHour ? 86 : 91;
-    const rad = (angle - 90) * (Math.PI / 180);
-    return {
-      x1: 120 + r1 * Math.cos(rad),
-      y1: 120 + r1 * Math.sin(rad),
-      x2: 120 + r2 * Math.cos(rad),
-      y2: 120 + r2 * Math.sin(rad),
-      isHour,
-    };
-  });
+      {/* ========================================================================
+          IDENTICAL CROSS-DEVICE HORIZONTAL MONUMENT:  [ I ]  [ O ]  [ I ]  [ S ]
+          - Haute-Horology Smoked-Obsidian Exhibition Stage & 24K Gold Craftsmanship
+      ========================================================================= */}
+      <div className="relative my-0.5 py-3 sm:py-4 md:py-5 px-2 sm:px-4 rounded-xl sm:rounded-2xl bg-[radial-gradient(circle_at_50%_45%,rgba(245,158,11,0.16)_0%,rgba(15,23,42,0.88)_54%,rgba(2,6,23,0.98)_100%)] border border-amber-400/35 shadow-[inset_0_1px_0_rgba(255,245,200,0.2),inset_0_-18px_36px_rgba(0,0,0,0.72),0_14px_34px_rgba(0,0,0,0.7)] overflow-hidden">
+        {/* Subtle Radial Stage Glow Behind Chronometer */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-4 inset-y-1 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(251,191,36,0.2),rgba(16,185,129,0.08)_55%,transparent_75%)] blur-xl"
+        />
+        {/* Precision Architectural Watchmaker Backplate SVG (subtle concentric hairlines & cardinal ticks) */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 800 260"
+          preserveAspectRatio="xMidYMid slice"
+          className="pointer-events-none absolute inset-0 w-full h-full opacity-30"
+        >
+          <defs>
+            <linearGradient id="stageGoldLine" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(245,158,11,0)" />
+              <stop offset="30%" stopColor="rgba(251,191,36,0.45)" />
+              <stop offset="50%" stopColor="rgba(255,245,200,0.7)" />
+              <stop offset="70%" stopColor="rgba(251,191,36,0.45)" />
+              <stop offset="100%" stopColor="rgba(245,158,11,0)" />
+            </linearGradient>
+          </defs>
+          <line x1="20" y1="24" x2="780" y2="24" stroke="url(#stageGoldLine)" strokeWidth="0.7" strokeDasharray="3 5" />
+          <line x1="20" y1="236" x2="780" y2="236" stroke="url(#stageGoldLine)" strokeWidth="0.7" strokeDasharray="3 5" />
+          <circle cx="348" cy="130" r="118" fill="none" stroke="rgba(251,191,36,0.28)" strokeWidth="0.8" strokeDasharray="2 6" />
+          <circle cx="348" cy="130" r="142" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="0.6" />
+        </svg>
 
-  // 60 Fluted Bezel Facets
-  const flutedFacets = Array.from({ length: 60 }).map((_, i) => {
-    const angle = i * 6;
-    const r1 = 115;
-    const r2 = 104;
-    const rad = (angle - 90) * (Math.PI / 180);
-    return {
-      x1: 120 + r1 * Math.cos(rad),
-      y1: 120 + r1 * Math.sin(rad),
-      x2: 120 + r2 * Math.cos(rad),
-      y2: 120 + r2 * Math.sin(rad),
-    };
-  });
+        <div className="relative z-10 mx-auto w-full max-w-[380px] sm:max-w-[560px] md:max-w-[680px] lg:max-w-[730px] grid grid-cols-[0.46fr_1.06fr_0.46fr_0.87fr] items-stretch gap-1.5 sm:gap-3 md:gap-4">
+          {/* LETTER 1: "I" — DIGITAL CLOCK TOP-TO-BOTTOM INSIDE THE LETTER "I" */}
+          <div
+            className="relative flex flex-col items-center justify-between h-full select-none group"
+            aria-label="Digital Clock inside letter I"
+          >
+            <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-b from-amber-100 via-amber-400 to-amber-700 border border-amber-200/95 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.85),inset_0_-1px_1px_rgba(120,53,15,0.6),0_5px_14px_rgba(245,158,11,0.38)] flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 shrink-0 z-10">
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block mr-auto" />
+              <Clock className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" />
+              <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-widest text-slate-950 uppercase truncate">
+                TIME
+              </span>
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block ml-auto" />
+            </div>
+
+            <div className="relative w-[64%] sm:w-[60%] flex-1 -my-0.5 bg-gradient-to-b from-slate-900 via-[#030712] to-slate-900 border-x-2 border-amber-400/85 shadow-[inset_0_0_24px_rgba(0,0,0,0.95),inset_0_0_0_1px_rgba(251,191,36,0.28),0_0_18px_rgba(0,0,0,0.8)] flex flex-col items-center justify-evenly py-0.5 sm:py-1.5 px-0.5 text-center overflow-hidden">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-amber-400/[0.06]" />
+              <div className="relative z-10 flex flex-col items-center leading-none">
+                <span className="text-[5.5px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest">HR</span>
+                <span className="text-[13px] sm:text-[22px] md:text-[27px] font-black font-mono tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.48)] leading-none">
+                  {hhStr}
+                </span>
+              </div>
+              <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-amber-300/90 to-transparent" />
+              <div className="relative z-10 flex flex-col items-center leading-none">
+                <span className="text-[5.5px] sm:text-[8px] font-bold text-amber-300/90 uppercase tracking-widest">MIN</span>
+                <span className="text-[13px] sm:text-[22px] md:text-[27px] font-black font-mono tabular-nums text-amber-300 drop-shadow-[0_0_14px_rgba(245,158,11,0.65)] leading-none">
+                  {mmStr}
+                </span>
+              </div>
+              <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-emerald-400/90 to-transparent" />
+              <div className="relative z-10 flex flex-col items-center leading-none">
+                <span className="text-[5.5px] sm:text-[8px] font-bold text-emerald-300/90 uppercase tracking-widest">SEC</span>
+                <span className="text-[11px] sm:text-[18px] md:text-[22px] font-black font-mono tabular-nums text-emerald-300 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)] leading-none">
+                  {ssStr}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-t from-amber-700 via-amber-500 to-amber-100 border border-amber-200/95 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),inset_0_-1px_1px_rgba(120,53,15,0.6),0_5px_14px_rgba(245,158,11,0.38)] flex items-center justify-center px-1.5 sm:px-2 shrink-0 z-10">
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block mr-auto" />
+              <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-tight sm:tracking-wider text-slate-950 font-mono truncate">
+                {ampm}•IST
+              </span>
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block ml-auto" />
+            </div>
+          </div>
+
+          {/* LETTER 2: "O" — LUXURY CIRCULAR ANALOG CLOCK AS LETTER "O" */}
+          <div className="relative flex items-center justify-center" aria-label="Analog Clock inside letter O">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute right-[-2px] sm:right-[-4px] top-1/2 -translate-y-1/2 w-1.5 sm:w-2.5 h-5 sm:h-8 rounded-r-md bg-gradient-to-b from-amber-200 via-amber-500 to-amber-800 border border-amber-200/70 shadow-[0_0_8px_rgba(245,158,11,0.45)] z-0"
+            />
+            <div className="relative z-10 w-full aspect-square p-[3px] sm:p-1.5 rounded-full bg-gradient-to-b from-amber-300/25 via-slate-900/80 to-amber-600/25 border border-amber-300/35 shadow-[0_0_28px_rgba(245,158,11,0.22),0_14px_34px_rgba(0,0,0,0.95)]">
+              <svg viewBox="0 0 240 240" className="w-full h-full select-none block">
+                <StaticODialLayers />
+
+                {/* 24-Hr Day/Night Subdial */}
+                <g transform="translate(84, 120)">
+                  <circle cx="0" cy="0" r="17" fill="url(#subdialBg)" stroke="#D4AF37" strokeWidth="0.9" />
+                  <circle cx="0" cy="0" r="14" fill="none" stroke="#334155" strokeWidth="0.4" strokeDasharray="1 2" />
+                  <text x="0" y="-6" textAnchor="middle" fontSize="4.5" fill="#FBBF24" fontWeight="bold">24H</text>
+                  <text x="0" y="10" textAnchor="middle" fontSize="4" fill="#38BDF8" fontWeight="bold">IST</text>
+                  <g transform={`rotate(${day24Deg} 0 0)`}>
+                    <line x1="0" y1="0" x2="0" y2="-11" stroke="#FDE047" strokeWidth="1.2" strokeLinecap="round" />
+                    <circle cx="0" cy="0" r="1.8" fill="#D4AF37" />
+                  </g>
+                </g>
+
+                {/* Seconds Register */}
+                <g transform="translate(120, 154)">
+                  <circle cx="0" cy="0" r="16" fill="url(#subdialBg)" stroke="#D4AF37" strokeWidth="0.9" />
+                  <circle cx="0" cy="0" r="13" fill="none" stroke="#334155" strokeWidth="0.4" strokeDasharray="1 2" />
+                  <text x="0" y="-6" textAnchor="middle" fontSize="3.5" fill="#94A3B8" fontWeight="bold">60</text>
+                  <text x="0" y="8" textAnchor="middle" fontSize="3.5" fill="#94A3B8" fontWeight="bold">30</text>
+                  <g transform={`rotate(${secDeg} 0 0)`}>
+                    <line x1="0" y1="2" x2="0" y2="-10" stroke="#EF4444" strokeWidth="1" strokeLinecap="round" />
+                    <circle cx="0" cy="0" r="1.5" fill="#EF4444" />
+                  </g>
+                </g>
+
+                <g transform="translate(120, 68)">
+                  <text
+                    x="0"
+                    y="14"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="#FDE047"
+                    filter="url(#goldenGlowText)"
+                    fontSize="4.8"
+                    fontWeight="900"
+                    fontFamily="monospace, system-ui, sans-serif"
+                  >
+                    {hhStr}:{mmStr} {ampm}
+                  </text>
+                </g>
+
+                {/* 3 o'clock Date Window */}
+                <g transform="translate(142, 112)">
+                  <rect x="0" y="0" width="17" height="15" rx="3" fill="#020617" stroke="#D4AF37" strokeWidth="1.2" />
+                  <rect x="1" y="1" width="15" height="13" rx="2" fill="#0F172A" />
+                  <text x="8.5" y="10.5" textAnchor="middle" fill="#FFFFFF" fontSize="8.5" fontWeight="900" fontFamily="monospace">
+                    {dayOfMonth}
+                  </text>
+                </g>
+
+                {/* Hour Hand */}
+                <g transform={`rotate(${hourDeg} 120 120)`} filter="url(#luxuryHandShadow)">
+                  <polygon points="117,120 120,66 123,120 121.5,134 118.5,134" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="0.8" />
+                  <line x1="120" y1="72" x2="120" y2="112" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+                </g>
+
+                {/* Minute Hand */}
+                <g transform={`rotate(${minDeg} 120 120)`} filter="url(#luxuryHandShadow)">
+                  <polygon points="117.5,120 120,38 122.5,120 121,138 119,138" fill="#E2E8F0" stroke="#475569" strokeWidth="0.8" />
+                  <line x1="120" y1="44" x2="120" y2="112" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
+                </g>
+
+                {/* Second Needle */}
+                <g transform={`rotate(${secDeg} 120 120)`} filter="url(#luxuryHandShadow)">
+                  <line x1="120" y1="140" x2="120" y2="28" stroke="#EF4444" strokeWidth="1.2" strokeLinecap="round" />
+                  <polygon points="120,22 118,30 122,30" fill="#EF4444" />
+                  <circle cx="120" cy="132" r="3.5" fill="#FFD700" stroke="#EF4444" strokeWidth="1" />
+                </g>
+
+                <circle cx="120" cy="120" r="5" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="0.8" />
+                <circle cx="120" cy="120" r="2" fill="#EF4444" />
+                <path d="M 45 95 Q 120 45 195 95 Q 120 75 45 95 Z" fill="#FFFFFF" opacity="0.16" pointerEvents="none" />
+              </svg>
+            </div>
+          </div>
+
+          {/* LETTER 3: "I" — VERTICAL DATE TOP-TO-BOTTOM INSIDE THE LETTER "I" */}
+          <div className="relative flex flex-col items-center justify-between h-full select-none" aria-label="Vertical Date inside second letter I">
+            <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-b from-emerald-100 via-emerald-500 to-teal-800 border border-amber-200/80 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.75),inset_0_-1px_1px_rgba(6,78,59,0.6),0_5px_14px_rgba(16,185,129,0.34)] flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 shrink-0 z-10">
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block mr-auto" />
+              <Calendar className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" />
+              <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-widest text-slate-950 uppercase truncate">DATE</span>
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block ml-auto" />
+            </div>
+
+            <div className="relative w-[64%] sm:w-[60%] flex-1 -my-0.5 bg-gradient-to-b from-slate-900 via-[#02090c] to-slate-900 border-x-2 border-emerald-400/85 shadow-[inset_0_0_24px_rgba(0,0,0,0.95),inset_0_0_0_1px_rgba(52,211,153,0.28),0_0_18px_rgba(0,0,0,0.8)] flex flex-col items-center justify-evenly py-0.5 sm:py-1.5 px-0.5 text-center overflow-hidden">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-emerald-400/[0.06]" />
+              <div className="relative z-10 flex flex-col items-center leading-none">
+                <span className="text-[5.5px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest">DAY</span>
+                <span className="text-[14px] sm:text-[24px] md:text-[29px] font-black font-mono tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.48)] leading-none">
+                  {dayPadded}
+                </span>
+              </div>
+              <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-emerald-300/90 to-transparent" />
+              <div className="relative z-10 flex flex-col items-center leading-tight">
+                <span className="text-[9.5px] sm:text-[15px] md:text-[17px] font-black text-amber-300 tracking-wide uppercase leading-none">
+                  {monthShortEn}
+                </span>
+                <span className="text-[6.5px] sm:text-[9.5px] font-bold text-emerald-300 mt-0.5 leading-none">
+                  {monthHindi}
+                </span>
+              </div>
+              <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-amber-400/75 to-transparent" />
+              <div className="relative z-10 flex flex-col items-center leading-none">
+                <span className="text-[10px] sm:text-[16px] md:text-[20px] font-black font-mono tabular-nums text-slate-100 leading-none">
+                  {yearStr}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-t from-teal-800 via-emerald-500 to-emerald-100 border border-amber-200/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-1px_1px_rgba(6,78,59,0.6),0_5px_14px_rgba(16,185,129,0.34)] flex items-center justify-center px-1.5 sm:px-2 shrink-0 z-10">
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block mr-auto" />
+              <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-wide text-slate-950 truncate">
+                {weekdayShortHi}
+              </span>
+              <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block ml-auto" />
+            </div>
+          </div>
+
+          {letterSNode}
+        </div>
+
+        {/* Subtle Exhibition Floor Reflection Line */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none mx-auto mt-2.5 sm:mt-3 h-px w-4/5 bg-gradient-to-r from-transparent via-amber-400/45 to-transparent"
+        />
+      </div>
+    </>
+  );
+});
+
+export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
+  currentUser,
+  onNavigate,
+  onOpenLogin,
+  onOpenRegister,
+  onOpenSponsorAddMember,
+  onOpenChatHelp,
+  onOpenDashboard,
+  onOpenIdCard,
+  onOpenFestivalModal,
+  onOpenRashifalModal,
+  onOpenPhotoCompressor,
+  onOpenAiChat,
+}) => {
+  const [selectedTopic, setSelectedTopic] = useState<SystemTopicKey | null>(null);
+  const [hoveredJewel, setHoveredJewel] = useState<SJewelButton | null>(null);
+
+  const goPage = (page: PageType) => {
+    onNavigate?.(page);
+    scrollAppToTop();
+  };
 
   const activeTopicDetail = selectedTopic
     ? IOIS_SYSTEM_TOPICS.find((t) => t.key === selectedTopic) || null
@@ -435,6 +838,116 @@ export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
     },
   ];
 
+  const letterSNode = React.useMemo(
+    () => (
+      <div
+        className="relative flex items-center justify-center h-full select-none"
+        aria-label="Important Platform Quick Icon Buttons inside luxury letter S"
+      >
+        <div className="relative w-full h-full drop-shadow-[0_14px_32px_rgba(0,0,0,0.96)]">
+          {/* Multi-Layer 24K Gold + Platinum + Obsidian Sunburst "S" matching "I" and "O" */}
+          <svg
+            viewBox="0 0 180 220"
+            preserveAspectRatio="none"
+            className="w-full h-full pointer-events-none select-none block"
+          >
+            <defs>
+              <linearGradient id="goldBezelS" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FFF5C8" />
+                <stop offset="22%" stopColor="#E4BF5E" />
+                <stop offset="45%" stopColor="#8C6510" />
+                <stop offset="68%" stopColor="#FFF8D4" />
+                <stop offset="85%" stopColor="#D4AF37" />
+                <stop offset="100%" stopColor="#7A5600" />
+              </linearGradient>
+              <linearGradient id="platinumRimS" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#334155" />
+                <stop offset="35%" stopColor="#E2E8F0" />
+                <stop offset="70%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#1E293B" />
+              </linearGradient>
+              <linearGradient id="obsidianTrackS" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#1E293B" />
+                <stop offset="50%" stopColor="#020617" />
+                <stop offset="100%" stopColor="#0F172A" />
+              </linearGradient>
+            </defs>
+
+            {/* Outer Brushed 24K Gold Bezel */}
+            <path
+              d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
+              fill="none"
+              stroke="url(#goldBezelS)"
+              strokeWidth="54"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Metallic Platinum Inner Bevel Rim */}
+            <path
+              d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
+              fill="none"
+              stroke="url(#platinumRimS)"
+              strokeWidth="47"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Deep Obsidian Sunburst Track */}
+            <path
+              d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
+              fill="none"
+              stroke="url(#obsidianTrackS)"
+              strokeWidth="43"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Fine Inner Watch-Dial Gold Filigree Trace */}
+            <path
+              d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="2"
+              strokeDasharray="3 4"
+              strokeLinecap="round"
+              opacity="0.52"
+            />
+          </svg>
+
+          {/* 12 Circular Icon-Only Jewel Buttons Strictly Embedded Along Centerline of "S" */}
+          {sJewelButtons.map((btn) => {
+            const isHighlighted = hoveredJewel?.id === btn.id;
+            return (
+              <button
+                key={btn.id}
+                type="button"
+                aria-label={btn.label}
+                title={`${btn.label} — ${btn.desc}`}
+                onClick={btn.onClick}
+                onMouseEnter={() => setHoveredJewel(btn)}
+                onMouseLeave={() => setHoveredJewel(null)}
+                onFocus={() => setHoveredJewel(btn)}
+                onBlur={() => setHoveredJewel(null)}
+                style={{
+                  left: `${(btn.cx / 180) * 100}%`,
+                  top: `${(btn.cy / 220) * 100}%`,
+                  width: `${(33.5 / 180) * 100}%`,
+                  height: `${(33.5 / 220) * 100}%`,
+                }}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] sm:border-2 ring-1 ring-white/20 flex items-center justify-center transition-all duration-150 cursor-pointer hover:scale-115 active:scale-95 shadow-[inset_0_1px_2px_rgba(255,255,255,0.48),0_3px_9px_rgba(0,0,0,0.92)] touch-manipulation z-10 ${btn.ringTone} ${
+                  isHighlighted
+                    ? 'scale-120 ring-2 ring-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.82)] z-20'
+                    : ''
+                }`}
+              >
+                {btn.icon}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ),
+    [currentUser?.userId, hoveredJewel?.id]
+  );
+
   return (
     <div className="relative w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-500/45 rounded-2xl sm:rounded-3xl p-1.5 sm:p-4 md:p-5 shadow-2xl overflow-hidden backdrop-blur-xl">
       {/* Subtle Ambient Aura */}
@@ -451,541 +964,7 @@ export const HomeHeaderWatch: React.FC<HomeHeaderWatchProps> = ({
           <span aria-hidden="true" className="pointer-events-none absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-amber-400/35 rounded-bl" />
           <span aria-hidden="true" className="pointer-events-none absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-amber-400/35 rounded-br" />
 
-          {/* Top Unified Masthead — Precision Chronometer Header */}
-          <div className="flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 rounded-lg bg-slate-950/75 border border-amber-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-300/20 via-amber-500/15 to-slate-900 border border-amber-400/40 flex items-center justify-center text-xs sm:text-sm shrink-0 shadow-inner">
-                {greetingIcon}
-              </span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-[10.5px] sm:text-xs font-black tracking-wide bg-gradient-to-r from-amber-100 via-amber-300 to-yellow-200 bg-clip-text text-transparent truncate">
-                  {greeting}
-                </span>
-                <span aria-hidden="true" className="text-amber-500/50 text-[10px] hidden xs:inline">·</span>
-                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-300 truncate hidden xs:inline">
-                  IOIS INDIA लाइव क्रोनोमीटर
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 px-2 py-0.5 rounded-md bg-slate-900/90 border border-slate-700/70">
-              <span className="text-[9.5px] sm:text-[11px] font-mono tabular-nums font-bold text-amber-200 tracking-wider">
-                {hhStr}:{mmStr}:{ssStr} {ampm}
-              </span>
-              <span aria-hidden="true" className="text-slate-600 text-[10px]">|</span>
-              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-emerald-300 tracking-wider">
-                IST +5:30
-              </span>
-            </div>
-          </div>
-
-          {/* ========================================================================
-              IDENTICAL CROSS-DEVICE HORIZONTAL MONUMENT:  [ I ]  [ O ]  [ I ]  [ S ]
-              - Haute-Horology Smoked-Obsidian Exhibition Stage & 24K Gold Craftsmanship
-          ========================================================================= */}
-          <div className="relative my-0.5 py-3 sm:py-4 md:py-5 px-2 sm:px-4 rounded-xl sm:rounded-2xl bg-[radial-gradient(circle_at_50%_45%,rgba(245,158,11,0.16)_0%,rgba(15,23,42,0.88)_54%,rgba(2,6,23,0.98)_100%)] border border-amber-400/35 shadow-[inset_0_1px_0_rgba(255,245,200,0.2),inset_0_-18px_36px_rgba(0,0,0,0.72),0_14px_34px_rgba(0,0,0,0.7)] overflow-hidden">
-            {/* Subtle Radial Stage Glow Behind Chronometer */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-4 inset-y-1 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(251,191,36,0.2),rgba(16,185,129,0.08)_55%,transparent_75%)] blur-xl"
-            />
-            {/* Precision Architectural Watchmaker Backplate SVG (subtle concentric hairlines & cardinal ticks) */}
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 800 260"
-              preserveAspectRatio="xMidYMid slice"
-              className="pointer-events-none absolute inset-0 w-full h-full opacity-30"
-            >
-              <defs>
-                <linearGradient id="stageGoldLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="rgba(245,158,11,0)" />
-                  <stop offset="30%" stopColor="rgba(251,191,36,0.45)" />
-                  <stop offset="50%" stopColor="rgba(255,245,200,0.7)" />
-                  <stop offset="70%" stopColor="rgba(251,191,36,0.45)" />
-                  <stop offset="100%" stopColor="rgba(245,158,11,0)" />
-                </linearGradient>
-              </defs>
-              <line x1="20" y1="24" x2="780" y2="24" stroke="url(#stageGoldLine)" strokeWidth="0.7" strokeDasharray="3 5" />
-              <line x1="20" y1="236" x2="780" y2="236" stroke="url(#stageGoldLine)" strokeWidth="0.7" strokeDasharray="3 5" />
-              <circle cx="348" cy="130" r="118" fill="none" stroke="rgba(251,191,36,0.28)" strokeWidth="0.8" strokeDasharray="2 6" />
-              <circle cx="348" cy="130" r="142" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="0.6" />
-            </svg>
-
-            <div className="relative z-10 mx-auto w-full max-w-[380px] sm:max-w-[560px] md:max-w-[680px] lg:max-w-[730px] grid grid-cols-[0.46fr_1.06fr_0.46fr_0.87fr] items-stretch gap-1.5 sm:gap-3 md:gap-4">
-
-              {/* LETTER 1: "I" — DIGITAL CLOCK TOP-TO-BOTTOM INSIDE THE LETTER "I" */}
-              <div
-                className="relative flex flex-col items-center justify-between h-full select-none group"
-                aria-label="Digital Clock inside letter I"
-              >
-                {/* Top Serif Horizontal Bar of "I" with Recessed Watchmaker Micro-Rivets */}
-                <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-b from-amber-100 via-amber-400 to-amber-700 border border-amber-200/95 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.85),inset_0_-1px_1px_rgba(120,53,15,0.6),0_5px_14px_rgba(245,158,11,0.38)] flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 shrink-0 z-10">
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block mr-auto" />
-                  <Clock className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" />
-                  <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-widest text-slate-950 uppercase truncate">
-                    TIME
-                  </span>
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block ml-auto" />
-                </div>
-
-                {/* Central Obsidian-Gold Pillar Stem of "I" containing Digital Clock Top-to-Bottom */}
-                <div className="relative w-[64%] sm:w-[60%] flex-1 -my-0.5 bg-gradient-to-b from-slate-900 via-[#030712] to-slate-900 border-x-2 border-amber-400/85 shadow-[inset_0_0_24px_rgba(0,0,0,0.95),inset_0_0_0_1px_rgba(251,191,36,0.28),0_0_18px_rgba(0,0,0,0.8)] flex flex-col items-center justify-evenly py-0.5 sm:py-1.5 px-0.5 text-center overflow-hidden">
-                  {/* Sapphire Crystal Diagonal Sheen */}
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-amber-400/[0.06]" />
-                  {/* Hour (HH) */}
-                  <div className="relative z-10 flex flex-col items-center leading-none">
-                    <span className="text-[5.5px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                      HR
-                    </span>
-                    <span className="text-[13px] sm:text-[22px] md:text-[27px] font-black font-mono tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.48)] leading-none">
-                      {hhStr}
-                    </span>
-                  </div>
-
-                  <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-amber-300/90 to-transparent" />
-
-                  {/* Minute (MM) */}
-                  <div className="relative z-10 flex flex-col items-center leading-none">
-                    <span className="text-[5.5px] sm:text-[8px] font-bold text-amber-300/90 uppercase tracking-widest">
-                      MIN
-                    </span>
-                    <span className="text-[13px] sm:text-[22px] md:text-[27px] font-black font-mono tabular-nums text-amber-300 drop-shadow-[0_0_14px_rgba(245,158,11,0.65)] leading-none">
-                      {mmStr}
-                    </span>
-                  </div>
-
-                  <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-emerald-400/90 to-transparent" />
-
-                  {/* Second (SS) */}
-                  <div className="relative z-10 flex flex-col items-center leading-none">
-                    <span className="text-[5.5px] sm:text-[8px] font-bold text-emerald-300/90 uppercase tracking-widest">
-                      SEC
-                    </span>
-                    <span className="text-[11px] sm:text-[18px] md:text-[22px] font-black font-mono tabular-nums text-emerald-300 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)] leading-none">
-                      {ssStr}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bottom Serif Horizontal Bar of "I" */}
-                <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-t from-amber-700 via-amber-500 to-amber-100 border border-amber-200/95 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),inset_0_-1px_1px_rgba(120,53,15,0.6),0_5px_14px_rgba(245,158,11,0.38)] flex items-center justify-center px-1.5 sm:px-2 shrink-0 z-10">
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block mr-auto" />
-                  <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-tight sm:tracking-wider text-slate-950 font-mono truncate">
-                    {ampm}•IST
-                  </span>
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-amber-950/75 ring-1 ring-amber-100/50 hidden sm:block ml-auto" />
-                </div>
-              </div>
-
-              {/* LETTER 2: "O" — LUXURY CIRCULAR ANALOG CLOCK AS LETTER "O" */}
-              <div
-                className="relative flex items-center justify-center"
-                aria-label="Analog Clock inside letter O"
-              >
-                {/* Fluted 24K Gold Watch Winding Crown at 3 o'clock */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-[-2px] sm:right-[-4px] top-1/2 -translate-y-1/2 w-1.5 sm:w-2.5 h-5 sm:h-8 rounded-r-md bg-gradient-to-b from-amber-200 via-amber-500 to-amber-800 border border-amber-200/70 shadow-[0_0_8px_rgba(245,158,11,0.45)] z-0"
-                />
-                <div className="relative z-10 w-full aspect-square p-[3px] sm:p-1.5 rounded-full bg-gradient-to-b from-amber-300/25 via-slate-900/80 to-amber-600/25 border border-amber-300/35 shadow-[0_0_28px_rgba(245,158,11,0.22),0_14px_34px_rgba(0,0,0,0.95)]">
-                  <svg viewBox="0 0 240 240" className="w-full h-full select-none block">
-                    <defs>
-                      <linearGradient id="goldFluted" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFF5C8" />
-                        <stop offset="20%" stopColor="#E4BF5E" />
-                        <stop offset="40%" stopColor="#8C6510" />
-                        <stop offset="60%" stopColor="#FFF8D4" />
-                        <stop offset="80%" stopColor="#D4AF37" />
-                        <stop offset="100%" stopColor="#7A5600" />
-                      </linearGradient>
-
-                      <linearGradient id="platinumRing" x1="0%" y1="100%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#334155" />
-                        <stop offset="30%" stopColor="#94A3B8" />
-                        <stop offset="70%" stopColor="#E2E8F0" />
-                        <stop offset="100%" stopColor="#1E293B" />
-                      </linearGradient>
-
-                      <radialGradient id="sunburstDial" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#1E293B" />
-                        <stop offset="45%" stopColor="#0F172A" />
-                        <stop offset="85%" stopColor="#020617" />
-                        <stop offset="100%" stopColor="#000000" />
-                      </radialGradient>
-
-                      <linearGradient id="tricolorAccent" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FF9933" />
-                        <stop offset="50%" stopColor="#FFFFFF" />
-                        <stop offset="100%" stopColor="#138808" />
-                      </linearGradient>
-
-                      <radialGradient id="subdialBg" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#111C33" />
-                        <stop offset="100%" stopColor="#020617" />
-                      </radialGradient>
-
-                      <filter id="luxuryHandShadow" x="-30%" y="-30%" width="160%" height="160%">
-                        <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.9" />
-                      </filter>
-
-                      <filter id="goldenGlowText" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="0" stdDeviation="0.9" floodColor="#F59E0B" floodOpacity="0.95" />
-                        <feDropShadow dx="0" dy="0" stdDeviation="2.2" floodColor="#D97706" floodOpacity="0.75" />
-                      </filter>
-
-                      <linearGradient id="royalCrownGold" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#FFFBEB" />
-                        <stop offset="25%" stopColor="#FDE047" />
-                        <stop offset="60%" stopColor="#D97706" />
-                        <stop offset="100%" stopColor="#78350F" />
-                      </linearGradient>
-                    </defs>
-
-                    <circle cx="120" cy="120" r="115" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="1.5" />
-
-                    {flutedFacets.map((facet, idx) => (
-                      <line
-                        key={idx}
-                        x1={facet.x1}
-                        y1={facet.y1}
-                        x2={facet.x2}
-                        y2={facet.y2}
-                        stroke={idx % 2 === 0 ? '#FFF5C2' : '#7A5600'}
-                        strokeWidth="1.2"
-                        opacity="0.9"
-                      />
-                    ))}
-
-                    <circle cx="120" cy="120" r="103" fill="none" stroke="url(#platinumRing)" strokeWidth="2.5" />
-                    <circle cx="120" cy="120" r="100" fill="none" stroke="url(#tricolorAccent)" strokeWidth="1.6" opacity="0.92" />
-                    <circle cx="120" cy="120" r="98" fill="url(#sunburstDial)" />
-                    {/* Sapphire AR Blue-Champagne Edge Chamfer */}
-                    <circle cx="120" cy="120" r="97" fill="none" stroke="rgba(56,189,248,0.28)" strokeWidth="0.9" />
-
-                    {/* Guilloché Concentric Precision Rings */}
-                    <circle cx="120" cy="120" r="88" fill="none" stroke="#D4AF37" strokeWidth="0.45" opacity="0.34" />
-                    <circle cx="120" cy="120" r="76" fill="none" stroke="#475569" strokeWidth="0.6" strokeDasharray="1.5 3" opacity="0.45" />
-                    <circle cx="120" cy="120" r="54" fill="none" stroke="#475569" strokeWidth="0.5" strokeDasharray="1.5 3" opacity="0.35" />
-
-                    {/* 24-Hr Day/Night Subdial */}
-                    <g transform="translate(84, 120)">
-                      <circle cx="0" cy="0" r="17" fill="url(#subdialBg)" stroke="#D4AF37" strokeWidth="0.9" />
-                      <circle cx="0" cy="0" r="14" fill="none" stroke="#334155" strokeWidth="0.4" strokeDasharray="1 2" />
-                      <text x="0" y="-6" textAnchor="middle" fontSize="4.5" fill="#FBBF24" fontWeight="bold">24H</text>
-                      <text x="0" y="10" textAnchor="middle" fontSize="4" fill="#38BDF8" fontWeight="bold">IST</text>
-                      <g transform={`rotate(${day24Deg} 0 0)`}>
-                        <line x1="0" y1="0" x2="0" y2="-11" stroke="#FDE047" strokeWidth="1.2" strokeLinecap="round" />
-                        <circle cx="0" cy="0" r="1.8" fill="#D4AF37" />
-                      </g>
-                    </g>
-
-                    {/* Seconds Register */}
-                    <g transform="translate(120, 154)">
-                      <circle cx="0" cy="0" r="16" fill="url(#subdialBg)" stroke="#D4AF37" strokeWidth="0.9" />
-                      <circle cx="0" cy="0" r="13" fill="none" stroke="#334155" strokeWidth="0.4" strokeDasharray="1 2" />
-                      <text x="0" y="-6" textAnchor="middle" fontSize="3.5" fill="#94A3B8" fontWeight="bold">60</text>
-                      <text x="0" y="8" textAnchor="middle" fontSize="3.5" fill="#94A3B8" fontWeight="bold">30</text>
-                      <g transform={`rotate(${secDeg} 0 0)`}>
-                        <line x1="0" y1="2" x2="0" y2="-10" stroke="#EF4444" strokeWidth="1" strokeLinecap="round" />
-                        <circle cx="0" cy="0" r="1.5" fill="#EF4444" />
-                      </g>
-                    </g>
-
-                    {minuteTicks.map((tick, idx) => (
-                      <line
-                        key={idx}
-                        x1={tick.x1}
-                        y1={tick.y1}
-                        x2={tick.x2}
-                        y2={tick.y2}
-                        stroke={tick.isHour ? '#FFD700' : '#64748B'}
-                        strokeWidth={tick.isHour ? '2.2' : '0.8'}
-                        strokeLinecap="round"
-                        opacity={tick.isHour ? '1' : '0.55'}
-                      />
-                    ))}
-
-                    {numbers.map((item) => {
-                      const rad = (item.angle - 90) * (Math.PI / 180);
-                      const radius = 79;
-                      const x = 120 + radius * Math.cos(rad);
-                      const y = 120 + radius * Math.sin(rad) + 4.5;
-                      const isCardinal = item.num === '12' || item.num === '3' || item.num === '6' || item.num === '9';
-                      return (
-                        <g key={item.num}>
-                          {isCardinal && (
-                            <circle cx={x} cy={y - 4} r="9.5" fill="#020617" stroke="#F59E0B" strokeWidth="1.2" />
-                          )}
-                          <text
-                            x={x}
-                            y={y}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill={isCardinal ? '#FFD700' : '#F1F5F9'}
-                            fontSize={isCardinal ? '13' : '11'}
-                            fontWeight="900"
-                            fontFamily="system-ui, -apple-system, sans-serif"
-                          >
-                            {item.num}
-                          </text>
-                        </g>
-                      );
-                    })}
-
-                    {/* IOIS INDIA Royal Crown & Brand Crest */}
-                    <g transform="translate(120, 68)">
-                      <g filter="url(#goldenGlowText)">
-                        <path
-                          d="M -11 -6 L -14 -16 L -7 -9.5 L 0 -19 L 7 -9.5 L 14 -16 L 11 -6 Z"
-                          fill="url(#royalCrownGold)"
-                          stroke="#FFE082"
-                          strokeWidth="0.8"
-                          strokeLinejoin="round"
-                        />
-                        <circle cx="-14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
-                        <circle cx="-7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
-                        <circle cx="0" cy="-19" r="1.8" fill="#FFFFFF" stroke="#D97706" strokeWidth="0.6" />
-                        <circle cx="7" cy="-9.5" r="1.2" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
-                        <circle cx="14" cy="-16" r="1.4" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.5" />
-                        <rect x="-10" y="-6.2" width="20" height="2.2" rx="1" fill="url(#goldFluted)" stroke="#78350F" strokeWidth="0.5" />
-                      </g>
-
-                      <text
-                        x="0"
-                        y="6"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="#FFD700"
-                        fontSize="9.2"
-                        fontWeight="900"
-                        fontFamily="system-ui, -apple-system, sans-serif"
-                        letterSpacing="1.6"
-                      >
-                        IOIS INDIA
-                      </text>
-
-                      <text
-                        x="0"
-                        y="14"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="#FDE047"
-                        filter="url(#goldenGlowText)"
-                        fontSize="4.8"
-                        fontWeight="900"
-                        fontFamily="monospace, system-ui, sans-serif"
-                      >
-                        {hhStr}:{mmStr} {ampm}
-                      </text>
-                    </g>
-
-                    {/* 3 o'clock Date Window */}
-                    <g transform="translate(142, 112)">
-                      <rect x="0" y="0" width="17" height="15" rx="3" fill="#020617" stroke="#D4AF37" strokeWidth="1.2" />
-                      <rect x="1" y="1" width="15" height="13" rx="2" fill="#0F172A" />
-                      <text x="8.5" y="10.5" textAnchor="middle" fill="#FFFFFF" fontSize="8.5" fontWeight="900" fontFamily="monospace">
-                        {dayOfMonth}
-                      </text>
-                    </g>
-
-                    {/* Hour Hand */}
-                    <g transform={`rotate(${hourDeg} 120 120)`} filter="url(#luxuryHandShadow)">
-                      <polygon points="117,120 120,66 123,120 121.5,134 118.5,134" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="0.8" />
-                      <line x1="120" y1="72" x2="120" y2="112" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
-                    </g>
-
-                    {/* Minute Hand */}
-                    <g transform={`rotate(${minDeg} 120 120)`} filter="url(#luxuryHandShadow)">
-                      <polygon points="117.5,120 120,38 122.5,120 121,138 119,138" fill="#E2E8F0" stroke="#475569" strokeWidth="0.8" />
-                      <line x1="120" y1="44" x2="120" y2="112" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
-                    </g>
-
-                    {/* Second Needle */}
-                    <g transform={`rotate(${secDeg} 120 120)`} filter="url(#luxuryHandShadow)">
-                      <line x1="120" y1="140" x2="120" y2="28" stroke="#EF4444" strokeWidth="1.2" strokeLinecap="round" />
-                      <polygon points="120,22 118,30 122,30" fill="#EF4444" />
-                      <circle cx="120" cy="132" r="3.5" fill="#FFD700" stroke="#EF4444" strokeWidth="1" />
-                    </g>
-
-                    <circle cx="120" cy="120" r="5" fill="url(#goldFluted)" stroke="#5A3E00" strokeWidth="0.8" />
-                    <circle cx="120" cy="120" r="2" fill="#EF4444" />
-                    <path d="M 45 95 Q 120 45 195 95 Q 120 75 45 95 Z" fill="#FFFFFF" opacity="0.16" pointerEvents="none" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* LETTER 3: "I" — VERTICAL DATE TOP-TO-BOTTOM INSIDE THE LETTER "I" */}
-              <div
-                className="relative flex flex-col items-center justify-between h-full select-none"
-                aria-label="Vertical Date inside second letter I"
-              >
-                {/* Top Serif Horizontal Bar of "I" with Recessed Watchmaker Micro-Rivets */}
-                <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-b from-emerald-100 via-emerald-500 to-teal-800 border border-amber-200/80 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.75),inset_0_-1px_1px_rgba(6,78,59,0.6),0_5px_14px_rgba(16,185,129,0.34)] flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 shrink-0 z-10">
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block mr-auto" />
-                  <Calendar className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" />
-                  <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-widest text-slate-950 uppercase truncate">
-                    DATE
-                  </span>
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block ml-auto" />
-                </div>
-
-                {/* Central Obsidian-Emerald Pillar Stem of "I" containing Date Top-to-Bottom */}
-                <div className="relative w-[64%] sm:w-[60%] flex-1 -my-0.5 bg-gradient-to-b from-slate-900 via-[#02090c] to-slate-900 border-x-2 border-emerald-400/85 shadow-[inset_0_0_24px_rgba(0,0,0,0.95),inset_0_0_0_1px_rgba(52,211,153,0.28),0_0_18px_rgba(0,0,0,0.8)] flex flex-col items-center justify-evenly py-0.5 sm:py-1.5 px-0.5 text-center overflow-hidden">
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-emerald-400/[0.06]" />
-                  {/* Day Number */}
-                  <div className="relative z-10 flex flex-col items-center leading-none">
-                    <span className="text-[5.5px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                      DAY
-                    </span>
-                    <span className="text-[14px] sm:text-[24px] md:text-[29px] font-black font-mono tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.48)] leading-none">
-                      {dayPadded}
-                    </span>
-                  </div>
-
-                  <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-emerald-300/90 to-transparent" />
-
-                  {/* Month Top-to-Bottom */}
-                  <div className="relative z-10 flex flex-col items-center leading-tight">
-                    <span className="text-[9.5px] sm:text-[15px] md:text-[17px] font-black text-amber-300 tracking-wide uppercase leading-none">
-                      {monthShortEn}
-                    </span>
-                    <span className="text-[6.5px] sm:text-[9.5px] font-bold text-emerald-300 mt-0.5 leading-none">
-                      {monthHindi}
-                    </span>
-                  </div>
-
-                  <div className="relative z-10 w-4 sm:w-7 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-amber-400/75 to-transparent" />
-
-                  {/* Year */}
-                  <div className="relative z-10 flex flex-col items-center leading-none">
-                    <span className="text-[10px] sm:text-[16px] md:text-[20px] font-black font-mono tabular-nums text-slate-100 leading-none">
-                      {yearStr}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bottom Serif Horizontal Bar of "I" */}
-                <div className="relative w-full h-5 sm:h-7 md:h-8 rounded-md sm:rounded-lg bg-gradient-to-t from-teal-800 via-emerald-500 to-emerald-100 border border-amber-200/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-1px_1px_rgba(6,78,59,0.6),0_5px_14px_rgba(16,185,129,0.34)] flex items-center justify-center px-1.5 sm:px-2 shrink-0 z-10">
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block mr-auto" />
-                  <span className="text-[7px] sm:text-[10px] md:text-xs font-black tracking-wide text-slate-950 truncate">
-                    {weekdayShortHi}
-                  </span>
-                  <span aria-hidden="true" className="w-1 h-1 rounded-full bg-emerald-950/75 ring-1 ring-emerald-100/50 hidden sm:block ml-auto" />
-                </div>
-              </div>
-
-              {/* LETTER 4: "S" — LUXURY 24K GOLD & OBSIDIAN "S" WITH 12 ICON-ONLY JEWEL BUTTONS STRICTLY INSIDE */}
-              <div
-                className="relative flex items-center justify-center h-full select-none"
-                aria-label="Important Platform Quick Icon Buttons inside luxury letter S"
-              >
-                <div className="relative w-full h-full drop-shadow-[0_14px_32px_rgba(0,0,0,0.96)]">
-                  {/* Multi-Layer 24K Gold + Platinum + Obsidian Sunburst "S" matching "I" and "O" */}
-                  <svg
-                    viewBox="0 0 180 220"
-                    preserveAspectRatio="none"
-                    className="w-full h-full pointer-events-none select-none block"
-                  >
-                    <defs>
-                      <linearGradient id="goldBezelS" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFF5C8" />
-                        <stop offset="22%" stopColor="#E4BF5E" />
-                        <stop offset="45%" stopColor="#8C6510" />
-                        <stop offset="68%" stopColor="#FFF8D4" />
-                        <stop offset="85%" stopColor="#D4AF37" />
-                        <stop offset="100%" stopColor="#7A5600" />
-                      </linearGradient>
-                      <linearGradient id="platinumRimS" x1="0%" y1="100%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#334155" />
-                        <stop offset="35%" stopColor="#E2E8F0" />
-                        <stop offset="70%" stopColor="#94A3B8" />
-                        <stop offset="100%" stopColor="#1E293B" />
-                      </linearGradient>
-                      <linearGradient id="obsidianTrackS" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#1E293B" />
-                        <stop offset="50%" stopColor="#020617" />
-                        <stop offset="100%" stopColor="#0F172A" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Outer Brushed 24K Gold Bezel */}
-                    <path
-                      d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
-                      fill="none"
-                      stroke="url(#goldBezelS)"
-                      strokeWidth="54"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Metallic Platinum Inner Bevel Rim */}
-                    <path
-                      d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
-                      fill="none"
-                      stroke="url(#platinumRimS)"
-                      strokeWidth="47"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Deep Obsidian Sunburst Track */}
-                    <path
-                      d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
-                      fill="none"
-                      stroke="url(#obsidianTrackS)"
-                      strokeWidth="43"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Fine Inner Watch-Dial Gold Filigree Trace */}
-                    <path
-                      d="M 144 40 C 118 24, 62 24, 38 48 C 24 64, 28 92, 62 104 L 118 118 C 150 128, 156 158, 140 176 C 116 198, 62 196, 32 176"
-                      fill="none"
-                      stroke="#F59E0B"
-                      strokeWidth="2"
-                      strokeDasharray="3 4"
-                      strokeLinecap="round"
-                      opacity="0.52"
-                    />
-                  </svg>
-
-                  {/* 12 Circular Icon-Only Jewel Buttons Strictly Embedded Along Centerline of "S" */}
-                  {sJewelButtons.map((btn) => {
-                    const isHighlighted = hoveredJewel?.id === btn.id;
-                    return (
-                      <button
-                        key={btn.id}
-                        type="button"
-                        aria-label={btn.label}
-                        title={`${btn.label} — ${btn.desc}`}
-                        onClick={btn.onClick}
-                        onMouseEnter={() => setHoveredJewel(btn)}
-                        onMouseLeave={() => setHoveredJewel(null)}
-                        onFocus={() => setHoveredJewel(btn)}
-                        onBlur={() => setHoveredJewel(null)}
-                        style={{
-                          left: `${(btn.cx / 180) * 100}%`,
-                          top: `${(btn.cy / 220) * 100}%`,
-                          width: `${(33.5 / 180) * 100}%`,
-                          height: `${(33.5 / 220) * 100}%`,
-                        }}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] sm:border-2 ring-1 ring-white/20 flex items-center justify-center transition-all duration-150 cursor-pointer hover:scale-115 active:scale-95 shadow-[inset_0_1px_2px_rgba(255,255,255,0.48),0_3px_9px_rgba(0,0,0,0.92)] touch-manipulation z-10 ${btn.ringTone} ${
-                          isHighlighted
-                            ? 'scale-120 ring-2 ring-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.82)] z-20'
-                            : ''
-                        }`}
-                      >
-                        {btn.icon}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Subtle Exhibition Floor Reflection Line */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none mx-auto mt-2.5 sm:mt-3 h-px w-4/5 bg-gradient-to-r from-transparent via-amber-400/45 to-transparent"
-            />
-          </div>
+          <WatchChronometerStage letterSNode={letterSNode} />
 
           {/* Live Hover Caption OR Executive Smoked-Glass Command Dock */}
           {activeTopicDetail ? (

@@ -107,6 +107,10 @@
     "/private_messages/{messageId}": {
       "schema": { "type": "object" },
       "description": "Private support messages between admin and members"
+    },
+    "/app_settings/{settingId}": {
+      "schema": { "type": "object" },
+      "description": "Compressed 1-read user snapshot (users_snapshot_v1), Google Sheets link config (google_sheets_config), and admin security hash"
     }
   }
 }

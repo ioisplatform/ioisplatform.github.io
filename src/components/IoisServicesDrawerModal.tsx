@@ -25,7 +25,8 @@ import {
   ChevronRight, 
   Home,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  MapPin
 } from 'lucide-react';
 
 interface IoisServicesDrawerModalProps {
@@ -220,6 +221,18 @@ export const IoisServicesDrawerModal: React.FC<IoisServicesDrawerModalProps> = (
       iconColor: 'text-green-400',
       gradientBg: 'from-green-500 to-emerald-600',
       keywords: 'mandi bhav gold rate silver price commodity krishi',
+    },
+    {
+      id: 'maps-explorer' as PageType,
+      category: 'citizen',
+      title: 'केंद्र व मैप लोकेटर (Google Maps)',
+      subtitle: 'आस-पास के CSC/सेवा केंद्र, बैंक, शिक्षण संस्थान व ऑफिस लाइव मानचित्र पर खोजें',
+      badge: 'लाइव Google Maps',
+      badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+      icon: MapPin,
+      iconColor: 'text-sky-400',
+      gradientBg: 'from-sky-500 to-cyan-500',
+      keywords: 'maps google map locator center office csc location directions places',
     },
     {
       id: 'govt-schemes' as PageType,

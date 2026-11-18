@@ -211,9 +211,18 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
   const [activeCustomUrl, setActiveCustomUrl] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // News ticker scrolling speed mechanism (Default: 'slow' as explicitly requested)
+  // News ticker scrolling speed mechanism (Default: 'slow' 110s for comfortable reading + fine slider control)
   const [tickerSpeed, setTickerSpeed] = useState<TickerSpeed>('slow');
+  const [tickerDurationSec, setTickerDurationSec] = useState<number>(110);
   const [isTickerHovered, setIsTickerHovered] = useState<boolean>(false);
+
+  const handleSelectSpeedPreset = (preset: TickerSpeed) => {
+    setTickerSpeed(preset);
+    if (preset === 'ultra_slow') setTickerDurationSec(155);
+    else if (preset === 'slow') setTickerDurationSec(110);
+    else if (preset === 'normal') setTickerDurationSec(68);
+    else if (preset === 'fast') setTickerDurationSec(38);
+  };
 
   // Article Reader Modal State
   const [activeArticle, setActiveArticle] = useState<NewsArticle | null>(null);
@@ -418,11 +427,11 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
             </button>
           </div>
 
-          {/* Intuitive Self-Explanatory Speed Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          {/* Intuitive Self-Explanatory Speed Controls: Pause + Presets + Continuous Speed Slider */}
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
             <button
               type="button"
-              onClick={() => setTickerSpeed(tickerSpeed === 'paused' ? 'slow' : 'paused')}
+              onClick={() => handleSelectSpeedPreset(tickerSpeed === 'paused' ? 'slow' : 'paused')}
               className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border transition cursor-pointer ${
                 tickerSpeed === 'paused' || isTickerHovered
                   ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
@@ -435,13 +444,38 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
             </button>
 
             <div
+              className="flex items-center gap-2 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-[11px]"
+              title="समाचार स्क्रॉल गति स्लाइडर (कम से अधिक)"
+            >
+              <span className="text-slate-400 font-semibold whitespace-nowrap">स्पीड स्लाइडर:</span>
+              <input
+                type="range"
+                min={30}
+                max={180}
+                step={5}
+                value={210 - Math.min(180, Math.max(30, tickerDurationSec))}
+                onChange={(e) => {
+                  const sliderVal = Number(e.target.value);
+                  const nextSec = 210 - sliderVal;
+                  setTickerDurationSec(nextSec);
+                  if (nextSec >= 135) setTickerSpeed('ultra_slow');
+                  else if (nextSec >= 90) setTickerSpeed('slow');
+                  else if (nextSec >= 55) setTickerSpeed('normal');
+                  else setTickerSpeed('fast');
+                }}
+                aria-label="समाचार स्क्रॉल गति स्लाइडर"
+                className="w-20 sm:w-28 accent-amber-400 cursor-pointer"
+              />
+            </div>
+
+            <div
               role="group"
               aria-label="स्क्रॉल गति चुनें"
               className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px]"
             >
               <button
                 type="button"
-                onClick={() => setTickerSpeed('ultra_slow')}
+                onClick={() => handleSelectSpeedPreset('ultra_slow')}
                 className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'ultra_slow'
                     ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -454,7 +488,7 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
 
               <button
                 type="button"
-                onClick={() => setTickerSpeed('slow')}
+                onClick={() => handleSelectSpeedPreset('slow')}
                 className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'slow'
                     ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -467,7 +501,7 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
 
               <button
                 type="button"
-                onClick={() => setTickerSpeed('normal')}
+                onClick={() => handleSelectSpeedPreset('normal')}
                 className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'normal'
                     ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -480,7 +514,7 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
 
               <button
                 type="button"
-                onClick={() => setTickerSpeed('fast')}
+                onClick={() => handleSelectSpeedPreset('fast')}
                 className={`px-2 py-1 rounded-md font-semibold transition cursor-pointer whitespace-nowrap ${
                   tickerSpeed === 'fast'
                     ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -502,7 +536,10 @@ export const LiveNewsPage: React.FC<LiveNewsPageProps> = ({
           onTouchStart={() => setIsTickerHovered(true)}
           onTouchEnd={() => setIsTickerHovered(false)}
         >
-          <div className={getTickerClass()}>
+          <div
+            className={getTickerClass()}
+            style={{ animationDuration: `${tickerDurationSec}s` }}
+          >
             {[...articlesList, ...articlesList].map((art, idx) => (
               <button
                 type="button"

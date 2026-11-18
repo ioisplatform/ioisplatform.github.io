@@ -1,12 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Navbar } from './components/Navbar';
 import { HomePageDashboard } from './components/HomePageDashboard';
-import { PageHeader } from './components/PageHeader';
-import { LiveClockPanchang } from './components/LiveClockPanchang';
-import { QuickPageShortcuts } from './components/QuickPageShortcuts';
 import { Footer } from './components/Footer';
-import { AIChatBot } from './components/AIChatBot';
-import { ThemeSelectorModal } from './components/ThemeSelector';
 import { 
   ThemeMode, 
   ThemePreset, 
@@ -17,47 +12,54 @@ import {
   applyTextScalingToDocument
 } from './services/themeService';
 
-// Direct High-Speed Static Imports for 0ms Instant Page Loads & Popups
-import { RtpsJaminServicesPage } from './components/RtpsJaminServicesPage';
-import { WeatherPage } from './components/WeatherPage';
-import { LiveNewsPage } from './components/LiveNewsPage';
-import { EntertainmentChatPage } from './components/EntertainmentChatPage';
-import { PanchangRashifalPage } from './components/PanchangRashifalPage';
-import { MandiMarketPage } from './components/MandiMarketPage';
-import { GovtSchemesPage } from './components/GovtSchemesPage';
-import { JobAlertsPage } from './components/JobAlertsPage';
-import { PlansGrid } from './components/PlansGrid';
-import { PayoutCalculator } from './components/PayoutCalculator';
-import { ParentsPortal } from './components/ParentsPortal';
-import { StudentStudyPage } from './components/StudentStudyPage';
-import { IDCardGenerator } from './components/IDCardGenerator';
-import { RegistrationPortal } from './components/RegistrationPortal';
-import { UserDashboard } from './components/UserDashboard';
-import { AdminPanel } from './components/AdminPanel';
-import { AssessmentPortal } from './components/AssessmentPortal';
-import { LegalPolicyPages } from './components/LegalPolicyPages';
-import { ContactFaq } from './components/ContactFaq';
-import { PagePopupModal } from './components/PagePopupModal';
-
-import { AuthModal } from './components/AuthModal';
-import { RegistrationModal } from './components/RegistrationModal';
-import { DashboardModal } from './components/DashboardModal';
-import { IdCardModal } from './components/IdCardModal';
-import { SponsorCardModal } from './components/SponsorCardModal';
-import { IoisServicesDrawerModal } from './components/IoisServicesDrawerModal';
-import { ReferralPromotionModal } from './components/ReferralPromotionModal';
-import { NotificationModal } from './components/NotificationModal';
-import { DailyFestivalWelcomeModal } from './components/DailyFestivalWelcomeModal';
-import { DailyRashifalModal } from './components/DailyRashifalModal';
-import { PhotoCompressorModal } from './components/PhotoCompressorModal';
 import { calculateLiveVedicPanchang } from './services/festivalPanchangService';
 import { LockedFooterDock } from './components/LockedFooterDock';
-import { ForcePasswordUpdateModal } from './components/ForcePasswordUpdateModal';
-import { SessionSecurityAlertModal } from './components/SessionSecurityAlertModal';
-import { SponsorAddMemberModal } from './components/SponsorAddMemberModal';
-import { PublicProfileModal } from './components/PublicProfileModal';
-import { IoisChatHelpHub } from './components/IoisChatHelpHub';
 import { AdminHomePhotoPopup } from './components/AdminHomePhotoPopup';
+
+// Lazy-Loaded Route Pages & Heavy Modals for Fast Initial Portal Boot
+const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const ThemeSelectorModal = lazy(() => import('./components/ThemeSelector').then((m) => ({ default: m.ThemeSelectorModal })));
+const PageHeader = lazy(() => import('./components/PageHeader').then((m) => ({ default: m.PageHeader })));
+const LiveClockPanchang = lazy(() => import('./components/LiveClockPanchang').then((m) => ({ default: m.LiveClockPanchang })));
+const QuickPageShortcuts = lazy(() => import('./components/QuickPageShortcuts').then((m) => ({ default: m.QuickPageShortcuts })));
+const PlansGrid = lazy(() => import('./components/PlansGrid').then((m) => ({ default: m.PlansGrid })));
+const RtpsJaminServicesPage = lazy(() => import('./components/RtpsJaminServicesPage').then((m) => ({ default: m.RtpsJaminServicesPage })));
+const WeatherPage = lazy(() => import('./components/WeatherPage').then((m) => ({ default: m.WeatherPage })));
+const LiveNewsPage = lazy(() => import('./components/LiveNewsPage').then((m) => ({ default: m.LiveNewsPage })));
+const EntertainmentChatPage = lazy(() => import('./components/EntertainmentChatPage').then((m) => ({ default: m.EntertainmentChatPage })));
+const PanchangRashifalPage = lazy(() => import('./components/PanchangRashifalPage').then((m) => ({ default: m.PanchangRashifalPage })));
+const MandiMarketPage = lazy(() => import('./components/MandiMarketPage').then((m) => ({ default: m.MandiMarketPage })));
+const GovtSchemesPage = lazy(() => import('./components/GovtSchemesPage').then((m) => ({ default: m.GovtSchemesPage })));
+const JobAlertsPage = lazy(() => import('./components/JobAlertsPage').then((m) => ({ default: m.JobAlertsPage })));
+const PayoutCalculator = lazy(() => import('./components/PayoutCalculator').then((m) => ({ default: m.PayoutCalculator })));
+const ParentsPortal = lazy(() => import('./components/ParentsPortal').then((m) => ({ default: m.ParentsPortal })));
+const StudentStudyPage = lazy(() => import('./components/StudentStudyPage').then((m) => ({ default: m.StudentStudyPage })));
+const IDCardGenerator = lazy(() => import('./components/IDCardGenerator').then((m) => ({ default: m.IDCardGenerator })));
+const RegistrationPortal = lazy(() => import('./components/RegistrationPortal').then((m) => ({ default: m.RegistrationPortal })));
+const UserDashboard = lazy(() => import('./components/UserDashboard').then((m) => ({ default: m.UserDashboard })));
+const AdminPanel = lazy(() => import('./components/AdminPanel').then((m) => ({ default: m.AdminPanel })));
+const AssessmentPortal = lazy(() => import('./components/AssessmentPortal').then((m) => ({ default: m.AssessmentPortal })));
+const LegalPolicyPages = lazy(() => import('./components/LegalPolicyPages').then((m) => ({ default: m.LegalPolicyPages })));
+const ContactFaq = lazy(() => import('./components/ContactFaq').then((m) => ({ default: m.ContactFaq })));
+const PagePopupModal = lazy(() => import('./components/PagePopupModal').then((m) => ({ default: m.PagePopupModal })));
+
+const AIChatBot = lazy(() => import('./components/AIChatBot').then((m) => ({ default: m.AIChatBot })));
+const RegistrationModal = lazy(() => import('./components/RegistrationModal').then((m) => ({ default: m.RegistrationModal })));
+const DashboardModal = lazy(() => import('./components/DashboardModal').then((m) => ({ default: m.DashboardModal })));
+const IdCardModal = lazy(() => import('./components/IdCardModal').then((m) => ({ default: m.IdCardModal })));
+const SponsorCardModal = lazy(() => import('./components/SponsorCardModal').then((m) => ({ default: m.SponsorCardModal })));
+const IoisServicesDrawerModal = lazy(() => import('./components/IoisServicesDrawerModal').then((m) => ({ default: m.IoisServicesDrawerModal })));
+const ReferralPromotionModal = lazy(() => import('./components/ReferralPromotionModal').then((m) => ({ default: m.ReferralPromotionModal })));
+const NotificationModal = lazy(() => import('./components/NotificationModal').then((m) => ({ default: m.NotificationModal })));
+const DailyFestivalWelcomeModal = lazy(() => import('./components/DailyFestivalWelcomeModal').then((m) => ({ default: m.DailyFestivalWelcomeModal })));
+const DailyRashifalModal = lazy(() => import('./components/DailyRashifalModal').then((m) => ({ default: m.DailyRashifalModal })));
+const PhotoCompressorModal = lazy(() => import('./components/PhotoCompressorModal').then((m) => ({ default: m.PhotoCompressorModal })));
+const ForcePasswordUpdateModal = lazy(() => import('./components/ForcePasswordUpdateModal').then((m) => ({ default: m.ForcePasswordUpdateModal })));
+const SessionSecurityAlertModal = lazy(() => import('./components/SessionSecurityAlertModal').then((m) => ({ default: m.SessionSecurityAlertModal })));
+const SponsorAddMemberModal = lazy(() => import('./components/SponsorAddMemberModal').then((m) => ({ default: m.SponsorAddMemberModal })));
+const PublicProfileModal = lazy(() => import('./components/PublicProfileModal').then((m) => ({ default: m.PublicProfileModal })));
+const IoisChatHelpHub = lazy(() => import('./components/IoisChatHelpHub').then((m) => ({ default: m.IoisChatHelpHub })));
+const GoogleMapsExplorer = lazy(() => import('./components/GoogleMapsExplorer').then((m) => ({ default: m.GoogleMapsExplorer })));
 import { getAdminUnreadCount, getUserUnreadCount, markChatMessagesAsRead } from './services/notificationService';
 import { fetchSocialBootstrapAsync, getSocialUnreadCache } from './services/socialChatService';
 import { getProfileFrameById } from './data/profileFramesData';
@@ -104,6 +106,14 @@ export default function App() {
     applyThemeToDocument(themeMode, themePreset);
     applyTextScalingToDocument(getSavedTextScaling());
   }, [themeMode, themePreset]);
+
+  // Google Maps Platform Case A: Top-level Demo-Key Quota Exceeded Listener
+  const [gmpQuotaExceeded, setGmpQuotaExceeded] = useState<boolean>(false);
+  useEffect(() => {
+    const onQuota = () => setGmpQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', onQuota);
+    return () => window.removeEventListener('gmp-quota-exceeded', onQuota);
+  }, []);
 
   const handleToggleMode = () => {
     setThemeMode((prev) => {
@@ -160,7 +170,7 @@ export default function App() {
         const socialCache = getSocialUnreadCache(currentUser.userId);
         setAppUnreadCount(directUnread + (socialCache.totalUnreadCount || 0) + (socialCache.pendingFriendRequestsCount || 0));
       } else {
-        setAppUnreadCount(getAdminUnreadCount());
+        setAppUnreadCount(isAdminLoggedIn() ? getAdminUnreadCount() : 0);
       }
     };
     const refreshSocialBadge = async () => {
@@ -279,8 +289,22 @@ export default function App() {
             const base = getCurrentUser() || currentUser;
             const mergedSelf = mergeUserLists([base], [found])[0];
             if (mergedSelf) {
-              setCurrentUser(mergedSelf);
-              persistCurrentUser(mergedSelf);
+              const changed =
+                mergedSelf.paymentStatus !== base.paymentStatus ||
+                mergedSelf.selectedPlanId !== base.selectedPlanId ||
+                mergedSelf.fullName !== base.fullName ||
+                mergedSelf.username !== base.username ||
+                mergedSelf.lastLoginAt !== base.lastLoginAt ||
+                mergedSelf.photoUrl !== base.photoUrl ||
+                mergedSelf.verifiedAt !== base.verifiedAt ||
+                mergedSelf.payoutUpi !== base.payoutUpi ||
+                mergedSelf.mustChangePassword !== base.mustChangePassword ||
+                (mergedSelf.editHistory?.length || 0) !== (base.editHistory?.length || 0) ||
+                (mergedSelf.withdrawals?.length || 0) !== (base.withdrawals?.length || 0);
+              if (changed) {
+                setCurrentUser(mergedSelf);
+                persistCurrentUser(mergedSelf);
+              }
             }
           }
         }
@@ -289,8 +313,8 @@ export default function App() {
       }
     };
     
-    // First sync after 800ms; background polling uses server endpoint only (0 Firestore reads)
-    const initialTimer = setTimeout(() => void sync(false), 800);
+    // First sync after 1800ms so initial paint completes immediately; background polling uses server endpoint only
+    const initialTimer = setTimeout(() => void sync(false), 1800);
     const interval = setInterval(() => void sync(true), 45000);
     return () => {
       isMounted = false;
@@ -437,6 +461,24 @@ export default function App() {
         color: 'var(--text-primary)',
       }}
     >
+      {gmpQuotaExceeded && (
+        <div
+          role="alert"
+          className="sticky top-0 z-50 w-full bg-amber-400 text-slate-950 px-4 py-2 text-xs font-bold flex flex-wrap items-center justify-center gap-2 border-b border-amber-600 shadow"
+        >
+          <span>
+            Your app has exceeded the Demo Key quota limit. To continue using the app, switch to using your own Google Cloud project key in AI Studio.
+          </span>
+          <a
+            href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-black text-slate-950"
+          >
+            Learn more
+          </a>
+        </div>
+      )}
       {/* 1. Header & Navigation + Live News Ticker (Locked Top Shell - Never Scrolls) */}
       <div 
         className="shrink-0 w-full shadow-2xl border-b transition-colors duration-200"
@@ -983,6 +1025,19 @@ export default function App() {
           </div>
         )}
 
+        {/* ================= PAGE 10.6: GOOGLE MAPS HUB LOCATOR ================= */}
+        {currentPage === 'maps-explorer' && (
+          <div className="space-y-8">
+            <PageHeader
+              currentPage="maps-explorer"
+              onNavigate={navigateTo}
+              title="IOIS लोकेशन व केंद्र खोजक (Google Maps Locator)"
+              subtitle="भारत में नजदीकी IOIS सहायता केंद्र, CSC हब, जिला शहर व लाइव मार्ग खोजें"
+            />
+            <GoogleMapsExplorer />
+          </div>
+        )}
+
         {/* ================= PAGE 11: CONTACT & FAQ PAGE ================= */}
         {currentPage === 'contact' && (
           <div className="space-y-8">
@@ -1121,38 +1176,48 @@ export default function App() {
         </button>
       </div>
 
-      {/* 7. Live AI Chatbot Modal / Drawer */}
-      <AIChatBot
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        initialQuery={chatInitialQuery}
-        onNavigate={navigateTo}
-        onOpenLogin={handleOpenLogin}
-        onSelectPlanForRegister={handleSelectPlanForRegister}
-        currentUser={currentUser}
-      />
+      {/* 7. Live AI Chatbot Modal / Drawer (Lazy-loaded on open) */}
+      {isChatOpen && (
+        <Suspense fallback={null}>
+          <AIChatBot
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            initialQuery={chatInitialQuery}
+            onNavigate={navigateTo}
+            onOpenLogin={handleOpenLogin}
+            onSelectPlanForRegister={handleSelectPlanForRegister}
+            currentUser={currentUser}
+          />
+        </Suspense>
+      )}
 
-      {/* 8. Auth Modal (Login / Forgot ID / Forgot Password - Guest or Forgot Password recovery) */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccessLogin={handleLoginSuccess}
-        onSwitchToRegister={() => {
-          setIsAuthModalOpen(false);
-          if (!currentUser) setIsRegisterModalOpen(true);
-        }}
-        onSelectPlanAndRegister={(planId) => {
-          setIsAuthModalOpen(false);
-          handleSelectPlanForRegister(planId);
-        }}
-        initialMode={authModalInitialMode}
-        initialIdentifier={authModalPrefill.identifier}
-        initialMobile={authModalPrefill.mobile}
-        initialUserId={authModalPrefill.userId}
-      />
+      {/* 8. Auth Modal (Login / Forgot ID / Forgot Password - Lazy loaded on open) */}
+      {isAuthModalOpen && (
+        <Suspense fallback={null}>
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onSuccessLogin={handleLoginSuccess}
+            onSwitchToRegister={() => {
+              setIsAuthModalOpen(false);
+              if (!currentUser) setIsRegisterModalOpen(true);
+            }}
+            onSelectPlanAndRegister={(planId) => {
+              setIsAuthModalOpen(false);
+              handleSelectPlanForRegister(planId);
+            }}
+            initialMode={authModalInitialMode}
+            initialIdentifier={authModalPrefill.identifier}
+            initialMobile={authModalPrefill.mobile}
+            initialUserId={authModalPrefill.userId}
+          />
+        </Suspense>
+      )}
+
+      <Suspense fallback={null}>
 
       {/* 9. Dedicated Registration Pop-Up Dialog Box Modal (Guest Only) */}
-      {!currentUser && (
+      {!currentUser && isRegisterModalOpen && (
         <RegistrationModal
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
@@ -1167,82 +1232,94 @@ export default function App() {
       )}
 
       {/* 9.5 Dedicated Sponsor Privacy-Protected ID Card Visitor Modal */}
-      <SponsorCardModal
-        isOpen={isSponsorModalOpen}
-        onClose={() => setIsSponsorModalOpen(false)}
-        sponsorUser={sponsorUser}
-        sponsorId={sponsorReferralId}
-        onOpenRegisterWithSponsor={handleOpenRegisterWithSponsor}
-        currentUser={currentUser}
-      />
+      {isSponsorModalOpen && (
+        <SponsorCardModal
+          isOpen={isSponsorModalOpen}
+          onClose={() => setIsSponsorModalOpen(false)}
+          sponsorUser={sponsorUser}
+          sponsorId={sponsorReferralId}
+          onOpenRegisterWithSponsor={handleOpenRegisterWithSponsor}
+          currentUser={currentUser}
+        />
+      )}
 
       {/* 10. Dedicated Member Dashboard Pop-Up Dialog Box Modal */}
-      <DashboardModal
-        isOpen={isDashboardModalOpen}
-        onClose={() => setIsDashboardModalOpen(false)}
-        user={currentUser}
-        onUserUpdated={(updated) => setCurrentUser(updated)}
-        onLogout={handleLogout}
-        onOpenLogin={() => {
-          setIsDashboardModalOpen(false);
-          handleOpenLogin('login');
-        }}
-        onOpenSponsorAddMember={handleOpenSponsorAddMember}
-        onOpenPublicProfile={handleOpenPublicProfile}
-        initialDashboardTab={dashboardInitialTab}
-      />
+      {isDashboardModalOpen && (
+        <DashboardModal
+          isOpen={isDashboardModalOpen}
+          onClose={() => setIsDashboardModalOpen(false)}
+          user={currentUser}
+          onUserUpdated={(updated) => setCurrentUser(updated)}
+          onLogout={handleLogout}
+          onOpenLogin={() => {
+            setIsDashboardModalOpen(false);
+            handleOpenLogin('login');
+          }}
+          onOpenSponsorAddMember={handleOpenSponsorAddMember}
+          onOpenPublicProfile={handleOpenPublicProfile}
+          initialDashboardTab={dashboardInitialTab}
+        />
+      )}
 
       {/* 11. Dedicated Digital ID Card Pop-Up Dialog Box Modal */}
-      <IdCardModal
-        isOpen={isIdCardModalOpen}
-        onClose={() => setIsIdCardModalOpen(false)}
-        user={currentUser}
-        onOpenRegister={() => {
-          setIsIdCardModalOpen(false);
-          handleOpenRegister();
-        }}
-        onOpenLogin={() => {
-          setIsIdCardModalOpen(false);
-          handleOpenLogin('login');
-        }}
-      />
+      {isIdCardModalOpen && (
+        <IdCardModal
+          isOpen={isIdCardModalOpen}
+          onClose={() => setIsIdCardModalOpen(false)}
+          user={currentUser}
+          onOpenRegister={() => {
+            setIsIdCardModalOpen(false);
+            handleOpenRegister();
+          }}
+          onOpenLogin={() => {
+            setIsIdCardModalOpen(false);
+            handleOpenLogin('login');
+          }}
+        />
+      )}
 
       {/* 12. All IOIS Services & Portals Drawer Dialog Modal */}
-      <IoisServicesDrawerModal
-        isOpen={isServicesModalOpen}
-        onClose={() => setIsServicesModalOpen(false)}
-        currentPage={currentPage}
-        currentUser={currentUser}
-        onNavigate={navigateTo}
-        onOpenAiChat={() => {
-          setIsServicesModalOpen(false);
-          setChatInitialQuery('');
-          setIsChatOpen(true);
-        }}
-      />
+      {isServicesModalOpen && (
+        <IoisServicesDrawerModal
+          isOpen={isServicesModalOpen}
+          onClose={() => setIsServicesModalOpen(false)}
+          currentPage={currentPage}
+          currentUser={currentUser}
+          onNavigate={navigateTo}
+          onOpenAiChat={() => {
+            setIsServicesModalOpen(false);
+            setChatInitialQuery('');
+            setIsChatOpen(true);
+          }}
+        />
+      )}
 
       {/* 12.5 Dedicated Referral Hub, Posters & Income Breakdown Modal */}
-      <ReferralPromotionModal
-        isOpen={isReferralModalOpen}
-        onClose={() => setIsReferralModalOpen(false)}
-        currentUser={currentUser}
-        onOpenRegister={handleOpenRegister}
-        onOpenLogin={handleOpenLogin}
-        onNavigate={navigateTo}
-      />
+      {isReferralModalOpen && (
+        <ReferralPromotionModal
+          isOpen={isReferralModalOpen}
+          onClose={() => setIsReferralModalOpen(false)}
+          currentUser={currentUser}
+          onOpenRegister={handleOpenRegister}
+          onOpenLogin={handleOpenLogin}
+          onNavigate={navigateTo}
+        />
+      )}
 
       {/* 13. Dedicated Theme Customization & Light/Dark Mode Selector Modal */}
-      <ThemeSelectorModal
-        isOpen={isThemeModalOpen}
-        onClose={() => setIsThemeModalOpen(false)}
-        currentMode={themeMode}
-        currentPreset={themePreset}
-        onModeChange={(mode) => {
-          setThemeMode(mode);
-          applyThemeToDocument(mode, themePreset);
-        }}
-        onPresetChange={handlePresetChange}
-      />
+      {isThemeModalOpen && (
+        <ThemeSelectorModal
+          isOpen={isThemeModalOpen}
+          onClose={() => setIsThemeModalOpen(false)}
+          currentMode={themeMode}
+          currentPreset={themePreset}
+          onModeChange={(mode) => {
+            setThemeMode(mode);
+            applyThemeToDocument(mode, themePreset);
+          }}
+          onPresetChange={handlePresetChange}
+        />
+      )}
 
       {/* 14. Dedicated Universal Instant Page Popup Window (0ms Delay) */}
       {popupPage && (
@@ -1287,70 +1364,78 @@ export default function App() {
       )}
 
       {/* 15. Universal 3D Notification Modal (Direct Reply & IOIS CHAT & HELP Breakdown) */}
-      <NotificationModal
-        isOpen={isAppNotificationModalOpen}
-        onClose={() => setIsAppNotificationModalOpen(false)}
-        role={currentUser ? 'user' : 'admin'}
-        userId={currentUser?.userId}
-        userName={currentUser?.fullName}
-        onOpenChat={(targetUserId) => {
-          setIsAppNotificationModalOpen(false);
-          if (currentUser) {
-            setDashboardInitialTab('chat');
-            handleOpenDashboard();
-          } else {
-            navigateTo('admin');
-          }
-        }}
-        onOpenSocialChat={() => {
-          setIsAppNotificationModalOpen(false);
-          if (currentUser) {
-            setDashboardInitialTab('iois_chat');
-            setIsDashboardModalOpen(true);
-          } else {
-            handleOpenLogin('login');
-          }
-        }}
-      />
+      {isAppNotificationModalOpen && (
+        <NotificationModal
+          isOpen={isAppNotificationModalOpen}
+          onClose={() => setIsAppNotificationModalOpen(false)}
+          role={currentUser ? 'user' : 'admin'}
+          userId={currentUser?.userId}
+          userName={currentUser?.fullName}
+          onOpenChat={(targetUserId) => {
+            setIsAppNotificationModalOpen(false);
+            if (currentUser) {
+              setDashboardInitialTab('chat');
+              handleOpenDashboard();
+            } else {
+              navigateTo('admin');
+            }
+          }}
+          onOpenSocialChat={() => {
+            setIsAppNotificationModalOpen(false);
+            if (currentUser) {
+              setDashboardInitialTab('iois_chat');
+              setIsDashboardModalOpen(true);
+            } else {
+              handleOpenLogin('login');
+            }
+          }}
+        />
+      )}
 
       {/* 16. Automatic Daily Festival & Divas Welcome Popup Window */}
-      <DailyFestivalWelcomeModal
-        isOpen={isFestivalWelcomeOpen}
-        onClose={() => setIsFestivalWelcomeOpen(false)}
-        festival={dailyPanchang.festivalsToday}
-        userName={currentUser?.fullName}
-        onOpenRashifal={() => {
-          setIsFestivalWelcomeOpen(false);
-          setIsDailyRashifalOpen(true);
-        }}
-        onNavigatePanchang={() => {
-          setIsFestivalWelcomeOpen(false);
-          navigateTo('panchang-rashifal');
-        }}
-      />
+      {isFestivalWelcomeOpen && (
+        <DailyFestivalWelcomeModal
+          isOpen={isFestivalWelcomeOpen}
+          onClose={() => setIsFestivalWelcomeOpen(false)}
+          festival={dailyPanchang.festivalsToday}
+          userName={currentUser?.fullName}
+          onOpenRashifal={() => {
+            setIsFestivalWelcomeOpen(false);
+            setIsDailyRashifalOpen(true);
+          }}
+          onNavigatePanchang={() => {
+            setIsFestivalWelcomeOpen(false);
+            navigateTo('panchang-rashifal');
+          }}
+        />
+      )}
 
       {/* 17. Dedicated Daily 12 Rashi Forecast Popup Window */}
-      <DailyRashifalModal
-        isOpen={isDailyRashifalOpen}
-        onClose={() => setIsDailyRashifalOpen(false)}
-        onOpenFestival={() => {
-          setIsDailyRashifalOpen(false);
-          setIsFestivalWelcomeOpen(true);
-        }}
-        onNavigatePanchang={() => {
-          setIsDailyRashifalOpen(false);
-          navigateTo('panchang-rashifal');
-        }}
-      />
+      {isDailyRashifalOpen && (
+        <DailyRashifalModal
+          isOpen={isDailyRashifalOpen}
+          onClose={() => setIsDailyRashifalOpen(false)}
+          onOpenFestival={() => {
+            setIsDailyRashifalOpen(false);
+            setIsFestivalWelcomeOpen(true);
+          }}
+          onNavigatePanchang={() => {
+            setIsDailyRashifalOpen(false);
+            navigateTo('panchang-rashifal');
+          }}
+        />
+      )}
 
       {/* 18. Dedicated Photo & Signature Compressor Modal */}
-      <PhotoCompressorModal
-        isOpen={isPhotoCompressorOpen}
-        onClose={() => setIsPhotoCompressorOpen(false)}
-      />
+      {isPhotoCompressorOpen && (
+        <PhotoCompressorModal
+          isOpen={isPhotoCompressorOpen}
+          onClose={() => setIsPhotoCompressorOpen(false)}
+        />
+      )}
 
       {/* 19. Sponsor-Assisted New Member Joining Modal (Keeps Sponsor Logged In) */}
-      {currentUser && (
+      {currentUser && isSponsorAddMemberOpen && (
         <SponsorAddMemberModal
           isOpen={isSponsorAddMemberOpen}
           sponsorUser={currentUser}
@@ -1371,36 +1456,41 @@ export default function App() {
       )}
 
       {/* 21. Multi-Device Security Logout Warning Modal */}
-      <SessionSecurityAlertModal
-        isOpen={securityAlertState.isOpen}
-        newDevice={securityAlertState.newDevice}
-        newLoginAt={securityAlertState.newLoginAt}
-        onClose={() => setSecurityAlertState({ isOpen: false })}
-        onChangePassword={() => {
-          setSecurityAlertState({ isOpen: false });
-          handleOpenLogin('forgot_password');
-        }}
-      />
+      {securityAlertState.isOpen && (
+        <SessionSecurityAlertModal
+          isOpen={securityAlertState.isOpen}
+          newDevice={securityAlertState.newDevice}
+          newLoginAt={securityAlertState.newLoginAt}
+          onClose={() => setSecurityAlertState({ isOpen: false })}
+          onChangePassword={() => {
+            setSecurityAlertState({ isOpen: false });
+            handleOpenLogin('forgot_password');
+          }}
+        />
+      )}
 
       {/* 22. Member Public Profile Modal (?u=username / Visitor Counter / Likes / Friend Request / Chat) */}
-      <PublicProfileModal
-        isOpen={isPublicProfileOpen}
-        targetUserOrHandle={publicProfileTarget}
-        currentUser={currentUser}
-        onClose={() => {
-          setIsPublicProfileOpen(false);
-          setPublicProfileTarget(null);
-        }}
-        onStartChat={() => {
-          setIsPublicProfileOpen(false);
-          if (currentUser) {
-            setDashboardInitialTab('iois_chat');
-            setIsDashboardModalOpen(true);
-          } else {
-            handleOpenLogin('login');
-          }
-        }}
-      />
+      {isPublicProfileOpen && (
+        <PublicProfileModal
+          isOpen={isPublicProfileOpen}
+          targetUserOrHandle={publicProfileTarget}
+          currentUser={currentUser}
+          onClose={() => {
+            setIsPublicProfileOpen(false);
+            setPublicProfileTarget(null);
+          }}
+          onStartChat={() => {
+            setIsPublicProfileOpen(false);
+            if (currentUser) {
+              setDashboardInitialTab('iois_chat');
+              setIsDashboardModalOpen(true);
+            } else {
+              handleOpenLogin('login');
+            }
+          }}
+        />
+      )}
+      </Suspense>
 
       {/* 23. Global Celebration & Photo Popup for "All Pages" target (runs outside Home/Dashboard/Admin) */}
       <AdminHomePhotoPopup

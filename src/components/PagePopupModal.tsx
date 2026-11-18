@@ -21,7 +21,8 @@ import {
   UserPlus,
   Maximize2,
   Image as ImageIcon,
-  MessageCircle
+  MessageCircle,
+  MapPin
 } from 'lucide-react';
 
 import { RtpsJaminServicesPage } from './RtpsJaminServicesPage';
@@ -45,6 +46,7 @@ import { LegalPolicyPages } from './LegalPolicyPages';
 import { ContactFaq } from './ContactFaq';
 import { PhotoCompressorTool } from './PhotoCompressorModal';
 import { IoisChatHelpHub } from './IoisChatHelpHub';
+import { GoogleMapsExplorer } from './GoogleMapsExplorer';
 
 interface PagePopupModalProps {
   page: PageType;
@@ -143,6 +145,8 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
         return { title: 'फोटो कंप्रेसर व रिसाइज़र (Smart Photo Resizer)', subtitle: 'सरकारी फॉर्म, RTPS व SSC हेतु 20KB, 50KB व 100KB में फोटो व सिग्नेचर कंप्रेस करें', icon: ImageIcon, color: 'text-pink-400' };
       case 'chat-help':
         return { title: 'IOIS CHAT & HELP', subtitle: '1:1 चैट, ग्रुप चैट, फोटो-वीडियो-लिंक शेयरिंग, फ्रेंड रिक्वेस्ट व @username प्रोफाइल नेटवर्क', icon: MessageCircle, color: 'text-emerald-400' };
+      case 'maps-explorer':
+        return { title: 'IOIS लोकेशन व केंद्र खोजक (Google Maps)', subtitle: 'भारत में शहर, पता व IOIS सहायता केंद्रों की लाइव लोकेशन खोजें', icon: MapPin, color: 'text-rose-400' };
       default:
         return { title: 'IOIS डिजिटल सेवा', subtitle: 'आधिकारिक डिजिटल सेवा पोर्टल', icon: Sparkles, color: 'text-amber-400' };
     }
@@ -352,6 +356,10 @@ export const PagePopupModal: React.FC<PagePopupModalProps> = ({
 
           {page === 'photo-compressor' && (
             <PhotoCompressorTool />
+          )}
+
+          {page === 'maps-explorer' && (
+            <GoogleMapsExplorer />
           )}
 
           {page === 'chat-help' && (

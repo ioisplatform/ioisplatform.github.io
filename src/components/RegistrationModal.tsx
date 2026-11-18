@@ -309,7 +309,16 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       return false;
     }
 
-    const sponsorCheck = await validateSponsorIdAsync(sponsorId);
+    const [sponsorCheck, dupCheck] = await Promise.all([
+      sponsorStatus === 'valid'
+        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }>({
+            isValid: true,
+            sponsorName: sponsorVerifiedName || 'सत्यापित स्पॉन्सर',
+          })
+        : validateSponsorIdAsync(sponsorId),
+      checkUserAlreadyExists(mobCheck.cleanDigits, email),
+    ]);
+
     if (!sponsorCheck.isValid) {
       setSponsorStatus('invalid');
       setSponsorError(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
@@ -319,8 +328,6 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     setSponsorStatus('valid');
     setSponsorVerifiedName(sponsorCheck.sponsorName || 'सत्यापित स्पॉन्सर');
 
-    // 5. Duplicate Check
-    const dupCheck = await checkUserAlreadyExists(mobCheck.cleanDigits, email);
     if (dupCheck.exists) {
       setDuplicateNotice({
         exists: true,
@@ -372,10 +379,20 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
-    const step1Ok = await validateStep1();
-    if (!step1Ok) {
-      setCurrentStep(1);
-      return;
+    const needsAsyncStep1 =
+      sponsorStatus !== 'valid' ||
+      Boolean(duplicateNotice?.exists) ||
+      !validateFullName(fullName).isValid ||
+      !validateMobileNumber(mobileNumber).isValid ||
+      (Boolean(email.trim()) && !validateEmailAddress(email).isValid) ||
+      !sponsorId.trim();
+
+    if (needsAsyncStep1) {
+      const step1Ok = await validateStep1();
+      if (!step1Ok) {
+        setCurrentStep(1);
+        return;
+      }
     }
 
     const step2Ok = validateStep2();
