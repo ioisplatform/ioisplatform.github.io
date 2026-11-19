@@ -10,7 +10,8 @@ import {
   OFFICIAL_ROOT_SPONSOR_ID,
   validateSponsorIdAsync,
   getSponsorUserAsync,
-  findUserById
+  findUserById,
+  getReferralLinks
 } from '../services/userService';
 import { 
   CreditCard, 
@@ -186,6 +187,12 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   const backCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (targetUser) {
+      setInspectedSponsorUser(targetUser);
+    }
+  }, [targetUser]);
+
+  useEffect(() => {
     if (displayUser) {
       setFullName(displayUser.fullName || 'आधिकारिक सदस्य');
       setMemberId(displayUser.userId || OFFICIAL_ROOT_SPONSOR_ID);
@@ -193,9 +200,34 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
       setUserRole(displayUser.role || (isViewingSponsor ? 'आधिकारिक सत्यापित स्पॉन्सर' : 'Official Verified Member'));
       setPhoneNumber(displayUser.mobileNumber || '8877490845');
       setStateRegion(displayUser.state || 'बिहार (IN)');
-      if (displayUser.photoUrl) setPhotoUrl(displayUser.photoUrl);
+      setPhotoUrl(displayUser.photoUrl || '');
     }
   }, [displayUser, isViewingSponsor]);
+
+  // Always hydrate real uploaded photo from server media endpoint if displayUser came from lite directory without photoUrl
+  useEffect(() => {
+    const uid = displayUser?.userId?.trim();
+    if (!uid || (displayUser?.photoUrl && displayUser.photoUrl.trim())) return;
+    let active = true;
+    fetch(`/api/users/${encodeURIComponent(uid)}/media`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data?.photoUrl || !String(data.photoUrl).trim()) return;
+        const realPhoto = String(data.photoUrl).trim();
+        setPhotoUrl(realPhoto);
+        if (viewMode === 'sponsor_card') {
+          setInspectedSponsorUser((prev) =>
+            prev && prev.userId?.toUpperCase() === uid.toUpperCase()
+              ? { ...prev, photoUrl: realPhoto }
+              : prev
+          );
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [displayUser?.userId, displayUser?.photoUrl, viewMode]);
 
   const handleInspectSponsor = async () => {
     const clean = sponsorSearchInput.trim().toUpperCase();
@@ -242,9 +274,10 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     }, 3500);
   };
 
-  // Referral URL calculation
-  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iois.org.in';
-  const defaultReferralUrl = `${originUrl}/?sponsor=${encodeURIComponent(memberId)}&ref=${encodeURIComponent(memberId)}`;
+  // Referral URL calculation (Both IOIS Unique ID & Username)
+  const rawUnameForRef = (displayUser?.username || '').trim().replace(/^@/, '');
+  const refLinks = getReferralLinks(memberId, rawUnameForRef);
+  const defaultReferralUrl = refLinks.userIdLink;
   
   // Effective QR URL & Image calculation
   const effectiveQrLink = qrMode === 'custom_url' && customQrUrl.trim() 
@@ -259,7 +292,10 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
     if (targetUser) {
       setInspectedSponsorUser(targetUser);
     }
-  }, [targetUser]);
+    if (isSponsorPreview) {
+      setViewMode('sponsor_card');
+    }
+  }, [targetUser, isSponsorPreview]);
 
   // Real Privacy Masking Logic:
   // User's real uploaded photo, real full name, username, and plan are PUBLIC by default!
@@ -280,9 +316,9 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
   const effectiveShowUsername = isCardOwner ? (privacyMode === 'private' || privacySettings.showUsername) : privacySettings.showUsername;
   const effectiveShowPhoto = isCardOwner ? (privacyMode === 'private' || privacySettings.showPhoto) : privacySettings.showPhoto;
   const effectiveShowLocation = isCardOwner ? (privacyMode === 'private' || privacySettings.showLocation) : privacySettings.showLocation;
-  const effectiveShowMobile = isCardOwner ? (privacyMode === 'private' || privacySettings.showMobile) : privacySettings.showMobile;
-  const effectiveShowEmail = isCardOwner ? (privacyMode === 'private' || privacySettings.showEmail) : privacySettings.showEmail;
-  const effectiveShowUpi = isCardOwner ? (privacyMode === 'private' || privacySettings.showUpi) : privacySettings.showUpi;
+  const effectiveShowMobile = isCardOwner ? (privacyMode === 'private' || privacySettings.showMobile) : (isSponsorPreview ? false : privacySettings.showMobile);
+  const effectiveShowEmail = isCardOwner ? (privacyMode === 'private' || privacySettings.showEmail) : (isSponsorPreview ? false : privacySettings.showEmail);
+  const effectiveShowUpi = isCardOwner ? (privacyMode === 'private' || privacySettings.showUpi) : (isSponsorPreview ? false : privacySettings.showUpi);
 
   // Real user uploaded photo (displayed authentically on card)
   const rawPhoto = (displayUser?.photoUrl || photoUrl || '').trim();
@@ -1040,18 +1076,33 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
 
             {/* Sub-inputs depending on QR mode */}
             {qrMode === 'referral' && (
-              <div className="pt-1.5 space-y-1">
+              <div className="pt-1.5 space-y-1.5">
                 <span className="text-[10px] text-slate-400 block">
-                  डिफ़ॉल्ट रूप से यह QR आपके स्पॉन्सर कोड <strong className="text-amber-400">({memberId})</strong> से जुड़ा है। स्कैन करने पर सदस्य सीधे आपसे जुड़ेंगे।
+                  डिफ़ॉल्ट रूप से यह QR आपके स्पॉन्सर कोड <strong className="text-amber-400">({memberId})</strong>{refLinks.username ? <> व <strong className="text-cyan-300">@{refLinks.username}</strong></> : null} से जुड़ा है। स्कैन करने पर सदस्य सीधे आपसे जुड़ेंगे।
                 </span>
-                <button
-                  type="button"
-                  onClick={handleCopyReferralLink}
-                  className="text-[10px] text-amber-400 hover:underline flex items-center gap-1 font-mono"
-                >
-                  <Copy className="w-3 h-3" />
-                  <span>रेफरल लिंक कॉपी करें</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyReferralLink}
+                    className="text-[10px] text-amber-400 hover:underline flex items-center gap-1 font-mono cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Unique ID लिंक कॉपी</span>
+                  </button>
+                  {refLinks.usernameLink && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(refLinks.usernameLink);
+                        showToast(`Username रेफरल लिंक कॉपी हो गया: ${refLinks.usernameLink}`);
+                      }}
+                      className="text-[10px] text-cyan-300 hover:underline flex items-center gap-1 font-mono cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Username लिंक (@{refLinks.username}) कॉपी</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1402,6 +1453,9 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                                 src={displayPhoto}
                                 alt={displayFullName}
                                 crossOrigin="anonymous"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = PRESET_AVATARS[0].url;
+                                }}
                                 className="w-full h-full object-cover object-top"
                               />
                             </div>
@@ -1639,6 +1693,9 @@ export const IDCardGenerator: React.FC<IDCardGeneratorProps> = ({
                                 src={displayPhoto}
                                 alt={displayFullName}
                                 crossOrigin="anonymous"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = PRESET_AVATARS[0].url;
+                                }}
                                 className="w-full h-full object-cover object-top"
                               />
                             </div>

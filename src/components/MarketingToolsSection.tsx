@@ -31,12 +31,15 @@ interface MarketingToolsSectionProps {
 }
 
 export const MarketingToolsSection: React.FC<MarketingToolsSectionProps> = ({ user }) => {
-  // Referral link
+  // Referral links (Both IOIS Unique ID & Username)
   const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iois.org.in';
-  const referralUrl = `${originUrl}/?ref=${encodeURIComponent(user.userId)}&sponsor=${encodeURIComponent(user.userId)}`;
+  const cleanUname = (user.username || '').trim().replace(/^@/, '').toLowerCase();
+  const referralUrl = `${originUrl}/?s=${encodeURIComponent(user.userId)}`;
+  const usernameReferralUrl = cleanUname ? `${originUrl}/?s=${encodeURIComponent(cleanUname)}` : '';
 
   // Copy animation feedback states
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedUsernameLink, setCopiedUsernameLink] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedTemplateId, setCopiedTemplateId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -329,10 +332,10 @@ export const MarketingToolsSection: React.FC<MarketingToolsSectionProps> = ({ us
             </p>
           </div>
 
-          {/* Quick Copy Link Widget */}
-          <div className="w-full md:w-auto p-4 bg-slate-950/90 rounded-2xl border border-amber-500/40 shadow-xl space-y-3 shrink-0">
+          {/* Quick Copy Link Widget (Dual Links: Unique ID + Username) */}
+          <div className="w-full md:w-auto p-4 bg-slate-950/90 rounded-2xl border border-amber-500/40 shadow-xl space-y-2.5 shrink-0">
             <div className="flex items-center justify-between gap-2 text-xs">
-              <span className="text-slate-400 font-bold">आपका यूनिक रेफरल लिंक:</span>
+              <span className="text-slate-400 font-bold">IOIS Unique ID लिंक:</span>
               <span className="font-mono text-amber-300 font-black">{user.userId}</span>
             </div>
 
@@ -351,21 +354,57 @@ export const MarketingToolsSection: React.FC<MarketingToolsSectionProps> = ({ us
                     ? 'bg-emerald-500 text-slate-950 scale-105'
                     : 'bg-amber-400 hover:bg-amber-300 text-slate-950 hover:scale-[1.02]'
                 }`}
-                title="रेफरल लिंक कॉपी करें"
+                title="Unique ID रेफरल लिंक कॉपी करें"
               >
                 {copiedLink ? (
                   <>
                     <Check className="w-4 h-4 text-slate-950 stroke-[3]" />
-                    <span>कॉपी हो गया!</span>
+                    <span>कॉपी!</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-4 h-4 text-slate-950" />
-                    <span>लिंक कॉपी करें</span>
+                    <span>ID कॉपी</span>
                   </>
                 )}
               </button>
             </div>
+
+            {usernameReferralUrl && (
+              <>
+                <div className="flex items-center justify-between gap-2 text-xs pt-1 border-t border-slate-800">
+                  <span className="text-cyan-300 font-bold">Username लिंक:</span>
+                  <span className="font-mono text-cyan-200 font-black">@{cleanUname}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={usernameReferralUrl}
+                    className="bg-slate-900 text-cyan-200 font-mono text-[11px] px-3 py-2 rounded-xl border border-cyan-500/40 w-full sm:w-64 select-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(usernameReferralUrl);
+                        setCopiedUsernameLink(true);
+                        setTimeout(() => setCopiedUsernameLink(false), 2000);
+                      } catch {}
+                    }}
+                    className={`px-4 py-2 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shrink-0 ${
+                      copiedUsernameLink
+                        ? 'bg-emerald-500 text-slate-950 scale-105'
+                        : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950 hover:scale-[1.02]'
+                    }`}
+                    title="Username रेफरल लिंक कॉपी करें"
+                  >
+                    {copiedUsernameLink ? <Check className="w-4 h-4 text-slate-950 stroke-[3]" /> : <Copy className="w-4 h-4 text-slate-950" />}
+                    <span>{copiedUsernameLink ? 'कॉपी!' : 'कॉपी'}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -68,14 +68,17 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({
   onOpenSponsorAddMember,
   onOpenChatWithUser,
 }) => {
-  // 1. Referral Link Configuration (ACC India / SWACCDK01 Style: ?sponsor=...)
+  // 1. Referral Link Configuration (Supports BOTH IOIS Unique ID & Username via /?s=)
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ioisplatform.github.io';
-  const referralUrl = `${origin}/?sponsor=${encodeURIComponent(user.userId)}`;
-  const githubReferralUrl = `https://ioisplatform.github.io/?sponsor=${encodeURIComponent(user.userId)}`;
+  const cleanUname = (user.username || '').trim().replace(/^@/, '').toLowerCase();
+  const referralUrl = `${origin}/?s=${encodeURIComponent(user.userId)}`;
+  const usernameReferralUrl = cleanUname ? `${origin}/?s=${encodeURIComponent(cleanUname)}` : '';
+  const githubReferralUrl = `https://ioisplatform.github.io/?s=${encodeURIComponent(user.userId)}`;
 
   // 2. State Management
   const [hubTab, setHubTab] = useState<'overview' | 'planBreakdown' | 'withdrawal' | 'posters'>('overview');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedUsernameLink, setCopiedUsernameLink] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedTemplateIdx, setCopiedTemplateIdx] = useState<number | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -179,12 +182,15 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({
   }, [referralUrl]);
 
   // Copy Helpers
-  const handleCopy = async (text: string, type: 'link' | 'id') => {
+  const handleCopy = async (text: string, type: 'link' | 'uname_link' | 'id') => {
     try {
       await navigator.clipboard.writeText(text);
       if (type === 'link') {
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
+      } else if (type === 'uname_link') {
+        setCopiedUsernameLink(true);
+        setTimeout(() => setCopiedUsernameLink(false), 2000);
       } else {
         setCopiedId(true);
         setTimeout(() => setCopiedId(false), 2000);
@@ -212,19 +218,19 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({
       id: 'student-notes',
       tag: 'विद्यार्थी व नोट्स स्पेशल',
       title: 'NCERT बुक्स, नोट्स व बाल विकास किट',
-      message: `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nनमस्ते! मैंने IOIS डिजिटल एजुकेशन प्लेटफॉर्म ज्वाइन किया है। यहाँ मात्र ₹10 से ₹999 में कक्षा 1 से 12वीं तक NCERT डिजिटल नोट्स, 700+ पेज बाल विकास किट, 3D लर्निंग और डिजिटल ID कार्ड मिलता है।\n\nसाथ ही प्रत्येक रेफरल पर 50% से 70% तक सीधा बैंक/UPI पेआउट प्राप्त होता है।\n\n👉 *मेरी रेफरल लिंक से अभी रजिस्टर करें:*\n${referralUrl}\n\n🏷️ *Sponsor ID:* ${user.userId}\n(फॉर्म भरते समय Sponsor ID में यही डालें)`,
+      message: `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nनमस्ते! मैंने IOIS डिजिटल एजुकेशन प्लेटफॉर्म ज्वाइन किया है। यहाँ मात्र ₹10 से ₹999 में कक्षा 1 से 12वीं तक NCERT डिजिटल नोट्स, 700+ पेज बाल विकास किट, 3D लर्निंग और डिजिटल ID कार्ड मिलता है।\n\nसाथ ही प्रत्येक रेफरल पर 50% से 70% तक सीधा बैंक/UPI पेआउट प्राप्त होता है।\n\n👉 *मेरी रेफरल लिंक से अभी रजिस्टर करें:*\n🔗 *Unique ID लिंक:* ${referralUrl}${usernameReferralUrl ? `\n🔗 *Username लिंक:* ${usernameReferralUrl}` : ''}\n\n🏷️ *Sponsor ID:* ${user.userId}${cleanUname ? ` (@${cleanUname})` : ''}\n(फॉर्म भरते समय Sponsor ID स्वतः भर जाएगी)`,
     },
     {
       id: 'income-opportunity',
       tag: 'ऑनलाइन स्वरोजगार स्पेशल',
       title: '50% से 70% इंस्टेंट पेआउट व घर बैठे कमाई',
-      message: `💰 *घर बैठे मोबाइल से सीखें और कमाएं (IOIS Platform)* 🚀\n\nअब समय बर्बाद मत करो! IOIS प्लेटफॉर्म पर स्टूडेंट्स, युवा और महिलाएं सीखकर हर दिन ₹500 से ₹2000 तक इंसेंटिव प्राप्त कर रहे हैं।\n\n✅ 0 Minimum Withdrawal (सीधे आपके GooglePay / PhonePe / Paytm पर)\n✅ आधिकारिक डिजिटल सदस्यता व ID कार्ड\n✅ 7 मास्टर प्लांस (₹10, ₹49, ₹99, ₹199, ₹299, ₹499, ₹999)\n\nमेरी रेफरल लिंक से अभी 2 मिनट में रजिस्टर करें:\n👉 ${referralUrl}\n\nस्पॉन्सर आईडी: *${user.userId}*`,
+      message: `💰 *घर बैठे मोबाइल से सीखें और कमाएं (IOIS Platform)* 🚀\n\nअब समय बर्बाद मत करो! IOIS प्लेटफॉर्म पर स्टूडेंट्स, युवा और महिलाएं सीखकर हर दिन ₹500 से ₹2000 तक इंसेंटिव प्राप्त कर रहे हैं।\n\n✅ 0 Minimum Withdrawal (सीधे आपके GooglePay / PhonePe / Paytm पर)\n✅ आधिकारिक डिजिटल सदस्यता व ID कार्ड\n✅ 7 मास्टर प्लांस (₹10, ₹49, ₹99, ₹199, ₹299, ₹499, ₹999)\n\nमेरी रेफरल लिंक से अभी 2 मिनट में रजिस्टर करें:\n👉 ${usernameReferralUrl || referralUrl}\n(Unique ID लिंक: ${referralUrl})\n\nस्पॉन्सर आईडी: *${user.userId}*`,
     },
     {
       id: 'bilingual-vip',
       tag: 'VIP Official Invitation',
       title: 'Official IOIS Member Invitation (Hindi & English)',
-      message: `🌟 *Official Invitation to IOIS Digital Ecosystem* 🇮🇳\n\nDear Friend, you are invited to join the Indian Online Income Supporting System (IOIS).\n\n• Verified Student Digital ID Card with QR Verification\n• Complete Educational & Government RTPS Portals Guide\n• 50% to 70% Instant Direct Referral Commission\n\nRegister now via official link:\n👉 ${referralUrl}\n\nSponsor ID: *${user.userId}*\nJoin under verified member: ${user.fullName}`,
+      message: `🌟 *Official Invitation to IOIS Digital Ecosystem* 🇮🇳\n\nDear Friend, you are invited to join the Indian Online Income Supporting System (IOIS).\n\n• Verified Student Digital ID Card with QR Verification\n• Complete Educational & Government RTPS Portals Guide\n• 50% to 70% Instant Direct Referral Commission\n\nRegister now via official link:\n👉 ${referralUrl}${usernameReferralUrl ? `\n👉 Short Username Link: ${usernameReferralUrl}` : ''}\n\nSponsor ID: *${user.userId}*${cleanUname ? ` (@${cleanUname})` : ''}\nJoin under verified member: ${user.fullName}`,
     },
   ];
 
@@ -848,25 +854,52 @@ export const StudentReferralHub: React.FC<StudentReferralHubProps> = ({
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-850">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                लाइव रेफरल लिंक
-              </span>
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-[11px] font-mono text-slate-300 truncate mt-1">
-                {referralUrl}
+            <div className="pt-2 border-t border-slate-850 space-y-2.5">
+              {/* Link 1: IOIS Unique ID Link */}
+              <div>
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                  1. IOIS Unique ID रेफरल लिंक
+                </span>
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-[11px] font-mono text-slate-300 truncate mt-1">
+                  {referralUrl}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(referralUrl, 'link')}
+                  className={`w-full mt-1.5 py-2 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer shadow-md ${
+                    copiedLink
+                      ? 'bg-emerald-500 text-slate-950 scale-105 ring-2 ring-emerald-400'
+                      : 'bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 active:scale-95'
+                  }`}
+                >
+                  {copiedLink ? <Check className="w-4 h-4 text-slate-950 stroke-[3] animate-bounce" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedLink ? '✓ Unique ID लिंक कॉपी हो गया!' : 'Unique ID लिंक कॉपी करें'}</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleCopy(referralUrl, 'link')}
-                className={`w-full mt-2 py-2 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer shadow-md ${
-                  copiedLink
-                    ? 'bg-emerald-500 text-slate-950 scale-105 ring-2 ring-emerald-400'
-                    : 'bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 active:scale-95'
-                }`}
-              >
-                {copiedLink ? <Check className="w-4 h-4 text-slate-950 stroke-[3] animate-bounce" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedLink ? '✓ रेफरल लिंक कॉपी हो गया!' : 'रेफरल लिंक कॉपी करें'}</span>
-              </button>
+
+              {/* Link 2: Username Referral Link */}
+              <div>
+                <span className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider block">
+                  2. Username रेफरल लिंक {cleanUname ? `(@${cleanUname})` : ''}
+                </span>
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2 text-[11px] font-mono text-cyan-200 truncate mt-1">
+                  {usernameReferralUrl || 'प्रोफाइल में @username सेट करने के बाद सक्रिय होगा'}
+                </div>
+                {usernameReferralUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(usernameReferralUrl, 'uname_link')}
+                    className={`w-full mt-1.5 py-2 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer shadow-md ${
+                      copiedUsernameLink
+                        ? 'bg-emerald-500 text-slate-950 scale-105 ring-2 ring-emerald-400'
+                        : 'bg-gradient-to-r from-cyan-400 to-sky-400 hover:from-cyan-300 text-slate-950 active:scale-95'
+                    }`}
+                  >
+                    {copiedUsernameLink ? <Check className="w-4 h-4 text-slate-950 stroke-[3] animate-bounce" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedUsernameLink ? '✓ Username लिंक कॉपी हो गया!' : 'Username लिंक कॉपी करें'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {onOpenIdCard && (

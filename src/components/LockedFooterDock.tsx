@@ -67,7 +67,8 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
   // Copy referral link helper for logged-in user
   const handleCopyReferral = async () => {
     if (!currentUser) return;
-    const refLink = `${window.location.origin}/?ref=${currentUser.userId}&sponsor=${currentUser.userId}`;
+    const refHandle = (currentUser.username && currentUser.username.trim().replace(/^@/, '')) || currentUser.userId;
+    const refLink = `${window.location.origin}/?s=${encodeURIComponent(refHandle)}`;
     try {
       await navigator.clipboard.writeText(refLink);
       setCopiedLink(true);
@@ -79,7 +80,7 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
 
   const handleApplySponsor = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = inputSponsorId.trim().toUpperCase();
+    const clean = inputSponsorId.trim().replace(/^@/, '');
     if (!clean) return;
     if (onSetSponsorId) {
       onSetSponsorId(clean);
@@ -91,7 +92,7 @@ export const LockedFooterDock: React.FC<LockedFooterDockProps> = ({
       if (onOpenSponsorCard) {
         onOpenSponsorCard();
       }
-    }, 1000);
+    }, 900);
   };
 
   // Do not render dock on Admin Panel page to keep admin tables and chats completely clear and unobstructed

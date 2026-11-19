@@ -6,7 +6,8 @@ import {
   getAllUsers, 
   fetchUsersFromServer,
   fetchTicketsFromServer,
-  setPaymentStatus, 
+  setPaymentStatus,
+  setPaymentStatusAsync,
   deleteUserAccount,
   getHelpTickets, 
   replyHelpTicket, 
@@ -23,7 +24,9 @@ import {
   fetchArchivedUsersAsync,
   restoreArchivedUserAsync,
   triggerAdminCloudSyncAsync,
-  importUsersBackupAsync
+  importUsersBackupAsync,
+  revealAdminUserPasswordsAsync,
+  checkUsernameAvailableAsync
 } from '../services/userService';
 const AiKnowledgeManager = React.lazy(() =>
   import('./AiKnowledgeManager').then((m) => ({ default: m.AiKnowledgeManager }))
@@ -45,6 +48,7 @@ import {
   CheckCircle2, 
   XCircle, 
   Eye, 
+  EyeOff,
   Search, 
   Users, 
   HelpCircle, 
@@ -237,6 +241,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   // Modal / Preview state for screenshot & inspection
   const [previewUser, setPreviewUser] = useState<UserProfile | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
+  const [rejectModalUser, setRejectModalUser] = useState<{ userId: string; fullName: string } | null>(null);
+  const [rejectModalReason, setRejectModalReason] = useState<string>('अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+  const [busyActionUserId, setBusyActionUserId] = useState<string | null>(null);
   const [replyTicketId, setReplyTicketId] = useState<string | null>(null);
   const [adminReplyText, setAdminReplyText] = useState<string>('');
 
@@ -245,6 +252,147 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [inspectorTab, setInspectorTab] = useState<'profile' | 'contact' | 'payment' | 'team' | 'audit'>('profile');
   const [copiedInspectUtr, setCopiedInspectUtr] = useState<boolean>(false);
   const [copiedInspectId, setCopiedInspectId] = useState<boolean>(false);
+
+  // Secure Admin Password Vault Reveal State (strictly kept in memory only, cleared on lock/logout)
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string> | null>(null);
+  const [isPasswordVaultUnlocked, setIsPasswordVaultUnlocked] = useState<boolean>(false);
+  const [isPwdPinModalOpen, setIsPwdPinModalOpen] = useState<boolean>(false);
+  const [pwdPinInput, setPwdPinInput] = useState<string>('');
+  const [pwdPinError, setPwdPinError] = useState<string>('');
+  const [isUnlockingPwds, setIsUnlockingPwds] = useState<boolean>(false);
+  const [copiedPwdUserId, setCopiedPwdUserId] = useState<string | null>(null);
+
+  const openPwdPinModal = () => {
+    setPwdPinInput('');
+    setPwdPinError('');
+    setIsPwdPinModalOpen(true);
+  };
+
+  const lockPasswordVault = () => {
+    setRevealedPasswords(null);
+    setIsPasswordVaultUnlocked(false);
+    setPwdPinInput('');
+    setPwdPinError('');
+    setCopiedPwdUserId(null);
+  };
+
+  const handleTogglePasswordVault = () => {
+    if (isPasswordVaultUnlocked) {
+      lockPasswordVault();
+    } else {
+      openPwdPinModal();
+    }
+  };
+
+  const handleVerifySecurityPinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPin = pwdPinInput.trim();
+    if (!cleanPin) {
+      setPwdPinError('कृपया सिक्योर एडमिन पिन दर्ज करें।');
+      return;
+    }
+    setIsUnlockingPwds(true);
+    setPwdPinError('');
+    try {
+      const result = await revealAdminUserPasswordsAsync(cleanPin);
+      if (result.success) {
+        setRevealedPasswords(result.passwords || {});
+        setIsPasswordVaultUnlocked(true);
+        setIsPwdPinModalOpen(false);
+        setPwdPinInput('');
+        setPwdPinError('');
+      } else {
+        setPwdPinError(result.error || 'गलत सिक्योर एडमिन पिन!');
+      }
+    } finally {
+      setIsUnlockingPwds(false);
+    }
+  };
+
+  const handleCopyRevealedPassword = (userId: string, plainPwd: string) => {
+    try {
+      void navigator.clipboard.writeText(plainPwd);
+      setCopiedPwdUserId(userId);
+      setTimeout(() => {
+        setCopiedPwdUserId((prev) => (prev === userId ? null : prev));
+      }, 2000);
+    } catch {}
+  };
+
+  const renderUserPasswordBadge = (u: UserProfile, compact = true) => {
+    const uidKey = (u.userId || '').trim().toUpperCase();
+    const plainPwd = isPasswordVaultUnlocked && revealedPasswords ? revealedPasswords[uidKey] : undefined;
+
+    if (!isPasswordVaultUnlocked) {
+      return (
+        <button
+          type="button"
+          onClick={openPwdPinModal}
+          className={`inline-flex items-center gap-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold cursor-pointer transition ${
+            compact ? 'px-2 py-1 text-[10.5px]' : 'px-3 py-1.5 text-xs'
+          }`}
+          title="पासवर्ड देखने हेतु सिक्योर एडमिन पिन दर्ज करें"
+        >
+          <Lock className="w-3 h-3 shrink-0 text-amber-400" />
+          <span>🔐 पिन से देखें</span>
+        </button>
+      );
+    }
+
+    if (plainPwd) {
+      const isCopied = copiedPwdUserId === u.userId;
+      return (
+        <div className="inline-flex items-center gap-1.5 flex-wrap">
+          <code
+            className={`font-mono font-black tracking-wide rounded-lg bg-emerald-950/90 border border-emerald-500/50 text-emerald-200 select-all ${
+              compact ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1 text-sm'
+            }`}
+          >
+            {plainPwd}
+          </code>
+          <button
+            type="button"
+            onClick={() => handleCopyRevealedPassword(u.userId, plainPwd)}
+            className="px-1.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer"
+            title="पासवर्ड कॉपी करें"
+          >
+            {isCopied ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
+            <span>{isCopied ? 'कॉपी' : 'कॉपी'}</span>
+          </button>
+        </div>
+      );
+    }
+
+    if (u.passwordProtected === false) {
+      return (
+        <div className="inline-flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10.5px] text-slate-400 font-semibold">कोई पासवर्ड सेट नहीं</span>
+          <button
+            type="button"
+            onClick={() => openAdminEditUser(u)}
+            className="text-[10px] font-bold text-amber-300 hover:underline cursor-pointer"
+          >
+            सेट करें
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex flex-col items-start gap-0.5">
+        <span className="text-[10px] font-semibold text-amber-300/90">
+          🔒 Legacy Scrypt (पहली लॉगिन/रीसेट पर दिखेगा)
+        </span>
+        <button
+          type="button"
+          onClick={() => openAdminEditUser(u)}
+          className="text-[10px] font-bold text-sky-300 hover:text-white underline cursor-pointer"
+        >
+          पासवर्ड सेट/रीसेट करें →
+        </button>
+      </div>
+    );
+  };
 
   // Direct Private Chat Selection
   const [selectedChatUserId, setSelectedChatUserId] = useState<string>('');
@@ -263,6 +411,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   const [isSavingAdminEdit, setIsSavingAdminEdit] = useState<boolean>(false);
   const [adminEditSuccess, setAdminEditSuccess] = useState<string>('');
   const [adminEditError, setAdminEditError] = useState<string>('');
+  const [editUsernameStatus, setEditUsernameStatus] = useState<{ checking?: boolean; available?: boolean; msg?: string }>({});
+
+  useEffect(() => {
+    if (!editingUser) {
+      setEditUsernameStatus({});
+      return;
+    }
+    const clean = editUsername.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
+    const orig = (editingUser.username || '').trim().toLowerCase().replace(/^@/, '');
+    if (!clean || clean === orig) {
+      setEditUsernameStatus(clean ? { available: true, msg: `✓ वर्तमान यूनिक यूजरनेम (@${clean})` } : {});
+      return;
+    }
+    if (clean.length < 3) {
+      setEditUsernameStatus({ available: false, msg: 'यूजरनेम कम से कम 3 अक्षरों का होना चाहिए' });
+      return;
+    }
+    let active = true;
+    setEditUsernameStatus({ checking: true });
+    const t = setTimeout(async () => {
+      const res = await checkUsernameAvailableAsync(clean, editingUser.userId);
+      if (!active) return;
+      setEditUsernameStatus({
+        checking: false,
+        available: res.available,
+        msg: res.available ? res.message : res.error,
+      });
+    }, 350);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [editUsername, editingUser]);
 
   // Enhanced Admin Inspection States
   const [selectedFormUser, setSelectedFormUser] = useState<UserProfile | null>(null);
@@ -283,6 +464,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
     setEditStatus(u.paymentStatus || 'approved');
     setAdminEditSuccess('');
     setAdminEditError('');
+    setEditUsernameStatus({});
   };
 
   const handleSaveAdminUserEdit = async (e: React.FormEvent) => {
@@ -310,6 +492,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
       if (updated) {
         setUsersList((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)));
+        if (editPassword.trim().length > 0 && isPasswordVaultUnlocked) {
+          const nextPwd = editPassword.trim();
+          setRevealedPasswords((prev) => ({
+            ...(prev || {}),
+            [updated.userId.toUpperCase()]: nextPwd,
+          }));
+        }
         if (inspectedUser && inspectedUser.userId === editingUser.userId) {
           setInspectedUser(updated);
         }
@@ -788,40 +977,88 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
   };
 
   const handleAdminLogout = () => {
+    lockPasswordVault();
+    setIsPwdPinModalOpen(false);
     setAdminSession(false);
     setIsAdminAuth(false);
   };
 
+  const openRejectModal = (u: { userId: string; fullName: string }) => {
+    setRejectModalUser(u);
+    setRejectModalReason('अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
+  };
+
   const handleApprove = async (userId: string) => {
-    setPaymentStatus(userId, 'approved');
-    await reloadData(false);
-    if (previewUser && previewUser.userId === userId) {
-      setPreviewUser((prev) => prev ? { ...prev, paymentStatus: 'approved', verifiedAt: new Date().toISOString() } : null);
+    const cleanId = userId.trim().toUpperCase();
+    const nowIso = new Date().toISOString();
+    setBusyActionUserId(userId);
+
+    setUsersList((prev) =>
+      prev.map((u) =>
+        u.userId.toUpperCase() === cleanId
+          ? { ...u, paymentStatus: 'approved', verifiedAt: nowIso, rejectionReason: undefined }
+          : u
+      )
+    );
+    if (previewUser && previewUser.userId.toUpperCase() === cleanId) {
+      setPreviewUser((prev) => (prev ? { ...prev, paymentStatus: 'approved', verifiedAt: nowIso, rejectionReason: undefined } : null));
     }
-    if (inspectedUser && inspectedUser.userId === userId) {
-      setInspectedUser((prev) => prev ? { ...prev, paymentStatus: 'approved', verifiedAt: new Date().toISOString() } : null);
+    if (inspectedUser && inspectedUser.userId.toUpperCase() === cleanId) {
+      setInspectedUser((prev) => (prev ? { ...prev, paymentStatus: 'approved', verifiedAt: nowIso, rejectionReason: undefined } : null));
     }
-    if (selectedFormUser && selectedFormUser.userId === userId) {
-      setSelectedFormUser((prev) => prev ? { ...prev, paymentStatus: 'approved', verifiedAt: new Date().toISOString() } : null);
+    if (selectedFormUser && selectedFormUser.userId.toUpperCase() === cleanId) {
+      setSelectedFormUser((prev) => (prev ? { ...prev, paymentStatus: 'approved', verifiedAt: nowIso, rejectionReason: undefined } : null));
     }
-    if (onUserStatusChange) onUserStatusChange();
+
+    try {
+      const res = await setPaymentStatusAsync(userId, 'approved');
+      if (res.ok) {
+        showVaultNotice('success', `✅ यूजर ${cleanId} का पेमेंट सफलतापूर्वक स्वीकृत (Approved) कर दिया गया!`);
+      } else {
+        showVaultNotice('info', res.error || `⚠️ ${cleanId} स्थानीय रूप से स्वीकृत हुआ — सर्वर सिंक कतार में है।`);
+      }
+      await reloadData(false, { skipFullMedia: true });
+      if (onUserStatusChange) onUserStatusChange();
+    } finally {
+      setBusyActionUserId(null);
+    }
   };
 
   const handleReject = async (userId: string, customReason?: string) => {
-    const reason = customReason || rejectReasonInput || 'अमान्य पेमेंट स्क्रीनशॉट / UTR';
-    setPaymentStatus(userId, 'rejected', reason);
-    await reloadData(false);
-    setRejectReasonInput('');
-    if (previewUser && previewUser.userId === userId) {
-      setPreviewUser((prev) => prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null);
+    const cleanId = userId.trim().toUpperCase();
+    const reason = (customReason || rejectReasonInput || 'अमान्य पेमेंट स्क्रीनशॉट / UTR').trim();
+    setBusyActionUserId(userId);
+
+    setUsersList((prev) =>
+      prev.map((u) =>
+        u.userId.toUpperCase() === cleanId
+          ? { ...u, paymentStatus: 'rejected', rejectionReason: reason }
+          : u
+      )
+    );
+    if (previewUser && previewUser.userId.toUpperCase() === cleanId) {
+      setPreviewUser((prev) => (prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null));
     }
-    if (inspectedUser && inspectedUser.userId === userId) {
-      setInspectedUser((prev) => prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null);
+    if (inspectedUser && inspectedUser.userId.toUpperCase() === cleanId) {
+      setInspectedUser((prev) => (prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null));
     }
-    if (selectedFormUser && selectedFormUser.userId === userId) {
-      setSelectedFormUser((prev) => prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null);
+    if (selectedFormUser && selectedFormUser.userId.toUpperCase() === cleanId) {
+      setSelectedFormUser((prev) => (prev ? { ...prev, paymentStatus: 'rejected', rejectionReason: reason } : null));
     }
-    if (onUserStatusChange) onUserStatusChange();
+
+    try {
+      const res = await setPaymentStatusAsync(userId, 'rejected', reason);
+      setRejectReasonInput('');
+      if (res.ok) {
+        showVaultNotice('info', `❌ यूजर ${cleanId} का पेमेंट अस्वीकृत (Rejected) किया गया।`);
+      } else {
+        showVaultNotice('error', res.error || `⚠️ ${cleanId} का स्टेटस सर्वर पर अपडेट करने में समस्या आई।`);
+      }
+      await reloadData(false, { skipFullMedia: true });
+      if (onUserStatusChange) onUserStatusChange();
+    } finally {
+      setBusyActionUserId(null);
+    }
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
@@ -1096,7 +1333,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Unlock / Lock All User Passwords Button */}
+          <button
+            type="button"
+            onClick={handleTogglePasswordVault}
+            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer border transition ${
+              isPasswordVaultUnlocked
+                ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white'
+                : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-400/60 text-amber-300'
+            }`}
+            title={
+              isPasswordVaultUnlocked
+                ? 'सभी यूजर पासवर्ड वापस छुपाएं (Lock)'
+                : 'सिक्योर एडमिन पिन से सभी यूजर पासवर्ड देखें'
+            }
+          >
+            {isPasswordVaultUnlocked ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>पासवर्ड लॉक करें</span>
+              </>
+            ) : (
+              <>
+                <Key className="w-3.5 h-3.5 text-amber-400" />
+                <span>🔐 यूजर पासवर्ड देखें</span>
+              </>
+            )}
+          </button>
+
           {/* 3D Notification Bell Button */}
           <button
             type="button"
@@ -1722,6 +1987,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 </select>
               </div>
 
+              {/* Unlock / Lock User Passwords Button */}
+              <button
+                type="button"
+                onClick={handleTogglePasswordVault}
+                className={`px-3 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow active:scale-95 cursor-pointer border transition ${
+                  isPasswordVaultUnlocked
+                    ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-400/60 text-amber-300'
+                }`}
+                title="सिक्योर एडमिन पिन से सभी सदस्यों के पासवर्ड अनलॉक / लॉक करें"
+              >
+                {isPasswordVaultUnlocked ? <EyeOff className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+                <span>{isPasswordVaultUnlocked ? '🔒 पासवर्ड लॉक करें' : '🔑 सभी पासवर्ड देखें'}</span>
+              </button>
+
               {/* 3D Button: Open Join Page Popup */}
               <button
                 type="button"
@@ -1793,7 +2073,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         </div>
                         <div className="min-w-0">
                           <div className="font-black text-white text-sm truncate">{u.fullName}</div>
-                          <div className="text-[11px] font-mono font-bold text-amber-300">{u.userId}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] font-mono font-bold text-amber-300">{u.userId}</span>
+                            {u.username && (
+                              <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-1.5 rounded">
+                                @{u.username}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-400 truncate">
                             {dateInfo.formattedDate} {dateInfo.formattedTime ? `• ${dateInfo.formattedTime}` : ''}
                           </div>
@@ -1831,11 +2118,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         <span className="text-slate-400 block text-[10px]">पेआउट UPI / स्पॉन्सर</span>
                         <strong className="font-mono text-sky-300 break-all">{u.payoutUpi || u.sponsorId || 'N/A'}</strong>
                       </div>
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">पासवर्ड सुरक्षा</span>
-                        <strong className="font-mono text-emerald-300">{u.passwordStatus || (u.passwordProtected ? '🔒 Encrypted (scrypt)' : 'सेट नहीं')}</strong>
+                      <div className="col-span-2">
+                        <span className="text-slate-400 block text-[10px] mb-0.5">लॉगिन पासवर्ड (Admin PIN Protected)</span>
+                        {renderUserPasswordBadge(u, true)}
                       </div>
-                      <div>
+                      <div className="col-span-2">
                         <span className="text-slate-400 block text-[10px]">स्थान / ईमेल</span>
                         <strong className="text-slate-200 truncate block">{u.district || u.state || u.email || 'भारत'}</strong>
                       </div>
@@ -1877,13 +2164,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       {u.paymentStatus !== 'rejected' && (
                         <button
                           type="button"
-                          onClick={() => {
-                            const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                            if (reason !== null && reason.trim()) {
-                              handleReject(u.userId, reason.trim());
-                            }
-                          }}
-                          className="px-2 py-1.5 bg-rose-950 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-[11px] cursor-pointer"
+                          disabled={busyActionUserId === u.userId}
+                          onClick={() => openRejectModal({ userId: u.userId, fullName: u.fullName })}
+                          className="px-2 py-1.5 bg-rose-950 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-[11px] cursor-pointer disabled:opacity-50"
                         >
                           रिजेक्ट
                         </button>
@@ -1905,6 +2188,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   <th className="py-3.5 px-3">🗓️ जॉइनिंग तिथि व समय</th>
                   <th className="py-3.5 px-3">प्लान / शुल्क</th>
                   <th className="py-3.5 px-3">मोबाइल व संपर्क</th>
+                  <th className="py-3.5 px-3">🔐 लॉगिन पासवर्ड</th>
                   <th className="py-3.5 px-3">पेमेंट रसीद / UTR</th>
                   <th className="py-3.5 px-3">सत्यापन स्थिति</th>
                   <th className="py-3.5 px-3 text-right">त्वरित एक्शन व जॉइन फॉर्म</th>
@@ -1913,7 +2197,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 space-y-3">
+                    <td colSpan={9} className="py-12 text-center text-slate-400 space-y-3">
                       {isRefreshing ? (
                         <div className="flex flex-col items-center gap-2 text-amber-300 font-bold">
                           <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1965,7 +2249,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                           {/* Date-by-Date Group Divider Header */}
                           {isNewDateGroup && (
                             <tr className="bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-slate-900/60 border-y border-amber-500/40">
-                              <td colSpan={8} className="py-2 px-3">
+                              <td colSpan={9} className="py-2 px-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <Calendar className="w-3.5 h-3.5 text-amber-400" />
@@ -2004,18 +2288,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                               </div>
                             </td>
 
-                            {/* User ID */}
+                            {/* User ID & Unique @Username */}
                             <td className="py-3.5 px-3 font-mono font-bold text-amber-300">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(u.userId);
-                                }}
-                                className="hover:underline flex items-center gap-1 cursor-pointer bg-slate-900 px-2 py-1 rounded-lg border border-slate-800"
-                                title="क्लिक करके ID कॉपी करें"
-                              >
-                                <span>{u.userId}</span>
-                              </button>
+                              <div className="space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(u.userId);
+                                  }}
+                                  className="hover:underline flex items-center gap-1 cursor-pointer bg-slate-900 px-2 py-1 rounded-lg border border-slate-800"
+                                  title="क्लिक करके ID कॉपी करें"
+                                >
+                                  <span>{u.userId}</span>
+                                </button>
+                                {u.username && (
+                                  <div className="text-[10.5px] font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-md inline-block">
+                                    @{u.username}
+                                  </div>
+                                )}
+                              </div>
                             </td>
 
                             {/* Joining Date & Time */}
@@ -2056,6 +2347,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                               ) : (
                                 <div className="text-[10px] text-slate-400 truncate max-w-[140px]">{u.email}</div>
                               )}
+                            </td>
+
+                            {/* Login Password (PIN Gated) */}
+                            <td className="py-3.5 px-3">
+                              {renderUserPasswordBadge(u, true)}
                             </td>
 
                             {/* Payment Proof / UTR */}
@@ -2135,14 +2431,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                 {u.paymentStatus !== 'rejected' && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                                      if (reason !== null && reason.trim()) {
-                                        handleReject(u.userId, reason.trim());
-                                      }
-                                    }}
+                                    disabled={busyActionUserId === u.userId}
+                                    onClick={() => openRejectModal({ userId: u.userId, fullName: u.fullName })}
                                     title="पेमेंट रिजेक्ट करें"
-                                    className="px-2 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer active:scale-95"
+                                    className="px-2 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition cursor-pointer active:scale-95 disabled:opacity-50"
                                   >
                                     <XCircle className="w-3.5 h-3.5" />
                                     <span>रिजेक्ट</span>
@@ -2758,7 +3050,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         const directList = getDirectDownlines(inspectedUser.userId, usersList);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
+          <div className="fixed inset-0 z-[75] flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
             <div className="bg-slate-900 border-2 border-amber-500/50 w-full max-w-5xl rounded-3xl p-5 sm:p-7 shadow-[0_20px_70px_rgba(245,158,11,0.25)] relative text-white space-y-5 my-4 max-h-[94vh] overflow-y-auto">
               
               {/* Executive Header */}
@@ -2843,13 +3135,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   {inspectedUser.paymentStatus !== 'rejected' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const reason = window.prompt('रिजेक्शन का कारण दर्ज करें (Reason):', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                        if (reason !== null && reason.trim()) {
-                          handleReject(inspectedUser.userId, reason.trim());
-                        }
-                      }}
-                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase rounded-xl flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                      disabled={busyActionUserId === inspectedUser.userId}
+                      onClick={() => openRejectModal({ userId: inspectedUser.userId, fullName: inspectedUser.fullName })}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase rounded-xl flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50"
                     >
                       <XCircle className="w-4 h-4" />
                       <span>✕ रिजेक्ट करें (REJECT)</span>
@@ -2862,6 +3150,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       setSelectedChatUserId(inspectedUser.userId);
                       setActiveTab('private_chat');
                       setInspectedUser(null);
+                      setPopupTabResult(null);
                     }}
                     className="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-md"
                     title="इस यूजर को प्राइवेट चैट, फोटो, वीडियो या लिंक भेजें"
@@ -2898,6 +3187,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       setSelectedGenealogyUserId(inspectedUser.userId);
                       setActiveTab('genealogy');
                       setInspectedUser(null);
+                      setPopupTabResult(null);
                     }}
                     className="px-3.5 py-2 bg-slate-900 hover:bg-slate-850 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer"
                   >
@@ -3030,14 +3320,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                       </div>
 
                       <div className="p-3 bg-slate-950 rounded-xl border-2 border-emerald-500/50">
-                        <span className="text-emerald-400 block text-[10px] font-black uppercase">🔐 पासवर्ड सुरक्षा (PASSWORD SECURITY):</span>
-                        <div className="flex items-center justify-between gap-2 mt-1">
-                          <strong className="text-emerald-300 font-mono text-xs sm:text-sm font-black tracking-wide">
-                            {inspectedUser.passwordStatus || (inspectedUser.passwordProtected ? '🔒 Scrypt Encrypted (Private)' : 'सेट नहीं')}
-                          </strong>
-                          <span className="text-[10px] text-slate-400 font-bold">
-                            रीसेट हेतु "प्रोफाइल एडिट" खोलें
-                          </span>
+                        <span className="text-emerald-400 block text-[10px] font-black uppercase">🔐 लॉगिन पासवर्ड (USER PASSWORD):</span>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5">
+                          {renderUserPasswordBadge(inspectedUser, false)}
+                          {isPasswordVaultUnlocked && (
+                            <button
+                              type="button"
+                              onClick={lockPasswordVault}
+                              className="text-[10px] text-slate-400 hover:text-white underline font-bold cursor-pointer"
+                            >
+                              लॉक करें
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3476,7 +3770,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {/* MODAL 2: LIVE USER DASHBOARD INSPECTION (IMPERSONATION) */}
       {/* ========================================================= */}
       {impersonateUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn">
           <div className="bg-slate-900 border-2 border-sky-500/50 w-full max-w-5xl rounded-3xl p-4 sm:p-6 shadow-2xl relative text-white space-y-4 my-4 max-h-[94vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -3527,7 +3821,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {/* MODAL 3: SINGLE USER PROFILE EDIT HISTORY POPUP */}
       {/* ========================================================= */}
       {selectedAuditUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border-2 border-purple-500/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-white space-y-4 max-h-[85vh] overflow-y-auto">
             <button
               type="button"
@@ -3586,7 +3880,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
 
       {/* ADMIN DIRECT PROFILE EDIT MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-[90] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="glass-card-gold p-6 rounded-3xl border-2 border-amber-500/50 max-w-xl w-full space-y-4 shadow-2xl animate-scaleUp my-8">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -3635,16 +3929,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   />
                 </div>
 
-                {/* Custom Username */}
+                {/* Custom Unique Login Username */}
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Telegram @Username:</label>
-                  <input
-                    type="text"
-                    value={editUsername}
-                    onChange={(e) => setEditUsername(e.target.value)}
-                    placeholder="उदा. rohit_kumar"
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-sky-400 text-sky-300 font-mono rounded-xl px-3 py-2 outline-none"
-                  />
+                  <label className="block text-slate-300 font-bold mb-1">यूनिक लॉगिन @Username (Unique):</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 font-mono font-bold pointer-events-none">@</span>
+                    <input
+                      type="text"
+                      value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      placeholder="उदा. rohit_kumar"
+                      className={`w-full bg-slate-900 border text-sky-300 font-mono lowercase rounded-xl pl-7 pr-8 py-2 outline-none ${
+                        editUsernameStatus.available === false
+                          ? 'border-red-500 focus:border-red-400'
+                          : 'border-slate-700 focus:border-sky-400'
+                      }`}
+                    />
+                    {editUsernameStatus.checking && (
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin absolute right-2.5 top-2.5" />
+                    )}
+                  </div>
+                  {editUsernameStatus.msg && (
+                    <p
+                      className={`text-[10.5px] mt-1 font-bold ${
+                        editUsernameStatus.available ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {editUsernameStatus.msg}
+                    </p>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -4897,7 +5210,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
         const joinDateInfo = formatJoinDateTime(selectedFormUser.createdAt);
 
         return (
-          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+          <div className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
             <div className="glass-card-gold p-4 sm:p-6 rounded-3xl border-2 border-amber-500/60 max-w-3xl w-full space-y-5 shadow-2xl relative my-8">
               {/* Modal Top Bar */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -5136,13 +5449,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   {selectedFormUser.paymentStatus !== 'rejected' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const reason = window.prompt('रिजेक्शन का कारण दर्ज करें:', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                        if (reason !== null && reason.trim()) {
-                          handleReject(selectedFormUser.userId, reason.trim());
-                        }
-                      }}
-                      className="px-3 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      disabled={busyActionUserId === selectedFormUser.userId}
+                      onClick={() => openRejectModal({ userId: selectedFormUser.userId, fullName: selectedFormUser.fullName })}
+                      className="px-3 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       <span>रिजेक्ट करें</span>
@@ -5181,7 +5490,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
       {/* FILTERED RESULT POP-UP WINDOW MODAL (PENDING APPROVALS & ALL USERS POP-UP) */}
       {/* ========================================================================= */}
       {popupTabResult && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn">
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPopupTabResult(null);
+          }}
+        >
           <div className="glass-card-gold p-4 sm:p-6 rounded-3xl border-2 border-amber-500/60 max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl relative my-auto animate-scaleUp">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
@@ -5300,15 +5614,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                   </button>
                 </div>
 
-                {/* Open Join Modal Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsJoinModalOpen(true)}
-                  className="btn-3d-ruby px-3 py-1.5 rounded-xl text-white font-black text-xs flex items-center gap-1 shadow cursor-pointer active:scale-95"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  <span>➕ नया सदस्य जोड़ें</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Password Vault Toggle inside Pop-up */}
+                  <button
+                    type="button"
+                    onClick={handleTogglePasswordVault}
+                    className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 shadow cursor-pointer border active:scale-95 transition ${
+                      isPasswordVaultUnlocked
+                        ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white'
+                        : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-400/60 text-amber-300'
+                    }`}
+                  >
+                    {isPasswordVaultUnlocked ? <EyeOff className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+                    <span>{isPasswordVaultUnlocked ? '🔒 लॉक करें' : '🔑 पासवर्ड देखें'}</span>
+                  </button>
+
+                  {/* Open Join Modal Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsJoinModalOpen(true)}
+                    className="btn-3d-ruby px-3 py-1.5 rounded-xl text-white font-black text-xs flex items-center gap-1 shadow cursor-pointer active:scale-95"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                    <span>➕ नया सदस्य जोड़ें</span>
+                  </button>
+                </div>
               </div>
 
               {/* Search, Date Sort & Date Filter */}
@@ -5425,19 +5755,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                               <span className="text-slate-400 block">UTR:</span>
                               <strong className="font-mono text-amber-300 break-all">{u.paymentUtr || 'N/A'}</strong>
                             </div>
-                            <div>
-                              <span className="text-slate-400 block">पासवर्ड:</span>
-                              <strong className="font-mono text-emerald-300">{u.passwordStatus || (u.passwordProtected ? '🔒 Encrypted' : 'N/A')}</strong>
+                            <div className="col-span-2">
+                              <span className="text-slate-400 block mb-0.5">लॉगिन पासवर्ड:</span>
+                              {renderUserPasswordBadge(u, true)}
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {u.paymentStatus !== 'approved' && (
                               <button
                                 type="button"
-                                onClick={() => handleApprove(u.userId)}
-                                className="px-2.5 py-1 bg-emerald-600 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+                                disabled={busyActionUserId === u.userId}
+                                onClick={() => void handleApprove(u.userId)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] cursor-pointer disabled:opacity-50"
                               >
-                                अप्रूव
+                                {busyActionUserId === u.userId ? 'प्रोसेस...' : 'अप्रूव'}
                               </button>
                             )}
                             <button
@@ -5473,6 +5804,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                         <th className="py-3 px-3">🗓️ जॉइनिंग तिथि व समय</th>
                         <th className="py-3 px-3">प्लान / शुल्क</th>
                         <th className="py-3 px-3">मोबाइल व संपर्क</th>
+                        <th className="py-3 px-3">🔐 पासवर्ड</th>
                         <th className="py-3 px-3">पेमेंट UTR / रसीद</th>
                         <th className="py-3 px-3">स्थिति</th>
                         <th className="py-3 px-3 text-right">त्वरित एक्शन</th>
@@ -5561,6 +5893,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                               )}
                             </td>
 
+                            {/* Login Password (PIN Gated) */}
+                            <td className="py-3 px-3">
+                              {renderUserPasswordBadge(u, true)}
+                            </td>
+
                             {/* Payment Proof / UTR */}
                             <td className="py-3 px-3">
                               <div className="font-mono text-emerald-400 font-bold text-xs">{u.paymentUtr || 'N/A'}</div>
@@ -5610,12 +5947,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                 {u.paymentStatus !== 'approved' && (
                                   <button
                                     type="button"
-                                    onClick={() => handleApprove(u.userId)}
+                                    disabled={busyActionUserId === u.userId}
+                                    onClick={() => void handleApprove(u.userId)}
                                     title="तुरंत पेमेंट अप्रूव करें"
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 cursor-pointer shadow active:scale-95"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 cursor-pointer shadow active:scale-95 disabled:opacity-50"
                                   >
                                     <CheckCircle2 className="w-3 h-3" />
-                                    <span>अप्रूव</span>
+                                    <span>{busyActionUserId === u.userId ? 'प्रोसेस...' : 'अप्रूव'}</span>
                                   </button>
                                 )}
 
@@ -5623,14 +5961,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                                 {u.paymentStatus !== 'rejected' && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const reason = window.prompt('रिजेक्शन का कारण दर्ज करें:', 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं');
-                                      if (reason !== null && reason.trim()) {
-                                        handleReject(u.userId, reason.trim());
-                                      }
-                                    }}
+                                    disabled={busyActionUserId === u.userId}
+                                    onClick={() => openRejectModal({ userId: u.userId, fullName: u.fullName })}
                                     title="रिजेक्ट करें"
-                                    className="px-2 py-1 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-lg text-xs cursor-pointer active:scale-95"
+                                    className="px-2 py-1 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold rounded-lg text-xs inline-flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50"
                                   >
                                     <XCircle className="w-3 h-3" />
                                     <span>रिजेक्ट</span>
@@ -5814,6 +6148,152 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onUserStatusChange }) =>
                 हाँ, पुष्टि करें (Confirm)
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP PAYMENT REJECTION REASON MODAL (IFRAME & MOBILE SAFE)              */}
+      {/* ========================================================================= */}
+      {rejectModalUser && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-950 border-2 border-rose-500/60 rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-center shrink-0">
+                  <XCircle className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">पेमेंट अस्वीकृत (Reject) करें</h3>
+                  <p className="text-[11px] text-rose-300 font-mono">
+                    {rejectModalUser.fullName} ({rejectModalUser.userId})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalUser(null)}
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="block font-bold text-slate-300">रिजेक्शन का कारण दर्ज करें:</label>
+              <input
+                type="text"
+                value={rejectModalReason}
+                onChange={(e) => setRejectModalReason(e.target.value)}
+                placeholder="उदा. अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं"
+                className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 text-white rounded-xl px-3 py-2 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setRejectModalUser(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+              >
+                रद्द करें
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = rejectModalUser;
+                  const finalReason = rejectModalReason.trim() || 'अमान्य UTR नंबर / स्क्रीनशॉट स्पष्ट नहीं';
+                  setRejectModalUser(null);
+                  void handleReject(target.userId, finalReason);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs cursor-pointer shadow"
+              >
+                ✕ अस्वीकृत करें (Reject)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* SECURE ADMIN PIN GATE MODAL (REQUIRED BEFORE REVEALING USER PASSWORDS)    */}
+      {/* ========================================================================= */}
+      {isPwdPinModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-950 border-2 border-amber-500/60 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">🔐 सिक्योर एडमिन पिन दर्ज करें</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    यूजर पासवर्ड अनलॉक करने से पहले एडमिन सुरक्षा पिन सत्यापन अनिवार्य है।
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPwdPinModalOpen(false);
+                  setPwdPinInput('');
+                  setPwdPinError('');
+                }}
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {pwdPinError && (
+              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{pwdPinError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifySecurityPinSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-amber-300">
+                  सिक्योर एडमिन पासवर्ड पिन (Secure Admin PIN):
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  autoFocus
+                  value={pwdPinInput}
+                  onChange={(e) => setPwdPinInput(e.target.value)}
+                  placeholder="******"
+                  className="w-full bg-slate-900 border-2 border-slate-700 focus:border-amber-400 text-white rounded-xl px-4 py-3 text-center text-base font-mono font-black tracking-[0.4em] outline-none transition"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPwdPinModalOpen(false);
+                    setPwdPinInput('');
+                    setPwdPinError('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+                >
+                  रद्द करें
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUnlockingPwds}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 disabled:opacity-60 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-lg"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>{isUnlockingPwds ? 'सत्यापित हो रहा है...' : 'पासवर्ड अनलॉक करें'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

@@ -93,6 +93,42 @@ function getAdminPin(): string {
   return (process.env.ADMIN_PIN && process.env.ADMIN_PIN.trim()) || "IOISSYSTEM";
 }
 
+function getPasswordRevealPin(): string {
+  return (process.env.ADMIN_PASSWORD_PIN && process.env.ADMIN_PASSWORD_PIN.trim()) || "324215";
+}
+
+function getPasswordVaultKey(): Buffer {
+  const rawKey = (process.env.PASSWORD_VAULT_KEY && process.env.PASSWORD_VAULT_KEY.trim()) || SERVER_SESSION_SECRET;
+  return crypto.createHash("sha256").update(`iois_pwd_vault_v1|${rawKey}`).digest();
+}
+
+function encryptPasswordForVault(plain?: string | null): string {
+  const clean = String(plain || "").trim();
+  if (!clean || isHashedPassword(clean)) return "";
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getPasswordVaultKey(), iv);
+  const enc = Buffer.concat([cipher.update(clean, "utf-8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1$${iv.toString("base64url")}$${tag.toString("base64url")}$${enc.toString("base64url")}`;
+}
+
+function decryptPasswordFromVault(token?: string | null): string | null {
+  if (!token || typeof token !== "string" || !token.startsWith("v1$")) return null;
+  const parts = token.split("$");
+  if (parts.length !== 4) return null;
+  try {
+    const iv = Buffer.from(parts[1], "base64url");
+    const tag = Buffer.from(parts[2], "base64url");
+    const enc = Buffer.from(parts[3], "base64url");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", getPasswordVaultKey(), iv);
+    decipher.setAuthTag(tag);
+    const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
+    return dec.toString("utf-8");
+  } catch {
+    return null;
+  }
+}
+
 let cachedCloudAdminPinHash: string | null = null;
 let lastCloudAdminPinFetchAt = 0;
 
@@ -670,7 +706,7 @@ function compactUserForPublicDirectory(u: any, opts: { lite?: boolean } = {}): a
 
 function sanitizeUserForMember(u: any): any {
   if (!u || typeof u !== "object") return u;
-  const { password, ...rest } = u;
+  const { password, passwordVaultEnc, ...rest } = u;
   return {
     ...rest,
     passwordProtected: Boolean(password),
@@ -679,10 +715,13 @@ function sanitizeUserForMember(u: any): any {
 
 function sanitizeUserForAdmin(u: any): any {
   if (!u || typeof u !== "object") return u;
-  const { password, ...rest } = u;
+  const { password, passwordVaultEnc, ...rest } = u;
   return {
     ...rest,
     passwordProtected: Boolean(password),
+    hasVaultPassword: Boolean(
+      passwordVaultEnc && typeof passwordVaultEnc === "string" && passwordVaultEnc.startsWith("v1$")
+    ),
     passwordStatus: password
       ? isHashedPassword(password)
         ? "🔒 Encrypted (scrypt)"
@@ -1249,6 +1288,19 @@ function mergeUsersNonDestructive(...lists: any[][]): any[] {
       } else {
         merged.password = exPwd;
       }
+      const inVault =
+        typeof cleanInputUser.passwordVaultEnc === "string" && cleanInputUser.passwordVaultEnc.startsWith("v1$")
+          ? cleanInputUser.passwordVaultEnc
+          : "";
+      const exVault =
+        typeof existing.passwordVaultEnc === "string" && existing.passwordVaultEnc.startsWith("v1$")
+          ? existing.passwordVaultEnc
+          : "";
+      if (inVault) {
+        merged.passwordVaultEnc = inVault;
+      } else if (exVault) {
+        merged.passwordVaultEnc = exVault;
+      }
       merged.registrationFormData =
         cleanInputUser.registrationFormData && typeof cleanInputUser.registrationFormData === "object"
           ? { ...(existing.registrationFormData || {}), ...cleanInputUser.registrationFormData }
@@ -1321,6 +1373,34 @@ async function fetchSingleUserFromFirestore(userId: string): Promise<any | null>
         const merged = mergeUsersNonDestructive(loadUsersFromDisk(), [data]);
         saveUsersToDisk(merged);
         return merged.find((u) => String(u.userId).toUpperCase() === cleanId) || data;
+      }
+    }
+  } catch (err: any) {
+    if (isQuotaOrResourceExhaustedError(err)) {
+      firestoreQuotaBlockedUntil = Date.now() + 10 * 60 * 1000;
+    }
+  }
+  return null;
+}
+
+async function fetchSingleUserByUsernameFromFirestore(username: string): Promise<any | null> {
+  const cleanLower = String(username || "").trim().toLowerCase().replace(/^@/, "");
+  if (!cleanLower || Date.now() < firestoreQuotaBlockedUntil) return null;
+  const fsDb = getServerFirestore();
+  if (!fsDb) return null;
+  try {
+    const q = query(collection(fsDb, "users"), where("username", "==", cleanLower), limit(1));
+    const snap = await Promise.race([
+      getDocs(q),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Firestore username query timeout")), 6000)),
+    ]);
+    if (!snap.empty) {
+      let data = snap.docs[0].data();
+      if (data && data.userId && !data.isArchived && !isDemoUserId(data.userId)) {
+        data = await hydrateUserMediaFromFirestore(fsDb, data);
+        const merged = mergeUsersNonDestructive(loadUsersFromDisk(), [data]);
+        saveUsersToDisk(merged);
+        return merged.find((u) => String(u.userId).toUpperCase() === String(data.userId).toUpperCase()) || data;
       }
     }
   } catch (err: any) {
@@ -1562,7 +1642,12 @@ function migratePlaintextPasswordsOnDisk(): void {
     const updatedUsers = users.map((u) => {
       if (u && typeof u.password === "string" && u.password.trim() && !isHashedPassword(u.password.trim())) {
         migratedUsersCount++;
-        return { ...u, password: hashPassword(u.password.trim()) };
+        const rawPwd = u.password.trim();
+        return {
+          ...u,
+          password: hashPassword(rawPwd),
+          passwordVaultEnc: u.passwordVaultEnc || encryptPasswordForVault(rawPwd),
+        };
       }
       return u;
     });
@@ -1576,7 +1661,12 @@ function migratePlaintextPasswordsOnDisk(): void {
     const updatedArchived = archived.map((u) => {
       if (u && typeof u.password === "string" && u.password.trim() && !isHashedPassword(u.password.trim())) {
         migratedArchivedCount++;
-        return { ...u, password: hashPassword(u.password.trim()) };
+        const rawPwd = u.password.trim();
+        return {
+          ...u,
+          password: hashPassword(rawPwd),
+          passwordVaultEnc: u.passwordVaultEnc || encryptPasswordForVault(rawPwd),
+        };
       }
       return u;
     });
@@ -1586,6 +1676,198 @@ function migratePlaintextPasswordsOnDisk(): void {
     }
   } catch (err) {
     console.warn("[Security] Password migration note:", err);
+  }
+}
+
+const RESERVED_USERNAMES = new Set([
+  "admin",
+  "root",
+  "support",
+  "iois",
+  "ioisplatform",
+  "official",
+  "acc",
+  "help",
+  "master",
+  "balvikas",
+  "iois999vk01",
+  "swaccdk01",
+  "vikaskumar",
+]);
+
+function normalizeUsernameInput(raw?: any): string {
+  if (typeof raw !== "string") return "";
+  return raw.trim().toLowerCase().replace(/^@+/, "");
+}
+
+function validateUsernameStrict(clean: string): { isValid: boolean; error?: string } {
+  if (!clean) {
+    return { isValid: false, error: "यूजरनेम दर्ज करना अनिवार्य है।" };
+  }
+  if (!/^[a-z0-9_]{3,20}$/.test(clean)) {
+    return {
+      isValid: false,
+      error: "यूजरनेम 3 से 20 अक्षरों का होना चाहिए (केवल छोटे अक्षर a-z, अंक 0-9 और अंडरस्कोर _)!",
+    };
+  }
+  if (RESERVED_USERNAMES.has(clean)) {
+    return {
+      isValid: false,
+      error: `यह यूजरनेम "@${clean}" आधिकारिक सिस्टम के लिए आरक्षित है। कृपया कोई दूसरा यूजरनेम चुनें।`,
+    };
+  }
+  return { isValid: true };
+}
+
+function isUsernameTakenInRecords(clean: string, excludeUserId?: string): boolean {
+  const excludeUpper = excludeUserId ? String(excludeUserId).trim().toUpperCase() : "";
+  const allRecords = [...loadUsersFromDisk(), ...loadArchivedUsersFromDisk()];
+  return allRecords.some((u) => {
+    if (!u) return false;
+    const uidUpper = u.userId ? String(u.userId).trim().toUpperCase() : "";
+    if (excludeUpper && uidUpper === excludeUpper) return false;
+    const uName = normalizeUsernameInput(u.username);
+    const uIdLower = u.userId ? String(u.userId).trim().toLowerCase() : "";
+    return (uName && uName === clean) || (uIdLower && uIdLower === clean);
+  });
+}
+
+function collectUsedUsernamesSet(excludeUserId?: string): Set<string> {
+  const used = new Set<string>(RESERVED_USERNAMES);
+  const excludeUpper = excludeUserId ? String(excludeUserId).trim().toUpperCase() : "";
+  for (const u of [...loadUsersFromDisk(), ...loadArchivedUsersFromDisk()]) {
+    if (!u) continue;
+    const uidUpper = u.userId ? String(u.userId).trim().toUpperCase() : "";
+    if (excludeUpper && uidUpper === excludeUpper) continue;
+    if (uidUpper) used.add(uidUpper.toLowerCase());
+    const uname = normalizeUsernameInput(u.username);
+    if (uname && /^[a-z0-9_]{3,20}$/.test(uname)) {
+      used.add(uname);
+    }
+  }
+  return used;
+}
+
+function generateUniqueUsernameForUser(fullName: string, userId: string, usedSet: Set<string>): string {
+  const asciiName = String(fullName || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 14);
+  const cleanIdSlug = String(userId || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+  let base = asciiName.length >= 3 ? asciiName : cleanIdSlug;
+  if (base.length < 3) {
+    base = `member_${Date.now().toString().slice(-4)}`;
+  }
+
+  let candidate = base.slice(0, 20);
+  if (!usedSet.has(candidate) && validateUsernameStrict(candidate).isValid) {
+    usedSet.add(candidate);
+    return candidate;
+  }
+
+  // Try combining short name prefix + last 4 chars of userId first for cleaner handles
+  if (asciiName.length >= 3 && cleanIdSlug.length >= 4) {
+    const hybrid = `${asciiName.slice(0, 12)}_${cleanIdSlug.slice(-4)}`.slice(0, 20);
+    if (!usedSet.has(hybrid) && validateUsernameStrict(hybrid).isValid) {
+      usedSet.add(hybrid);
+      return hybrid;
+    }
+  }
+
+  let suffix = 1;
+  while (suffix < 10000) {
+    const suffixStr = `_${suffix}`;
+    candidate = `${base.slice(0, 20 - suffixStr.length)}${suffixStr}`;
+    if (!usedSet.has(candidate) && validateUsernameStrict(candidate).isValid) {
+      usedSet.add(candidate);
+      return candidate;
+    }
+    suffix++;
+  }
+
+  const fallback = `iois_${Date.now().toString().slice(-6)}`;
+  usedSet.add(fallback);
+  return fallback;
+}
+
+function ensureUniqueUsernamesOnDisk(): void {
+  try {
+    const users = loadUsersFromDisk();
+    const archived = loadArchivedUsersFromDisk();
+    const usedSet = new Set<string>(RESERVED_USERNAMES);
+
+    for (const u of [...users, ...archived]) {
+      if (u?.userId) {
+        usedSet.add(String(u.userId).trim().toLowerCase());
+      }
+    }
+
+    let updatedCount = 0;
+    const normalizedUsers = users.map((u) => {
+      if (!u || !u.userId) return u;
+      const existingClean = normalizeUsernameInput(u.username);
+      const isValidExisting =
+        existingClean &&
+        /^[a-z0-9_]{3,20}$/.test(existingClean) &&
+        !RESERVED_USERNAMES.has(existingClean) &&
+        !usedSet.has(existingClean);
+
+      if (isValidExisting) {
+        usedSet.add(existingClean);
+        if (u.username !== existingClean) {
+          updatedCount++;
+          return { ...u, username: existingClean };
+        }
+        return u;
+      }
+
+      // If existing username matches user's own lowercase userId and isn't taken by another user's username
+      const ownIdLower = String(u.userId).trim().toLowerCase();
+      if (existingClean && existingClean === ownIdLower && /^[a-z0-9_]{3,20}$/.test(existingClean) && !RESERVED_USERNAMES.has(existingClean)) {
+        const anotherUsesSame = users.some(
+          (other) => other && other.userId !== u.userId && normalizeUsernameInput(other.username) === existingClean
+        );
+        if (!anotherUsesSame) {
+          if (u.username !== existingClean) {
+            updatedCount++;
+            return { ...u, username: existingClean };
+          }
+          return u;
+        }
+      }
+
+      const assigned = generateUniqueUsernameForUser(u.fullName || "", u.userId, usedSet);
+      updatedCount++;
+      return { ...u, username: assigned };
+    });
+
+    if (updatedCount > 0) {
+      saveUsersToDisk(normalizedUsers);
+      console.log(`[Auth] Assigned/normalized unique @username for ${updatedCount} active member(s).`);
+    }
+
+    let archivedUpdatedCount = 0;
+    const normalizedArchived = archived.map((u) => {
+      if (!u || !u.userId) return u;
+      const existingClean = normalizeUsernameInput(u.username);
+      if (existingClean && /^[a-z0-9_]{3,20}$/.test(existingClean) && !RESERVED_USERNAMES.has(existingClean) && !usedSet.has(existingClean)) {
+        usedSet.add(existingClean);
+        return u;
+      }
+      const assigned = generateUniqueUsernameForUser(u.fullName || "", u.userId, usedSet);
+      archivedUpdatedCount++;
+      return { ...u, username: assigned };
+    });
+
+    if (archivedUpdatedCount > 0) {
+      saveArchivedUsersToDisk(normalizedArchived);
+      console.log(`[Auth] Assigned unique @username for ${archivedUpdatedCount} archived member(s).`);
+    }
+  } catch (err) {
+    console.warn("[Auth] Unique username migration note:", err);
   }
 }
 
@@ -3016,7 +3298,7 @@ async function startServer() {
   app.get("/api/users/profile/:userId", async (req: Request, res: Response) => {
     try {
       const rawId = String(req.params.userId || "").trim();
-      const cleanUpper = rawId.toUpperCase();
+      const cleanUpper = rawId.replace(/^@/, "").toUpperCase();
       const cleanLower = rawId.toLowerCase().replace(/^@/, "");
       if (!rawId) {
         return res.status(400).json({ success: false, error: "User ID required" });
@@ -3026,12 +3308,19 @@ async function startServer() {
       let matched = users.find(
         (u) =>
           u &&
-          ((u.userId && String(u.userId).toUpperCase() === cleanUpper) ||
-            (u.username && String(u.username).toLowerCase().replace(/^@/, "") === cleanLower))
+          ((u.userId && String(u.userId).trim().toUpperCase() === cleanUpper) ||
+            (u.username && String(u.username).trim().toLowerCase().replace(/^@/, "") === cleanLower))
       );
+
+      if (!matched && (cleanLower === "vikaskumar" || cleanLower === "vikas01")) {
+        matched = users.find((u) => u && String(u.userId || "").toUpperCase() === "IOIS999VK01");
+      }
 
       if (!matched) {
         matched = (await fetchSingleUserFromFirestore(cleanUpper)) || undefined;
+      }
+      if (!matched && cleanLower) {
+        matched = (await fetchSingleUserByUsernameFromFirestore(cleanLower)) || undefined;
       }
       if (!matched) {
         await hydrateServerFromFirestoreOnce(false);
@@ -3039,8 +3328,8 @@ async function startServer() {
         matched = users.find(
           (u) =>
             u &&
-            ((u.userId && String(u.userId).toUpperCase() === cleanUpper) ||
-              (u.username && String(u.username).toLowerCase().replace(/^@/, "") === cleanLower))
+            ((u.userId && String(u.userId).trim().toUpperCase() === cleanUpper) ||
+              (u.username && String(u.username).trim().toLowerCase().replace(/^@/, "") === cleanLower))
         );
       }
 
@@ -3051,6 +3340,16 @@ async function startServer() {
       const isSelfAuthorized =
         String(req.query.self || "") === "1" &&
         isSelfOrAdminAuthorized(req, matched.userId, matched);
+
+      if (
+        (!matched.photoUrl || (isSelfAuthorized && !matched.paymentScreenshotUrl)) &&
+        Date.now() >= firestoreQuotaBlockedUntil
+      ) {
+        const fsDb = getServerFirestore();
+        if (fsDb) {
+          matched = await hydrateUserMediaFromFirestore(fsDb, matched);
+        }
+      }
 
       const allWithdrawals = loadJsonArray(WITHDRAWALS_FILE).filter(
         (w: any) => w && String(w.userId || "").toUpperCase() === String(matched!.userId).toUpperCase()
@@ -3204,6 +3503,68 @@ async function startServer() {
     }
   });
 
+  // API Route: Secure Admin Password Vault Reveal (Admin Auth + Secure PIN 324215 + Rate Limit)
+  app.post("/api/admin/reveal-passwords", (req: Request, res: Response) => {
+    try {
+      if (!requireAdminRequest(req, res)) return;
+
+      if (isRateLimited(req, "admin-pwd-reveal", 8, 15 * 60 * 1000, false)) {
+        return res.status(429).json({
+          success: false,
+          error: "बहुत अधिक गलत सिक्योर पिन प्रयास! सुरक्षा हेतु कृपया 15 मिनट बाद पुनः प्रयास करें।",
+        });
+      }
+
+      const rawPin = req.body && typeof req.body === "object" ? String(req.body.securityPin || "").trim() : "";
+      if (!rawPin || !timingSafeStringEqual(rawPin, getPasswordRevealPin())) {
+        recordRateLimitHit(req, "admin-pwd-reveal", 15 * 60 * 1000);
+        return res.status(401).json({
+          success: false,
+          error: "गलत सिक्योर एडमिन पिन! यूजर पासवर्ड देखने हेतु सही एडमिन पिन दर्ज करें।",
+        });
+      }
+
+      clearRateLimitHits(req, "admin-pwd-reveal");
+
+      const targetUserId =
+        req.body && typeof req.body === "object" && typeof req.body.userId === "string"
+          ? req.body.userId.trim().toUpperCase()
+          : "";
+
+      const users = loadUsersFromDisk();
+      const archived = loadArchivedUsersFromDisk();
+      const combined = [...users, ...archived];
+      const filtered = targetUserId
+        ? combined.filter((u) => u && String(u.userId || "").toUpperCase() === targetUserId)
+        : combined;
+
+      const passwords: Record<string, string> = {};
+      let revealedCount = 0;
+
+      for (const u of filtered) {
+        if (!u || !u.userId) continue;
+        const uid = String(u.userId).trim().toUpperCase();
+        const plain = decryptPasswordFromVault(u.passwordVaultEnc);
+        if (plain !== null && plain !== "") {
+          passwords[uid] = plain;
+          revealedCount++;
+        }
+      }
+
+      return sendJsonCompressed(req, res, {
+        success: true,
+        passwords,
+        revealedCount,
+        totalUsers: filtered.length,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        error: err?.message || "पासवर्ड वॉल्ट डिक्रिप्ट करने में त्रुटि आई।",
+      });
+    }
+  });
+
   // API Route: Admin On-Demand Cloud Sync (Also refreshes 1-Read Firestore Snapshot)
   app.post("/api/admin/cloud-sync", async (req: Request, res: Response) => {
     try {
@@ -3333,10 +3694,15 @@ async function startServer() {
             (u: any) =>
               u && u.userId && !u.isArchived && !isDemoUserId(u.userId) && !archivedIds.has(String(u.userId).toUpperCase())
           )
-          .map((u: any) => ({
-            ...u,
-            ...(u.password && String(u.password).trim() ? { password: hashPassword(String(u.password)) } : {}),
-          }));
+          .map((u: any) => {
+            const rawPwd = u.password ? String(u.password).trim() : "";
+            const vaultEnc = rawPwd && !isHashedPassword(rawPwd) ? encryptPasswordForVault(rawPwd) : undefined;
+            return {
+              ...u,
+              ...(rawPwd ? { password: hashPassword(rawPwd) } : {}),
+              ...(vaultEnc ? { passwordVaultEnc: vaultEnc } : {}),
+            };
+          });
       } else {
         const authMember = getAuthenticatedMember(req);
         const sessionHeader = String(req.headers["x-session-token"] || "").trim();
@@ -3494,53 +3860,73 @@ async function startServer() {
         });
       }
 
-      const cleanSponsor = sponsorId.trim().toUpperCase();
-      const cleanLower = sponsorId.trim().toLowerCase();
+      const rawInput = sponsorId.trim();
+      const cleanSponsor = rawInput.replace(/^@/, "").toUpperCase();
+      const cleanLower = rawInput.toLowerCase().replace(/^@/, "");
+
+      const users = loadUsersFromDisk();
+      let matched = users.find((u) => {
+        if (!u) return false;
+        const uidMatch = u.userId && String(u.userId).trim().toUpperCase() === cleanSponsor;
+        const unameMatch = u.username && String(u.username).trim().toLowerCase().replace(/^@/, "") === cleanLower;
+        return uidMatch || unameMatch;
+      });
 
       // Master Root Sponsor: IOIS999VK01 or vikas01/vikaskumar
-      if (cleanSponsor === "IOIS999VK01" || cleanLower === "vikaskumar" || cleanLower === "vikas01") {
+      if (!matched && (cleanSponsor === "IOIS999VK01" || cleanLower === "vikaskumar" || cleanLower === "vikas01")) {
+        const rootOnDisk = users.find((u) => u && String(u.userId || "").toUpperCase() === "IOIS999VK01");
         return res.json({
           isValid: true,
           sponsorId: "IOIS999VK01",
-          sponsorName: "Vikas Kumar (Master Founder & Root Sponsor)",
+          sponsorUsername: rootOnDisk?.username || "vikaskumar",
+          sponsorName: rootOnDisk?.fullName || "Vikas Kumar (Master Founder & Root Sponsor)",
+          photoUrl: rootOnDisk?.photoUrl || "",
         });
       }
 
       // Legacy Partner Sponsor: SWACCDK01
-      if (cleanSponsor === "SWACCDK01") {
+      if (!matched && cleanSponsor === "SWACCDK01") {
         return res.json({
           isValid: true,
           sponsorId: "SWACCDK01",
           sponsorName: "D. Kumar (ACC India Senior Partner Sponsor)",
+          photoUrl: "",
         });
       }
 
-      const users = loadUsersFromDisk();
-      const matched = users.find((u) => {
-        if (!u) return false;
-        const uidMatch = u.userId && u.userId.toUpperCase() === cleanSponsor;
-        const unameMatch = u.username && u.username.toLowerCase() === cleanLower;
-        return uidMatch || unameMatch;
-      });
+      if (!matched) {
+        matched = (await fetchSingleUserFromFirestore(cleanSponsor)) || undefined;
+      }
+      if (!matched && cleanLower) {
+        matched = (await fetchSingleUserByUsernameFromFirestore(cleanLower)) || undefined;
+      }
 
       if (matched) {
+        if (!matched.photoUrl && Date.now() >= firestoreQuotaBlockedUntil) {
+          const fsDb = getServerFirestore();
+          if (fsDb) {
+            matched = await hydrateUserMediaFromFirestore(fsDb, matched);
+          }
+        }
         return res.json({
           isValid: true,
           sponsorId: matched.userId,
+          sponsorUsername: matched.username || undefined,
           sponsorName: matched.fullName || "सत्यापित सदस्य",
+          photoUrl: matched.photoUrl || "",
         });
       }
 
       return res.status(404).json({
         isValid: false,
-        error: `अमान्य स्पॉन्सर ID "${sponsorId.trim()}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
+        error: `अमान्य स्पॉन्सर ID "${rawInput}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
       });
     } catch (err: any) {
       return res.status(500).json({ isValid: false, error: "स्पॉन्सर सत्यापन में त्रुटि आई।" });
     }
   });
 
-  // API Route: Check Username Availability
+  // API Route: Check Username Availability (Strictly Unique Across Active + Archived Members)
   app.get("/api/users/check-username", (req: Request, res: Response) => {
     try {
       const { username, excludeUserId } = req.query;
@@ -3548,44 +3934,17 @@ async function startServer() {
         return res.status(400).json({ available: false, error: "कृपया यूजरनेम दर्ज करें।" });
       }
 
-      const clean = username.trim().toLowerCase().replace(/^@/, "");
-      // Format validation: 3-20 characters, lowercase letters, numbers, underscore
-      if (!/^[a-z0-9_]{3,20}$/.test(clean)) {
+      const clean = normalizeUsernameInput(username);
+      const format = validateUsernameStrict(clean);
+      if (!format.isValid) {
         return res.status(400).json({
           available: false,
-          error: "यूजरनेम केवल 3 से 20 अक्षरों का होना चाहिए (छोटे अक्षर a-z, अंक 0-9 और अंडरस्कोर _)।",
+          error: format.error,
         });
       }
 
-      // Reserved handles
-      const reserved = ["admin", "root", "support", "iois", "ioisplatform", "official", "acc", "help", "master", "balvikas"];
-      if (reserved.includes(clean)) {
-        return res.json({
-          available: false,
-          error: `यह यूजरनेम "@${clean}" आधिकारिक सिस्टम के लिए आरक्षित है। कृपया कोई दूसरा यूजरनेम चुनें।`,
-        });
-      }
-
-      // Check root sponsors
-      if (clean === "iois999vk01" || clean === "swaccdk01" || clean === "vikaskumar") {
-        return res.json({
-          available: false,
-          error: `यह यूजरनेम "@${clean}" पहले से मास्टर स्पॉन्सर के रूप में आरक्षित है।`,
-        });
-      }
-
-      const users = loadUsersFromDisk();
       const excludeIdUpper = excludeUserId ? String(excludeUserId).trim().toUpperCase() : "";
-
-      const conflict = users.find((u) => {
-        if (!u) return false;
-        if (excludeIdUpper && u.userId && u.userId.toUpperCase() === excludeIdUpper) return false;
-        const matchUname = u.username && u.username.toLowerCase() === clean;
-        const matchUid = u.userId && u.userId.toLowerCase() === clean;
-        return matchUname || matchUid;
-      });
-
-      if (conflict) {
+      if (isUsernameTakenInRecords(clean, excludeIdUpper)) {
         return res.json({
           available: false,
           error: `❌ यूजरनेम "@${clean}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई दूसरा उपलब्ध यूजरनेम चुनें।`,
@@ -3692,21 +4051,49 @@ async function startServer() {
       await ensureServerHydratedIfSparse();
       const users = loadUsersFromDisk();
 
-      // STRICT SPONSOR VALIDATION: No random sponsor ID allowed
-      const cleanSponsor = (sponsorId || "IOIS999VK01").trim().toUpperCase();
-      const isMasterSponsor = cleanSponsor === "IOIS999VK01" || cleanSponsor === "SWACCDK01";
-      let isExistingSponsor = users.some((u) => u.userId && u.userId.toUpperCase() === cleanSponsor);
-      if (!isMasterSponsor && !isExistingSponsor) {
-        const cloudSponsor = await fetchSingleUserFromFirestore(cleanSponsor);
-        if (cloudSponsor) isExistingSponsor = true;
+      // STRICT SPONSOR VALIDATION: Supports IOIS Unique ID OR @username and stores canonical IOIS userId
+      const rawSponsorInput = String(sponsorId || "IOIS999VK01").trim().replace(/^@/, "");
+      const cleanSponsorUpper = rawSponsorInput.toUpperCase();
+      const cleanSponsorLower = rawSponsorInput.toLowerCase();
+      let resolvedSponsorId = cleanSponsorUpper;
+      let isSponsorValid =
+        cleanSponsorUpper === "IOIS999VK01" ||
+        cleanSponsorUpper === "SWACCDK01" ||
+        cleanSponsorLower === "vikaskumar" ||
+        cleanSponsorLower === "vikas01";
+
+      if (cleanSponsorLower === "vikaskumar" || cleanSponsorLower === "vikas01") {
+        resolvedSponsorId = "IOIS999VK01";
       }
 
-      if (!isMasterSponsor && !isExistingSponsor) {
+      const diskSponsorMatch = users.find((u) => {
+        if (!u) return false;
+        const uidMatch = u.userId && String(u.userId).trim().toUpperCase() === cleanSponsorUpper;
+        const unameMatch = u.username && String(u.username).trim().toLowerCase().replace(/^@/, "") === cleanSponsorLower;
+        return uidMatch || unameMatch;
+      });
+
+      if (diskSponsorMatch) {
+        resolvedSponsorId = diskSponsorMatch.userId;
+        isSponsorValid = true;
+      } else if (!isSponsorValid) {
+        const cloudSponsor =
+          (await fetchSingleUserFromFirestore(cleanSponsorUpper)) ||
+          (await fetchSingleUserByUsernameFromFirestore(cleanSponsorLower));
+        if (cloudSponsor && cloudSponsor.userId) {
+          resolvedSponsorId = cloudSponsor.userId;
+          isSponsorValid = true;
+        }
+      }
+
+      if (!isSponsorValid) {
         return res.status(400).json({
           success: false,
-          error: `अमान्य स्पॉन्सर ID "${cleanSponsor}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
+          error: `अमान्य स्पॉन्सर ID "${cleanSponsorUpper}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`,
         });
       }
+
+      const cleanSponsor = resolvedSponsorId;
 
       const planPrice = PLAN_PRICES[selectedPlanId] || 10;
 
@@ -3751,15 +4138,38 @@ async function startServer() {
         safetyCounter++;
       }
 
-      const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "") : undefined;
+      const requestedUsername = normalizeUsernameInput(username);
+      let finalUsername = "";
+      if (requestedUsername) {
+        const formatCheck = validateUsernameStrict(requestedUsername);
+        if (!formatCheck.isValid) {
+          return res.status(400).json({
+            success: false,
+            usernameConflict: true,
+            error: formatCheck.error,
+          });
+        }
+        if (isUsernameTakenInRecords(requestedUsername)) {
+          return res.status(409).json({
+            success: false,
+            usernameConflict: true,
+            error: `❌ यूजरनेम "@${requestedUsername}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई अलग यूजरनेम चुनें।`,
+          });
+        }
+        finalUsername = requestedUsername;
+      } else {
+        const usedSet = collectUsedUsernamesSet();
+        finalUsername = generateUniqueUsernameForUser(fullName, userId, usedSet);
+      }
 
       const rawPassword = String(password || "1234").trim();
       const hashedPassword = await hashPasswordAsync(rawPassword);
+      const passwordVaultEnc = encryptPasswordForVault(rawPassword);
       const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
 
       const newUser = {
         userId,
-        username: cleanUsername || undefined,
+        username: finalUsername,
         fullName: fullName.trim(),
         fatherOrHusbandName: fatherOrHusbandName ? String(fatherOrHusbandName).trim() : undefined,
         motherName: motherName ? String(motherName).trim() : undefined,
@@ -3774,6 +4184,7 @@ async function startServer() {
         selectedPlanId: Number(selectedPlanId),
         role: role || "Verified Elite Member",
         password: hashedPassword,
+        passwordVaultEnc,
         activeSessionToken: sessionToken,
         lastLoginAt: new Date().toISOString(),
         photoUrl,
@@ -3895,6 +4306,11 @@ async function startServer() {
         user.password && !isHashedPassword(user.password) && password
           ? await hashPasswordAsync(String(password))
           : user.password;
+      const plainLoginPassword = typeof password === "string" ? password.trim() : "";
+      const capturedVaultEnc =
+        plainLoginPassword && (!user.passwordVaultEnc || !String(user.passwordVaultEnc).startsWith("v1$"))
+          ? encryptPasswordForVault(plainLoginPassword)
+          : undefined;
 
       const sessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
       const nowIso = new Date().toISOString();
@@ -3908,6 +4324,7 @@ async function startServer() {
         {
           userId: user.userId,
           password: upgradedPassword,
+          ...(capturedVaultEnc ? { passwordVaultEnc: capturedVaultEnc } : {}),
           activeSessionToken: sessionToken,
           lastLoginDevice: loginDevice,
           lastLoginAt: nowIso,
@@ -4001,33 +4418,48 @@ async function startServer() {
 
       const cleanDigits = String(mobileNumber).replace(/\D/g, "");
       const cleanEmail = email ? String(email).trim().toLowerCase() : "";
-      const cleanUsername = username ? String(username).trim().toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "") : "";
+      const rawUsernameInput = typeof username === "string" ? username.trim() : "";
+      const cleanUsername = normalizeUsernameInput(rawUsernameInput);
 
       if (cleanDigits.length < 10) {
         return res.status(400).json({ success: false, error: "कृपया वैध 10 अंकों का मोबाइल नंबर दर्ज करें।" });
+      }
+
+      if (rawUsernameInput) {
+        const unameFormat = validateUsernameStrict(cleanUsername);
+        if (!unameFormat.isValid) {
+          return res.status(400).json({ success: false, usernameConflict: true, error: unameFormat.error });
+        }
+        if (isUsernameTakenInRecords(cleanUsername)) {
+          return res.status(409).json({
+            success: false,
+            usernameConflict: true,
+            error: `❌ यूजरनेम "@${cleanUsername}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई अलग यूजरनेम चुनें।`,
+          });
+        }
       }
 
       const conflict = users.find((u) => {
         const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
         const mobMatch = uDigits.length >= 10 && uDigits.endsWith(cleanDigits.slice(-10));
         const emMatch = cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail;
-        const unameMatch = cleanUsername && u.username && u.username.toLowerCase() === cleanUsername;
-        return mobMatch || emMatch || unameMatch;
+        return mobMatch || emMatch;
       });
 
       if (conflict) {
         return res.status(409).json({
           success: false,
-          error: "यह मोबाइल नंबर, ईमेल या @Username पहले से पंजीकृत है। कृपया नया विवरण दर्ज करें।",
+          error: "यह मोबाइल नंबर या ईमेल पहले से पंजीकृत है। कृपया नया विवरण दर्ज करें।",
         });
       }
 
       const planPrice = PLAN_PRICES[Number(selectedPlanId)] || 10;
       const userId = generateUserIdHelper(fullName, planPrice, users);
+      const finalSponsorRegUsername = cleanUsername || generateUniqueUsernameForUser(fullName, userId, collectUsedUsernamesSet());
 
       const newMember = {
         userId,
-        username: cleanUsername || undefined,
+        username: finalSponsorRegUsername,
         fullName: String(fullName).trim(),
         mobileNumber: cleanDigits.slice(-10),
         email: cleanEmail || `${cleanDigits.slice(-10)}@iois.in`,
@@ -4037,6 +4469,7 @@ async function startServer() {
         selectedPlanId: Number(selectedPlanId),
         role: role ? String(role).trim() : "Verified Elite Member",
         password: await hashPasswordAsync(String(password).trim()),
+        passwordVaultEnc: encryptPasswordForVault(String(password).trim()),
         photoUrl: photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
         googleDrivePhotoLink: googleDrivePhotoLink ? String(googleDrivePhotoLink).trim() : undefined,
         paymentScreenshotUrl: paymentScreenshotUrl || undefined,
@@ -4113,9 +4546,11 @@ async function startServer() {
       const newSessionToken = `sess_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
       const loginDevice = typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : "वर्तमान सुरक्षित डिवाइस";
 
+      const cleanNewPwd = String(newPassword).trim();
       users[index] = {
         ...target,
-        password: await hashPasswordAsync(String(newPassword).trim()),
+        password: await hashPasswordAsync(cleanNewPwd),
+        passwordVaultEnc: encryptPasswordForVault(cleanNewPwd),
         mustChangePassword: false,
         activeSessionToken: newSessionToken,
         lastLoginDevice: loginDevice,
@@ -4206,11 +4641,11 @@ async function startServer() {
       if (!identifier || !fullName || !email) {
         return res.status(400).json({
           success: false,
-          error: "पहचान सत्यापन के लिए User ID या मोबाइल नंबर, पूरा नाम और ईमेल आईडी अनिवार्य हैं।",
+          error: "पहचान सत्यापन के लिए User ID, @Username या मोबाइल नंबर, पूरा नाम और ईमेल आईडी अनिवार्य हैं।",
         });
       }
 
-      const cleanInput = String(identifier).trim().toLowerCase();
+      const cleanInput = String(identifier).trim().toLowerCase().replace(/^@/, "");
       const inputDigits = cleanInput.replace(/\D/g, "");
       const cleanName = String(fullName).trim().toLowerCase();
       const cleanEmail = String(email).trim().toLowerCase();
@@ -4222,9 +4657,10 @@ async function startServer() {
         list.find((u) => {
           if (!u) return false;
           const uidMatch = (u.userId || "").toLowerCase() === cleanInput;
+          const unameMatch = u.username && normalizeUsernameInput(u.username) === cleanInput;
           const uDigits = (u.mobileNumber || "").replace(/\D/g, "");
           const mobileMatch = inputDigits.length >= 10 && uDigits.endsWith(inputDigits.slice(-10));
-          return uidMatch || mobileMatch;
+          return uidMatch || unameMatch || mobileMatch;
         });
 
       let user = findIdentityMatch(users);
@@ -4347,7 +4783,9 @@ async function startServer() {
         });
       }
 
-      users[userIndex].password = await hashPasswordAsync(String(newPassword).trim());
+      const cleanResetPwd = String(newPassword).trim();
+      users[userIndex].password = await hashPasswordAsync(cleanResetPwd);
+      users[userIndex].passwordVaultEnc = encryptPasswordForVault(cleanResetPwd);
       saveUsersToDisk(users);
       void syncSingleUserToFirestore(users[userIndex]);
       void pushUsersToAppsScriptWebhook([users[userIndex]]);
@@ -4395,9 +4833,34 @@ async function startServer() {
       }
 
       if (typeof updates.password === "string" && updates.password.trim()) {
-        updates.password = await hashPasswordAsync(updates.password.trim());
+        const cleanPwd = updates.password.trim();
+        updates.password = await hashPasswordAsync(cleanPwd);
+        updates.passwordVaultEnc = encryptPasswordForVault(cleanPwd);
       } else {
         delete updates.password;
+        delete updates.passwordVaultEnc;
+      }
+
+      // Enforce strict unique @username across all members
+      if (typeof updates.username === "string") {
+        const cleanUname = normalizeUsernameInput(updates.username);
+        if (cleanUname) {
+          const unameFormat = validateUsernameStrict(cleanUname);
+          if (!unameFormat.isValid) {
+            return res.status(400).json({ success: false, usernameConflict: true, error: unameFormat.error });
+          }
+          if (isUsernameTakenInRecords(cleanUname, cleanId)) {
+            return res.status(409).json({
+              success: false,
+              usernameConflict: true,
+              error: `❌ यूजरनेम "@${cleanUname}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई अलग यूजरनेम चुनें।`,
+            });
+          }
+          updates.username = cleanUname;
+        } else {
+          // Never erase an existing member's unique username to blank
+          delete updates.username;
+        }
       }
 
       // Check if new mobile or email is already taken by another user
@@ -4818,11 +5281,41 @@ async function startServer() {
 
       const existing = users[index];
       const updates: Record<string, any> = { ...rawUpdates };
+
+      if (typeof updates.username === "string") {
+        const cleanUname = normalizeUsernameInput(updates.username);
+        if (cleanUname) {
+          const unameFormat = validateUsernameStrict(cleanUname);
+          if (!unameFormat.isValid) {
+            return res.status(400).json({ success: false, usernameConflict: true, error: unameFormat.error });
+          }
+          if (isUsernameTakenInRecords(cleanUname, existing.userId)) {
+            return res.status(409).json({
+              success: false,
+              usernameConflict: true,
+              error: `❌ यूजरनेम "@${cleanUname}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। हर सदस्य का अलग यूनिक यूजरनेम होना अनिवार्य है।`,
+            });
+          }
+          updates.username = cleanUname;
+        } else if (existing.username) {
+          updates.username = normalizeUsernameInput(existing.username);
+        } else {
+          updates.username = generateUniqueUsernameForUser(
+            updates.fullName || existing.fullName || "",
+            existing.userId,
+            collectUsedUsernamesSet(existing.userId)
+          );
+        }
+      }
+
       const hasPasswordUpdate = typeof updates.password === "string" && updates.password.trim().length > 0;
       if (hasPasswordUpdate) {
-        updates.password = hashPassword(String(updates.password).trim());
+        const cleanPwd = String(updates.password).trim();
+        updates.password = hashPassword(cleanPwd);
+        updates.passwordVaultEnc = encryptPasswordForVault(cleanPwd);
       } else {
         delete updates.password;
+        delete updates.passwordVaultEnc;
       }
 
       const now = new Date().toISOString();
@@ -4879,7 +5372,7 @@ async function startServer() {
       ])[0];
 
       // Allow admin to explicitly change paymentStatus (even downgrading from approved to pending/rejected),
-      // clear optional username/payoutUpi, and keep emailLower in sync when email is edited
+      // clear optional payoutUpi, preserve unique username, and keep emailLower in sync when email is edited
       if (updates.paymentStatus === "approved" || updates.paymentStatus === "pending" || updates.paymentStatus === "rejected") {
         mergedUser.paymentStatus = updates.paymentStatus;
       }
@@ -4887,8 +5380,8 @@ async function startServer() {
         mergedUser.email = updates.email.trim();
         mergedUser.emailLower = mergedUser.email.toLowerCase();
       }
-      if (typeof updates.username === "string") {
-        mergedUser.username = updates.username.trim().toLowerCase().replace(/^@/, "");
+      if (typeof updates.username === "string" && updates.username.trim()) {
+        mergedUser.username = normalizeUsernameInput(updates.username);
       }
       if (typeof updates.payoutUpi === "string") {
         mergedUser.payoutUpi = updates.payoutUpi.trim();
@@ -6873,6 +7366,7 @@ IOIS में स्मार्ट इंस्टेंट पेआउट �
     // Defer warm-up, legacy password migration, and cloud sync after socket binds
     setImmediate(() => {
       migratePlaintextPasswordsOnDisk();
+      ensureUniqueUsernamesOnDisk();
       void hydrateServerFromFirestoreOnce(false);
       void syncAdminPinHashToFirestore();
       void refreshLiveNewsCache();

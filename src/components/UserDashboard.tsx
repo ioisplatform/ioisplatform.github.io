@@ -123,6 +123,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [copiedShortLink, setCopiedShortLink] = useState<boolean>(false);
+  const [copiedIdLink, setCopiedIdLink] = useState<boolean>(false);
   const [dashboardNotice, setDashboardNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Avatar display state with fallback
@@ -296,9 +297,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const handleCopyShortLink = async () => {
     try {
-      await navigator.clipboard.writeText(activeReferralUrl);
+      await navigator.clipboard.writeText(usernameLink);
       setCopiedShortLink(true);
       setTimeout(() => setCopiedShortLink(false), 2200);
+    } catch {}
+  };
+
+  const handleCopyIdLink = async () => {
+    try {
+      await navigator.clipboard.writeText(userIdLink);
+      setCopiedIdLink(true);
+      setTimeout(() => setCopiedIdLink(false), 2200);
     } catch {}
   };
 
@@ -312,7 +321,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const handleShareWhatsApp = () => {
     const sponsorTag = user.username ? `@${user.username} (ID: ${user.userId})` : user.userId;
-    const text = `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nनमस्ते! मैंने IOIS डिजिटल एजुकेशन मिशन ज्वाइन किया है। यहाँ मात्र ₹10 से ₹999 में NCERT डिजिटल नोट्स, 700+ पेज किट व डिजिटल ID कार्ड मिलता है।\n\n👉 *मेरी शॉर्ट स्पॉन्सर लिंक से अभी जुड़ें:*\n${activeReferralUrl}\n\n🏷️ *Sponsor:* ${sponsorTag}`;
+    const extraUnameLine = user.username ? `\n🔗 *Username लिंक:* ${usernameLink}` : '';
+    const text = `🇮🇳 *भारतीय ऑनलाइन शिक्षा एवं स्वावलंबन मिशन (IOIS)* 📚\n\nनमस्ते! मैंने IOIS डिजिटल एजुकेशन मिशन ज्वाइन किया है। यहाँ मात्र ₹10 से ₹999 में NCERT डिजिटल नोट्स, 700+ पेज किट व डिजिटल ID कार्ड मिलता है।\n\n👉 *मेरी स्पॉन्सर लिंक से अभी जुड़ें:*\n🔗 *Unique ID लिंक:* ${userIdLink}${extraUnameLine}\n\n🏷️ *Sponsor:* ${sponsorTag}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -907,22 +917,50 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </button>
               </div>
 
-              {/* Compact Sponsor Short Link */}
+              {/* Dual Sponsor Links: IOIS Unique ID Link & @Username Link */}
               <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap pt-0.5">
                 <div className="inline-flex items-center gap-1.5 bg-slate-950/90 border border-amber-500/40 rounded-xl px-2.5 py-1 max-w-full">
                   <Globe className="w-3 h-3 text-amber-400 shrink-0" />
-                  <span className="text-amber-300 font-mono text-[10.5px] font-bold truncate max-w-[190px] sm:max-w-xs">
-                    {activeReferralUrl}
+                  <span className="text-[9.5px] font-black text-amber-400 shrink-0">ID:</span>
+                  <span className="text-amber-300 font-mono text-[10.5px] font-bold truncate max-w-[165px] sm:max-w-[210px]">
+                    {userIdLink}
                   </span>
                   <button
                     type="button"
-                    onClick={handleCopyShortLink}
+                    onClick={handleCopyIdLink}
                     className="p-0.5 hover:bg-slate-800 rounded text-amber-400 cursor-pointer shrink-0"
-                    title="शॉर्ट लिंक कॉपी करें"
+                    title="IOIS Unique ID रेफरल लिंक कॉपी करें"
                   >
-                    {copiedShortLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedIdLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+
+                {user.username ? (
+                  <div className="inline-flex items-center gap-1.5 bg-slate-950/90 border border-cyan-500/40 rounded-xl px-2.5 py-1 max-w-full">
+                    <Globe className="w-3 h-3 text-cyan-400 shrink-0" />
+                    <span className="text-[9.5px] font-black text-cyan-300 shrink-0">@{user.username}:</span>
+                    <span className="text-cyan-200 font-mono text-[10.5px] font-bold truncate max-w-[165px] sm:max-w-[210px]">
+                      {usernameLink}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyShortLink}
+                      className="p-0.5 hover:bg-slate-800 rounded text-cyan-300 cursor-pointer shrink-0"
+                      title="Username रेफरल लिंक कॉपी करें"
+                    >
+                      {copiedShortLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsUsernameModalOpen(true)}
+                    className="inline-flex items-center gap-1 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 rounded-xl px-2.5 py-1 text-[10.5px] font-bold cursor-pointer transition"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>@username लिंक बनाएं</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

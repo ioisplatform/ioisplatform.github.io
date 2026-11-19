@@ -52,6 +52,7 @@ export interface UserProfile {
   role: string;
   password?: string;
   passwordProtected?: boolean;
+  hasVaultPassword?: boolean;
   passwordStatus?: string;
   photoUrl: string;
   googleDrivePhotoLink?: string;

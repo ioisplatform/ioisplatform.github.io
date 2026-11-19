@@ -9,6 +9,7 @@ import {
   validateEmailAddress,
   validateSponsorIdAsync,
   getSponsorUserAsync,
+  extractReferralFromUrl,
   checkUsernameAvailableAsync,
   OFFICIAL_ROOT_SPONSOR_ID,
   OFFICIAL_ROOT_SPONSOR_NAME,
@@ -78,6 +79,8 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
   // Sponsor Verification State
   const [sponsorStatus, setSponsorStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [sponsorVerifiedName, setSponsorVerifiedName] = useState<string>('');
+  const [sponsorVerifiedUsername, setSponsorVerifiedUsername] = useState<string>('');
+  const [sponsorVerifiedPhoto, setSponsorVerifiedPhoto] = useState<string>('');
   const [sponsorError, setSponsorError] = useState<string>('');
   const [isViewingSponsorModal, setIsViewingSponsorModal] = useState<boolean>(false);
   const [sponsorCardUser, setSponsorCardUser] = useState<UserProfile | null>(null);
@@ -172,31 +175,37 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     }
   }, [preSelectedPlanId]);
 
-  // Initial sponsor verification (Supports ?s=, ?sponsor=, ?u=, ?ref=)
+  // Initial sponsor verification (Supports ?s=, ?sponsor=, ?u=, ?ref=, hash params & sessionStorage)
   useEffect(() => {
     let initialSponsor = initialSponsorId;
     if (!initialSponsor) {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const ref = params.get('sponsor') || params.get('s') || params.get('u') || params.get('ref') || params.get('sponsorId');
-        if (ref) initialSponsor = ref.toUpperCase();
+        const { ref } = extractReferralFromUrl();
+        if (ref) initialSponsor = ref;
       } catch {
         // ignore
       }
     }
+    if (!initialSponsor && typeof window !== 'undefined') {
+      try {
+        initialSponsor = sessionStorage.getItem('iois_pending_sponsor_id') || '';
+      } catch {}
+    }
 
-    const targetSponsor = (initialSponsor || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
-    setSponsorId(targetSponsor);
-    checkSponsor(targetSponsor);
+    const targetSponsor = (initialSponsor || OFFICIAL_ROOT_SPONSOR_ID).trim().replace(/^@/, '');
+    setSponsorId(targetSponsor.toUpperCase());
+    checkSponsor(targetSponsor, true);
   }, [initialSponsorId]);
 
   const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
-  const checkSponsor = async (idToVerify: string) => {
-    const clean = idToVerify.trim().toUpperCase();
-    if (!clean) {
+  const checkSponsor = async (idToVerify: string, canonicalize = false) => {
+    const rawClean = idToVerify.trim().replace(/^@/, '');
+    if (!rawClean) {
       setSponsorStatus('invalid');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       setSponsorError('स्पॉन्सर ID दर्ज करना अनिवार्य है।');
       return;
     }
@@ -205,44 +214,63 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
     setSponsorError('');
 
     try {
-      const res = await validateSponsorIdAsync(clean);
+      const res = await validateSponsorIdAsync(rawClean);
       if (res.isValid) {
+        const canonicalId = (res.sponsorId || rawClean).trim().toUpperCase();
         setSponsorStatus('valid');
         setSponsorVerifiedName(res.sponsorName || 'सत्यापित स्पॉन्सर');
+        setSponsorVerifiedUsername(res.sponsorUsername || '');
+        setSponsorVerifiedPhoto(res.sponsorPhotoUrl || '');
         setSponsorError('');
+        if (canonicalize || canonicalId === rawClean.toUpperCase()) {
+          setSponsorId(canonicalId);
+        }
+        if (!res.sponsorPhotoUrl) {
+          void getSponsorUserAsync(canonicalId).then((sp) => {
+            if (sp?.photoUrl && sp.photoUrl.trim()) {
+              setSponsorVerifiedPhoto(sp.photoUrl.trim());
+            }
+          });
+        }
       } else {
         setSponsorStatus('invalid');
         setSponsorVerifiedName('');
+        setSponsorVerifiedUsername('');
+        setSponsorVerifiedPhoto('');
         setSponsorError(res.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
       }
     } catch {
       setSponsorStatus('invalid');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       setSponsorError('स्पॉन्सर ID सत्यापन विफल रहा।');
     }
   };
 
   const handleSponsorChange = (val: string) => {
-    const upper = val.toUpperCase().trim();
-    setSponsorId(upper);
+    const typed = val.trimStart();
+    setSponsorId(typed);
     setSponsorError('');
 
     if (sponsorTimerRef.current) clearTimeout(sponsorTimerRef.current);
-    if (!upper) {
+    if (!typed.trim()) {
       setSponsorStatus('idle');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       return;
     }
 
     setSponsorStatus('checking');
     sponsorTimerRef.current = setTimeout(() => {
-      checkSponsor(upper);
-    }, 400);
+      checkSponsor(typed, false);
+    }, 450);
   };
 
   const handleFillDefaultSponsor = () => {
     setSponsorId(OFFICIAL_ROOT_SPONSOR_ID);
-    checkSponsor(OFFICIAL_ROOT_SPONSOR_ID);
+    checkSponsor(OFFICIAL_ROOT_SPONSOR_ID, true);
   };
 
   const handleMobileChange = (val: string) => {
@@ -376,8 +404,10 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
 
     const [sponsorCheck, dupCheck] = await Promise.all([
       sponsorStatus === 'valid'
-        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }>({
+        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; sponsorUsername?: string; error?: string }>({
             isValid: true,
+            sponsorId,
+            sponsorUsername: sponsorVerifiedUsername || undefined,
             sponsorName: sponsorVerifiedName || 'सत्यापित स्पॉन्सर',
           })
         : validateSponsorIdAsync(sponsorId),
@@ -389,6 +419,15 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       setSponsorError(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
       setErrorMsg(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! कोई भी रैंडम स्पॉन्सर ID काम नहीं करेगा। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "IOIS999VK01" का उपयोग करें।');
       return false;
+    }
+    if (sponsorCheck.sponsorId) {
+      setSponsorId(sponsorCheck.sponsorId);
+    }
+    if (sponsorCheck.sponsorUsername) {
+      setSponsorVerifiedUsername(sponsorCheck.sponsorUsername);
+    }
+    if ((sponsorCheck as any).sponsorPhotoUrl) {
+      setSponsorVerifiedPhoto((sponsorCheck as any).sponsorPhotoUrl);
     }
     setSponsorStatus('valid');
     setSponsorVerifiedName(sponsorCheck.sponsorName || 'सत्यापित स्पॉन्सर');
@@ -523,7 +562,10 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
       onRegisterSuccess(newUser);
     } catch (err: any) {
       setIsSubmitting(false);
-      if (err.alreadyExists) {
+      if (err.usernameConflict) {
+        setUsernameError(err.message || 'यह @username पहले से उपयोग में है।');
+        setCurrentStep(2);
+      } else if (err.alreadyExists) {
         setDuplicateNotice({
           exists: true,
           matchedBy: err.matchedBy || 'mobile',
@@ -794,9 +836,9 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                         required
                         value={sponsorId}
                         onChange={(e) => handleSponsorChange(e.target.value)}
-                        onBlur={() => checkSponsor(sponsorId)}
-                        placeholder="जैसे: IOIS999VK01"
-                        className={`w-full bg-slate-900 border text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition uppercase tracking-wider ${
+                        onBlur={() => checkSponsor(sponsorId, true)}
+                        placeholder="IOIS ID या @username (उदा. IOIS999VK01)"
+                        className={`w-full bg-slate-900 border text-amber-300 font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none transition tracking-wider ${
                           sponsorStatus === 'valid'
                             ? 'border-emerald-500 bg-emerald-950/20 text-emerald-300'
                             : sponsorStatus === 'invalid'
@@ -822,12 +864,24 @@ export const RegistrationPortal: React.FC<RegistrationPortalProps> = ({
                     {/* Live Sponsor Feedback Pill */}
                     {sponsorStatus === 'valid' && (
                       <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-300 text-xs animate-in fade-in">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 shrink-0 bg-slate-900 shadow-md">
+                            <img
+                              src={sponsorVerifiedPhoto || OFFICIAL_ROOT_SPONSOR_USER.photoUrl}
+                              alt={sponsorVerifiedName || 'Verified Sponsor'}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = OFFICIAL_ROOT_SPONSOR_USER.photoUrl;
+                              }}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
                           <div>
                             <span className="font-bold">सत्यापित स्पॉन्सर: </span>
                             <span className="text-white font-black">{sponsorVerifiedName}</span>
                             <span className="text-emerald-400 ml-1 font-mono font-bold">({sponsorId})</span>
+                            {sponsorVerifiedUsername && (
+                              <span className="text-cyan-300 ml-1.5 font-mono text-[11px]">@{sponsorVerifiedUsername}</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 self-end sm:self-auto">

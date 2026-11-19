@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserPrivacySettings, DEFAULT_PRIVACY_SETTINGS } from '../types';
 import { PLANS } from '../data/plansData';
-import { updateUserProfile, sanitizeUpiId } from '../services/userService';
+import {
+  updateUserProfile,
+  updateUserProfileAsync,
+  checkUsernameAvailableAsync,
+  sanitizeUpiId,
+} from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { 
   User, 
@@ -82,6 +87,10 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
   
   // Editable State Fields
   const [fullName, setFullName] = useState<string>(user.fullName || '');
+  const [username, setUsername] = useState<string>(user.username || '');
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuccess, setUsernameSuccess] = useState<string>('');
+  const [isCheckingUsername, setIsCheckingUsername] = useState<boolean>(false);
   const [mobileNumber, setMobileNumber] = useState<string>(user.mobileNumber || '');
   const [email, setEmail] = useState<string>(user.email || '');
   const [address, setAddress] = useState<string>(user.address || '');
@@ -115,6 +124,9 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
   // Sync if prop user changes
   useEffect(() => {
     setFullName(user.fullName || '');
+    setUsername(user.username || '');
+    setUsernameError('');
+    setUsernameSuccess('');
     setMobileNumber(user.mobileNumber || '');
     setEmail(user.email || '');
     setAddress(user.address || '');
@@ -133,11 +145,49 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
     setPrivacySettings(user.privacySettings || DEFAULT_PRIVACY_SETTINGS);
   }, [user]);
 
+  useEffect(() => {
+    if (!isEditing) return;
+    const clean = username.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
+    const currentUname = (user.username || '').trim().toLowerCase().replace(/^@/, '');
+    if (!clean || clean === currentUname) {
+      setUsernameError('');
+      setUsernameSuccess(clean && clean === currentUname ? `✓ वर्तमान यूनिक यूजरनेम (@${clean})` : '');
+      setIsCheckingUsername(false);
+      return;
+    }
+    if (clean.length < 3) {
+      setUsernameError('यूजरनेम कम से कम 3 अक्षरों का होना चाहिए');
+      setUsernameSuccess('');
+      return;
+    }
+    let active = true;
+    setIsCheckingUsername(true);
+    setUsernameError('');
+    setUsernameSuccess('');
+    const t = setTimeout(async () => {
+      const res = await checkUsernameAvailableAsync(clean, user.userId);
+      if (!active) return;
+      setIsCheckingUsername(false);
+      if (res.available) {
+        setUsernameSuccess(res.message || `✓ @${clean} उपलब्ध है!`);
+      } else {
+        setUsernameError(res.error || `❌ @${clean} उपलब्ध नहीं है।`);
+      }
+    }, 350);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [username, isEditing, user.userId, user.username]);
+
   const currentPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
   const handleCancel = () => {
     // Reset to user values
     setFullName(user.fullName || '');
+    setUsername(user.username || '');
+    setUsernameError('');
+    setUsernameSuccess('');
     setMobileNumber(user.mobileNumber || '');
     setEmail(user.email || '');
     setAddress(user.address || '');
@@ -201,6 +251,27 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
       return;
     }
 
+    const cleanUsername = username
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '')
+      .replace(/[^a-z0-9_]/g, '');
+
+    if (cleanUsername && (cleanUsername.length < 3 || cleanUsername.length > 20)) {
+      setErrorMsg('यूनिक @Username 3 से 20 अक्षरों (a-z, 0-9, _) के बीच होना चाहिए।');
+      return;
+    }
+
+    if (usernameError) {
+      setErrorMsg(usernameError);
+      return;
+    }
+
+    if (isCheckingUsername) {
+      setErrorMsg('कृपया @Username की उपलब्धता जांच पूरी होने तक प्रतीक्षा करें।');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -217,6 +288,7 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
       const updated: UserProfile = {
         ...baseUserWithoutPass,
         userId: user.userId, // Immutable
+        username: cleanUsername || user.username || undefined,
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
         email: email.trim(),
@@ -236,8 +308,9 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
         privacySettings,
       };
 
-      const saved = updateUserProfile(updated);
+      const saved = await updateUserProfileAsync(updated);
       setPassword('');
+      setUsername(saved.username || cleanUsername || '');
       onUserUpdated(saved);
       setIsEditing(false);
       setSaveSuccessMsg('आपकी प्रोफाइल व संपूर्ण विवरण बिना किसी त्रुटि के सफलतापूर्वक सुरक्षित कर दिया गया है!');
@@ -323,11 +396,18 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
                 <Lock className="w-2.5 h-2.5" /> NON-EDITABLE
               </span>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-amber-300 font-mono tracking-wider">
-              {user.userId}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-xl sm:text-2xl font-black text-amber-300 font-mono tracking-wider">
+                {user.userId}
+              </div>
+              {user.username && (
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 font-mono font-bold text-xs">
+                  @{user.username}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-300">
-              यह कोड सिस्टम डेटाबेस व सुरक्षा रिकॉर्ड में स्थायी है। इसके अलावा बाकी सभी विवरण आप नीचे बदल सकते हैं।
+              यह कोड सिस्टम डेटाबेस व सुरक्षा रिकॉर्ड में स्थायी है। इसके अलावा बाकी सभी विवरण (और आपका यूनिक @username) आप नीचे बदल सकते हैं।
             </p>
           </div>
 
@@ -447,6 +527,42 @@ export const ProfileEditSection: React.FC<ProfileEditSectionProps> = ({
                     : 'border-slate-800 opacity-80 cursor-not-allowed'
                 }`}
               />
+            </div>
+
+            {/* Unique Login @Username */}
+            <div>
+              <label className="block text-slate-300 font-bold mb-1 flex items-center justify-between">
+                <span>यूनिक लॉगिन यूजरनेम (@Username):</span>
+                <span className="text-[10px] text-cyan-300 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+                  लॉगिन व लिंक हेतु यूनिक
+                </span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 font-mono font-bold pointer-events-none">@</span>
+                <input
+                  type="text"
+                  disabled={!isEditing}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="उदा. rahul_kumar"
+                  className={`w-full bg-slate-900 border text-cyan-300 rounded-xl pl-8 pr-8 py-2.5 outline-none font-mono lowercase transition ${
+                    isEditing
+                      ? usernameError
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-cyan-500/70 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400'
+                      : 'border-slate-800 opacity-80 cursor-not-allowed'
+                  }`}
+                />
+                {isCheckingUsername && (
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin absolute right-3 top-3" />
+                )}
+              </div>
+              {isEditing && usernameError && (
+                <p className="text-[10.5px] text-red-400 mt-1 font-bold">{usernameError}</p>
+              )}
+              {isEditing && !usernameError && usernameSuccess && (
+                <p className="text-[10.5px] text-emerald-400 mt-1 font-bold">{usernameSuccess}</p>
+              )}
             </div>
 
             {/* Mobile / WhatsApp Number */}

@@ -126,7 +126,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg('');
 
     if (!loginIdentifier.trim()) {
-      setErrorMsg('कृपया अपना User ID, मोबाइल नंबर या ईमेल दर्ज करें।');
+      setErrorMsg('कृपया अपना User ID, @Username, मोबाइल नंबर या ईमेल दर्ज करें।');
       return;
     }
     if (!loginPassword) {
@@ -192,7 +192,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg('');
 
     if (!identIdentifier.trim()) {
-      setErrorMsg('कृपया अपना User ID या पंजीकृत 10 अंकों का मोबाइल नंबर दर्ज करें।');
+      setErrorMsg('कृपया अपना User ID, @Username या पंजीकृत 10 अंकों का मोबाइल नंबर दर्ज करें।');
       return;
     }
     if (!identFullName.trim()) {
@@ -325,14 +325,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 font-bold mb-1.5">User ID, मोबाइल नंबर या ईमेल:</label>
+              <label className="block text-slate-300 font-bold mb-1.5">User ID, @Username, मोबाइल नंबर या ईमेल:</label>
               <div className="relative">
                 <User className="w-4 h-4 text-amber-400 absolute left-3.5 top-3" />
                 <input
                   type="text"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="उदा. IOIS10RK01 या 9876543210"
+                  placeholder="उदा. IOIS10RK01, @rahul_kumar या 9876543210"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl pl-10 pr-3.5 py-2.5 outline-none transition font-medium"
                 />
               </div>
@@ -629,14 +629,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1">User ID या पंजीकृत मोबाइल नंबर:</label>
+                      <label className="block text-slate-300 font-bold mb-1">User ID, @Username या पंजीकृत मोबाइल नंबर:</label>
                       <div className="relative">
                         <User className="w-4 h-4 text-amber-400 absolute left-3.5 top-3" />
                         <input
                           type="text"
                           value={identIdentifier}
                           onChange={(e) => setIdentIdentifier(e.target.value)}
-                          placeholder="उदा. IOIS10RK01 या 9876543210"
+                          placeholder="उदा. IOIS10RK01, @rahul_kumar या 9876543210"
                           className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 text-white rounded-xl pl-10 pr-3.5 py-2.5 outline-none transition"
                         />
                       </div>

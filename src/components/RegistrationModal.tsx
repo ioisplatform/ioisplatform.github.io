@@ -8,11 +8,16 @@ import {
   validateMobileNumber,
   validateEmailAddress,
   validateSponsorIdAsync,
+  getSponsorUserAsync,
+  extractReferralFromUrl,
+  checkUsernameAvailableAsync,
   OFFICIAL_ROOT_SPONSOR_ID,
-  OFFICIAL_ROOT_SPONSOR_NAME
+  OFFICIAL_ROOT_SPONSOR_NAME,
+  OFFICIAL_ROOT_SPONSOR_USER
 } from '../services/userService';
 import { SmartFileUpload } from './SmartFileUpload';
 import { Plan3DSelector } from './Plan3DSelector';
+import { IDCardGenerator } from './IDCardGenerator';
 import { 
   ShieldCheck, 
   Lock, 
@@ -33,7 +38,9 @@ import {
   LogIn,
   Send,
   XCircle,
-  UserCheck
+  UserCheck,
+  Eye,
+  X
 } from 'lucide-react';
 
 interface RegistrationModalProps {
@@ -75,13 +82,65 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   // Sponsor Verification State
   const [sponsorStatus, setSponsorStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [sponsorVerifiedName, setSponsorVerifiedName] = useState<string>('');
+  const [sponsorVerifiedUsername, setSponsorVerifiedUsername] = useState<string>('');
+  const [sponsorVerifiedPhoto, setSponsorVerifiedPhoto] = useState<string>('');
   const [sponsorError, setSponsorError] = useState<string>('');
+  const [isViewingSponsorModal, setIsViewingSponsorModal] = useState<boolean>(false);
+  const [sponsorCardUser, setSponsorCardUser] = useState<UserProfile | null>(null);
+  const [isLoadingSponsorCard, setIsLoadingSponsorCard] = useState<boolean>(false);
   const sponsorTimerRef = useRef<any>(null);
+
+  const handleOpenSponsorCard = async () => {
+    if (!sponsorId.trim()) return;
+    setIsLoadingSponsorCard(true);
+    try {
+      const realSponsor = await getSponsorUserAsync(sponsorId.trim());
+      setSponsorCardUser(realSponsor || OFFICIAL_ROOT_SPONSOR_USER);
+      setIsViewingSponsorModal(true);
+    } catch {
+      setSponsorCardUser(OFFICIAL_ROOT_SPONSOR_USER);
+      setIsViewingSponsorModal(true);
+    } finally {
+      setIsLoadingSponsorCard(false);
+    }
+  };
 
   const [selectedPlanId, setSelectedPlanId] = useState<number>(initialPlanId);
   const [role, setRole] = useState<string>('Verified Elite Member');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [customUsername, setCustomUsername] = useState<string>('');
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuccess, setUsernameSuccess] = useState<string>('');
+  const [isCheckingUsername, setIsCheckingUsername] = useState<boolean>(false);
+  const usernameTimerRef = useRef<any>(null);
+
+  const handleUsernameChange = (val: string) => {
+    const clean = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setCustomUsername(clean);
+    setUsernameError('');
+    setUsernameSuccess('');
+
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+    if (!clean) return;
+
+    if (clean.length < 3) {
+      setUsernameError('यूजरनेम कम से कम 3 अक्षरों का होना चाहिए');
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    usernameTimerRef.current = setTimeout(async () => {
+      const res = await checkUsernameAvailableAsync(clean);
+      setIsCheckingUsername(false);
+      if (res.available) {
+        setUsernameSuccess(res.message || `✓ @${clean} उपलब्ध है!`);
+      } else {
+        setUsernameError(res.error || `❌ @${clean} उपलब्ध नहीं है।`);
+      }
+    }, 400);
+  };
+
   const [photoUrl, setPhotoUrl] = useState<string>('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80');
   const [googleDrivePhotoLink, setGoogleDrivePhotoLink] = useState<string>('');
 
@@ -115,23 +174,29 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     let initialSponsor = initialSponsorId;
     if (!initialSponsor) {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const ref = params.get('ref') || params.get('sponsor') || params.get('sponsorId');
-        if (ref) initialSponsor = ref.toUpperCase();
+        const { ref } = extractReferralFromUrl();
+        if (ref) initialSponsor = ref;
       } catch {
         // ignore
       }
     }
-    const targetSponsor = (initialSponsor || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
-    setSponsorId(targetSponsor);
-    checkSponsor(targetSponsor);
-  }, [initialSponsorId]);
+    if (!initialSponsor && typeof window !== 'undefined') {
+      try {
+        initialSponsor = sessionStorage.getItem('iois_pending_sponsor_id') || '';
+      } catch {}
+    }
+    const targetSponsor = (initialSponsor || OFFICIAL_ROOT_SPONSOR_ID).trim().replace(/^@/, '');
+    setSponsorId(targetSponsor.toUpperCase());
+    checkSponsor(targetSponsor, true);
+  }, [initialSponsorId, isOpen]);
 
-  const checkSponsor = async (idToVerify: string) => {
-    const clean = idToVerify.trim().toUpperCase();
-    if (!clean) {
+  const checkSponsor = async (idToVerify: string, canonicalize = false) => {
+    const rawClean = idToVerify.trim().replace(/^@/, '');
+    if (!rawClean) {
       setSponsorStatus('invalid');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       setSponsorError('स्पॉन्सर ID दर्ज करना अनिवार्य है।');
       return;
     }
@@ -140,44 +205,63 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     setSponsorError('');
 
     try {
-      const res = await validateSponsorIdAsync(clean);
+      const res = await validateSponsorIdAsync(rawClean);
       if (res.isValid) {
+        const canonicalId = (res.sponsorId || rawClean).trim().toUpperCase();
         setSponsorStatus('valid');
         setSponsorVerifiedName(res.sponsorName || 'सत्यापित स्पॉन्सर');
+        setSponsorVerifiedUsername(res.sponsorUsername || '');
+        setSponsorVerifiedPhoto(res.sponsorPhotoUrl || '');
         setSponsorError('');
+        if (canonicalize || canonicalId === rawClean.toUpperCase()) {
+          setSponsorId(canonicalId);
+        }
+        if (!res.sponsorPhotoUrl) {
+          void getSponsorUserAsync(canonicalId).then((sp) => {
+            if (sp?.photoUrl && sp.photoUrl.trim()) {
+              setSponsorVerifiedPhoto(sp.photoUrl.trim());
+            }
+          });
+        }
       } else {
         setSponsorStatus('invalid');
         setSponsorVerifiedName('');
+        setSponsorVerifiedUsername('');
+        setSponsorVerifiedPhoto('');
         setSponsorError(res.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
       }
     } catch {
       setSponsorStatus('invalid');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       setSponsorError('स्पॉन्सर सत्यापन में त्रुटि आई।');
     }
   };
 
   const handleSponsorChange = (val: string) => {
-    const upper = val.toUpperCase().trim();
-    setSponsorId(upper);
+    const typed = val.trimStart();
+    setSponsorId(typed);
     setSponsorError('');
 
     if (sponsorTimerRef.current) clearTimeout(sponsorTimerRef.current);
-    if (!upper) {
+    if (!typed.trim()) {
       setSponsorStatus('idle');
       setSponsorVerifiedName('');
+      setSponsorVerifiedUsername('');
+      setSponsorVerifiedPhoto('');
       return;
     }
 
     setSponsorStatus('checking');
     sponsorTimerRef.current = setTimeout(() => {
-      checkSponsor(upper);
-    }, 400);
+      checkSponsor(typed, false);
+    }, 450);
   };
 
   const handleFillDefaultSponsor = () => {
     setSponsorId(OFFICIAL_ROOT_SPONSOR_ID);
-    checkSponsor(OFFICIAL_ROOT_SPONSOR_ID);
+    checkSponsor(OFFICIAL_ROOT_SPONSOR_ID, true);
   };
 
   const handleMobileChange = (val: string) => {
@@ -311,8 +395,10 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
     const [sponsorCheck, dupCheck] = await Promise.all([
       sponsorStatus === 'valid'
-        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }>({
+        ? Promise.resolve<{ isValid: boolean; sponsorName?: string; sponsorId?: string; sponsorUsername?: string; error?: string }>({
             isValid: true,
+            sponsorId,
+            sponsorUsername: sponsorVerifiedUsername || undefined,
             sponsorName: sponsorVerifiedName || 'सत्यापित स्पॉन्सर',
           })
         : validateSponsorIdAsync(sponsorId),
@@ -324,6 +410,15 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       setSponsorError(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! यह स्पॉन्सर सिस्टम में मौजूद नहीं है।');
       setErrorMsg(sponsorCheck.error || 'अमान्य स्पॉन्सर ID! कोई भी रैंडम स्पॉन्सर ID काम नहीं करेगा। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "IOIS999VK01" का उपयोग करें।');
       return false;
+    }
+    if (sponsorCheck.sponsorId) {
+      setSponsorId(sponsorCheck.sponsorId);
+    }
+    if (sponsorCheck.sponsorUsername) {
+      setSponsorVerifiedUsername(sponsorCheck.sponsorUsername);
+    }
+    if ((sponsorCheck as any).sponsorPhotoUrl) {
+      setSponsorVerifiedPhoto((sponsorCheck as any).sponsorPhotoUrl);
     }
     setSponsorStatus('valid');
     setSponsorVerifiedName(sponsorCheck.sponsorName || 'सत्यापित स्पॉन्सर');
@@ -343,6 +438,10 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
   const validateStep2 = (): boolean => {
     setErrorMsg('');
+    if (customUsername.trim() && usernameError) {
+      setErrorMsg(usernameError);
+      return false;
+    }
     if (!password.trim()) {
       setErrorMsg('कृपया पासवर्ड दर्ज करें (कम से कम 4 अक्षर)।');
       return false;
@@ -410,8 +509,10 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const cleanUsernameVal = customUsername.trim().toLowerCase().replace(/^@/, '');
       const newUser = await registerNewUserAsync({
         fullName: fullName.trim(),
+        username: cleanUsernameVal || undefined,
         mobileNumber: mobileNumber.trim(),
         email: email.trim(),
         selectedPlanId: selectedPlanId,
@@ -429,6 +530,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
         googleDrivePaymentLink: googleDrivePaymentLink.trim() || undefined,
         registrationFormData: {
           fullName: fullName.trim(),
+          username: cleanUsernameVal || undefined,
           mobileNumber: mobileNumber.trim(),
           email: email.trim(),
           telegramUsername: telegramUsername.trim() || undefined,
@@ -450,7 +552,10 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       setCurrentStep(4); // Success view
     } catch (err: any) {
       setIsSubmitting(false);
-      if (err.alreadyExists) {
+      if (err.usernameConflict) {
+        setUsernameError(err.message || 'यह @username पहले से उपयोग में है।');
+        setCurrentStep(2);
+      } else if (err.alreadyExists) {
         setDuplicateNotice({
           exists: true,
           matchedBy: err.matchedBy || 'mobile',
@@ -466,7 +571,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-[95] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fadeIn">
       <div className="bg-slate-900 border-2 border-amber-500/40 w-full max-w-2xl rounded-3xl p-5 sm:p-7 shadow-[0_20px_60px_rgba(245,158,11,0.25)] relative text-white my-6 max-h-[92vh] overflow-y-auto">
         
         {/* Close Button */}
@@ -624,13 +729,18 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
             </div>
 
             {/* Generated ID Badge */}
-            <div className="p-4 bg-slate-950 rounded-2xl border-2 border-amber-400/80 max-w-sm mx-auto space-y-1">
+            <div className="p-4 bg-slate-950 rounded-2xl border-2 border-amber-400/80 max-w-sm mx-auto space-y-1.5">
               <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
                 आधिकारिक डिजिटल यूजर आईडी:
               </span>
               <div className="text-2xl font-black font-mono text-emerald-400 tracking-wider">
                 {createdUser.userId}
               </div>
+              {createdUser.username && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 font-mono font-bold text-xs">
+                  <span>लॉगिन यूजरनेम: @{createdUser.username}</span>
+                </div>
+              )}
               <span className="text-[10px] text-slate-400 block">
                 प्लान: {selectedPlan.code} (₹{selectedPlan.price}) • {selectedPlan.percentage}% इंसेंटिव सक्रिय
               </span>
@@ -760,9 +870,9 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                         required
                         value={sponsorId}
                         onChange={(e) => handleSponsorChange(e.target.value)}
-                        onBlur={() => checkSponsor(sponsorId)}
-                        placeholder="जैसे: IOIS999VK01"
-                        className={`w-full bg-slate-900 border text-amber-300 font-mono font-bold rounded-xl px-3 py-2.5 outline-none transition uppercase tracking-wider ${
+                        onBlur={() => checkSponsor(sponsorId, true)}
+                        placeholder="IOIS ID या @username (उदा: IOIS999VK01)"
+                        className={`w-full bg-slate-900 border text-amber-300 font-mono font-bold rounded-xl px-3 py-2.5 outline-none transition tracking-wider ${
                           sponsorStatus === 'valid'
                             ? 'border-emerald-500 bg-emerald-950/20 text-emerald-300'
                             : sponsorStatus === 'invalid'
@@ -785,18 +895,41 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                     </div>
 
                     {sponsorStatus === 'valid' && (
-                      <div className="p-2 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-emerald-300 text-xs">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <div className="p-2.5 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-emerald-300 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-amber-400 shrink-0 bg-slate-900 shadow-sm">
+                            <img
+                              src={sponsorVerifiedPhoto || OFFICIAL_ROOT_SPONSOR_USER.photoUrl}
+                              alt={sponsorVerifiedName || 'Verified Sponsor'}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = OFFICIAL_ROOT_SPONSOR_USER.photoUrl;
+                              }}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
                           <div>
                             <span className="font-bold">सत्यापित स्पॉन्सर: </span>
                             <span className="text-white font-black">{sponsorVerifiedName}</span>
-                            <span className="text-emerald-400 ml-1 font-mono">({sponsorId})</span>
+                            <span className="text-emerald-400 ml-1 font-mono font-bold">({sponsorId})</span>
+                            {sponsorVerifiedUsername && (
+                              <span className="text-cyan-300 ml-1.5 font-mono text-[11px]">@{sponsorVerifiedUsername}</span>
+                            )}
                           </div>
                         </div>
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                          ✓ मान्य
-                        </span>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={handleOpenSponsorCard}
+                            disabled={isLoadingSponsorCard}
+                            className="text-[11px] bg-slate-900 hover:bg-slate-800 text-amber-300 hover:text-amber-200 px-2.5 py-1 rounded-lg font-bold border border-amber-500/40 flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                          >
+                            {isLoadingSponsorCard ? <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-amber-400" />}
+                            <span>मास्क्ड ID कार्ड देखें</span>
+                          </button>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                            ✓ मान्य
+                          </span>
+                        </div>
                       </div>
                     )}
 
@@ -910,6 +1043,49 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                       selectedPlanId={selectedPlanId} 
                       onSelectPlan={(id) => setSelectedPlanId(id)} 
                     />
+                  </div>
+
+                  {/* Custom Unique Username for Login & Short Referral Links */}
+                  <div className="sm:col-span-2 p-3 bg-slate-950/90 border border-amber-500/40 rounded-2xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-slate-200 font-bold flex items-center gap-1.5 text-xs">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>यूनिक लॉगिन यूजरनेम (@username) चुनें (वैकल्पिक):</span>
+                      </label>
+                      <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                        लॉगिन व लिंक हेतु यूनिक
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-mono font-bold text-sm">@</span>
+                      <input
+                        type="text"
+                        value={customUsername}
+                        onChange={(e) => handleUsernameChange(e.target.value)}
+                        placeholder="उदा. rahul_kumar, rohit01 (खाली = ऑटो यूनिक)"
+                        className={`w-full bg-slate-900 border text-white pl-8 pr-10 py-2.5 rounded-xl font-mono text-xs outline-none lowercase transition ${
+                          usernameError ? 'border-red-500 focus:border-red-400' : usernameSuccess ? 'border-emerald-500 focus:border-emerald-400' : 'border-slate-700 focus:border-amber-400'
+                        }`}
+                      />
+                      {isCheckingUsername && (
+                        <Loader2 className="w-4 h-4 text-amber-400 animate-spin absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
+                    {usernameError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{usernameError}</span>
+                      </p>
+                    )}
+                    {usernameSuccess && (
+                      <p className="text-[11px] text-emerald-400 flex items-center gap-1 font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>{usernameSuccess}</span>
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      हर सदस्य का अलग यूनिक @username होता है — आप इसी @username व पासवर्ड से भी लॉगिन कर सकेंगे।
+                    </p>
                   </div>
 
                   {/* Password */}
@@ -1128,6 +1304,60 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
           </form>
         )}
       </div>
+
+      {/* Modal for Sponsor Masked ID Card Inspection */}
+      {isViewingSponsorModal && sponsorCardUser && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fadeIn"
+          onClick={() => setIsViewingSponsorModal(false)}
+        >
+          <div
+            className="bg-slate-900 border-2 border-amber-500/50 w-full max-w-4xl rounded-3xl p-4 sm:p-6 shadow-[0_25px_80px_rgba(245,158,11,0.25)] relative text-white my-4 max-h-[95vh] overflow-y-auto space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsViewingSponsorModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-base w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center cursor-pointer transition z-20 border border-slate-700 shadow-md"
+              title="बंद करें"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-1.5 pr-8 sm:pr-0">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-black uppercase tracking-wider">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>सत्यापित स्पॉन्सर ID कार्ड (गोपनीयता सुरक्षित - मास्क्ड विवरण)</span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-black text-white">
+                स्पॉन्सर: <span className="text-amber-400 font-mono">{sponsorCardUser.userId}</span> ({sponsorCardUser.fullName})
+              </h3>
+              <p className="text-xs text-slate-300 max-w-lg mx-auto">
+                सुरक्षा मानकों के तहत स्पॉन्सर का मोबाइल नंबर व ईमेल सुरक्षित रूप से मास्क्ड हैं।
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <IDCardGenerator
+                currentUser={null}
+                targetUser={sponsorCardUser}
+                isSponsorPreview={true}
+                isModalMode={true}
+              />
+            </div>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setIsViewingSponsorModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase transition cursor-pointer shadow-md"
+              >
+                रजिस्ट्रेशन जारी रखें ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

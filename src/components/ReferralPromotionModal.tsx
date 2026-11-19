@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { UserProfile, PageType } from '../types';
 import { PLANS, OFFICIAL_PHONE } from '../data/plansData';
-import { OFFICIAL_ROOT_SPONSOR_ID, OFFICIAL_ROOT_SPONSOR_NAME } from '../services/userService';
+import { OFFICIAL_ROOT_SPONSOR_ID, OFFICIAL_ROOT_SPONSOR_NAME, getReferralLinks } from '../services/userService';
 import { 
   Share2, 
   Copy, 
@@ -48,6 +48,7 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'referral_dashboard' | 'income_table' | 'poster_maker' | 'marketing_kit'>('referral_dashboard');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedUsernameLink, setCopiedUsernameLink] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState<string | null>(null);
 
   // Earning Calculator state
@@ -69,8 +70,9 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
   const effectivePhoto = currentUser?.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
   const effectiveUserPlan = PLANS.find((p) => p.id === (currentUser?.selectedPlanId || 7)) || PLANS[6];
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://iois.in';
-  const referralUrl = `${origin}/?ref=${effectiveSponsorId}&sponsor=${effectiveSponsorId}`;
+  const refLinks = getReferralLinks(effectiveSponsorId, currentUser?.username || (effectiveSponsorId === OFFICIAL_ROOT_SPONSOR_ID ? 'vikaskumar' : undefined));
+  const referralUrl = refLinks.userIdLink;
+  const usernameReferralUrl = refLinks.usernameLink;
   const qrImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(referralUrl)}&color=0f172a&bgcolor=ffffff`;
 
   // Calculated simulated earning
@@ -89,20 +91,28 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
   };
 
   const handleCopyLink = async () => {
-    await handleCopy(referralUrl, 'लिंक कॉपी हो गया!');
+    await handleCopy(referralUrl, 'Unique ID लिंक कॉपी हो गया!');
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
+  const handleCopyUsernameLink = async () => {
+    if (!usernameReferralUrl) return;
+    await handleCopy(usernameReferralUrl, 'Username लिंक कॉपी हो गया!');
+    setCopiedUsernameLink(true);
+    setTimeout(() => setCopiedUsernameLink(false), 2500);
+  };
+
   // WhatsApp Share with viral Hindi promo copy
   const handleWhatsAppShare = () => {
-    const message = `🇮🇳 *भारतीय ऑनलाइन आय एवं स्वावलंबन मिशन (IOIS 2026)* 📚✨\n\nनमस्ते! मैंने IOIS डिजिटल प्लेटफॉर्म जॉइन किया है जहाँ मात्र ₹10 से ₹999 में बेहतरीन स्टडी नोट्स, RTPS सेवाएं व करियर टूल्स मिलते हैं और प्रत्येक रेफरल पर *50% से 70% तक इंस्टेंट पेआउट* सीधे UPI/खाते में आता है।\n\n👉 *मेरी स्पॉन्सर लिंक से अभी जुड़ें व ID कार्ड पाएं:*\n${referralUrl}\n\n🏷️ *Sponsor ID:* ${effectiveSponsorId}\n👤 *प्रमोटर:* ${effectiveUserName}\n\n✅ 100% पारदर्शी, सुरक्षित एवं आधिकारिक पोर्टल।`;
+    const unamePart = usernameReferralUrl ? `\n🔗 *Username लिंक:* ${usernameReferralUrl}` : '';
+    const message = `🇮🇳 *भारतीय ऑनलाइन आय एवं स्वावलंबन मिशन (IOIS 2026)* 📚✨\n\nनमस्ते! मैंने IOIS डिजिटल प्लेटफॉर्म जॉइन किया है जहाँ मात्र ₹10 से ₹999 में बेहतरीन स्टडी नोट्स, RTPS सेवाएं व करियर टूल्स मिलते हैं और प्रत्येक रेफरल पर *50% से 70% तक इंस्टेंट पेआउट* सीधे UPI/खाते में आता है।\n\n👉 *मेरी स्पॉन्सर लिंक से अभी जुड़ें व ID कार्ड पाएं:*\n🔗 *Unique ID लिंक:* ${referralUrl}${unamePart}\n\n🏷️ *Sponsor ID:* ${effectiveSponsorId}${refLinks.username ? ` (@${refLinks.username})` : ''}\n👤 *प्रमोटर:* ${effectiveUserName}\n\n✅ 100% पारदर्शी, सुरक्षित एवं आधिकारिक पोर्टल।`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   // Telegram Share
   const handleTelegramShare = () => {
-    const text = `IOIS डिजिटल प्लेटफॉर्म: 50% से 70% इंसेंटिव आय एवं सम्पूर्ण डिजिटल सेवाएं। मेरी Sponsor ID [${effectiveSponsorId}] से अभी जुड़ें: ${referralUrl}`;
+    const text = `IOIS डिजिटल प्लेटफॉर्म: 50% से 70% इंसेंटिव आय एवं सम्पूर्ण डिजिटल सेवाएं। मेरी Sponsor ID [${effectiveSponsorId}${refLinks.username ? ` / @${refLinks.username}` : ''}] से अभी जुड़ें: ${referralUrl}`;
     window.open(`https://t.me/share/url?url=${encodeURIComponent(referralUrl)}&text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -351,13 +361,13 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
                 </div>
               </div>
 
-              {/* Unique Referral Link & 1-Click Copy Box */}
+              {/* Dual Referral Links (Unique ID + Username) & 1-Click Copy Box */}
               <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border-2 border-amber-400/60 shadow-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span className="text-xs sm:text-sm font-black text-amber-300 uppercase">
-                      आपकी पर्सनल स्पॉन्सर रेफरल लिंक (Direct Referral URL)
+                      आपकी दोनों स्पॉन्सर रेफरल लिंक (Unique ID & Username URLs)
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
@@ -365,22 +375,50 @@ export const ReferralPromotionModal: React.FC<ReferralPromotionModalProps> = ({
                   </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <div className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 font-mono text-xs text-amber-200 select-all truncate">
-                    {referralUrl}
+                {/* 1. IOIS Unique ID Referral Link */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black text-amber-300 uppercase">
+                    1. IOIS Unique ID रेफरल लिंक ({effectiveSponsorId}):
+                  </span>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 font-mono text-xs text-amber-200 select-all truncate">
+                      {referralUrl}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="btn-3d-gold px-4 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md active:scale-95"
+                    >
+                      {copiedLink ? <Check className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4 text-slate-950" />}
+                      <span>{copiedLink ? 'ID लिंक कॉपी हुआ!' : 'ID लिंक कॉपी'}</span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="btn-3d-gold px-4 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md active:scale-95"
-                  >
-                    {copiedLink ? <Check className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4 text-slate-950" />}
-                    <span>{copiedLink ? 'लिंक कॉपी हो गया!' : 'लिंक कॉपी करें'}</span>
-                  </button>
+                </div>
+
+                {/* 2. Username Referral Link */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black text-cyan-300 uppercase">
+                    2. Username रेफरल लिंक {refLinks.username ? `(@${refLinks.username})` : ''}:
+                  </span>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex-1 bg-slate-950 border border-cyan-500/40 rounded-xl px-3.5 py-2.5 font-mono text-xs text-cyan-200 select-all truncate">
+                      {usernameReferralUrl || 'डैशबोर्ड में अपना @username सेट कर शॉर्ट लिंक पाएं'}
+                    </div>
+                    {usernameReferralUrl && (
+                      <button
+                        type="button"
+                        onClick={handleCopyUsernameLink}
+                        className="px-4 py-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md active:scale-95"
+                      >
+                        {copiedUsernameLink ? <Check className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4 text-slate-950" />}
+                        <span>{copiedUsernameLink ? 'Username लिंक कॉपी!' : 'Username लिंक कॉपी'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  इस लिंक को अपने मित्रों, व्हाट्सएप ग्रुपों व सोशल मीडिया पर शेयर करें। जो भी व्यक्ति इस लिंक से जुड़ेगा, वह स्वतः आपके <strong>Sponsor ID ({effectiveSponsorId})</strong> से रजिस्टर होगा और आपको तुरंत प्लान अनुसार 50% से 70% इंसेंटिव मिलेगा।
+                  इनमें से कोई भी लिंक शेयर करें — विज़िटर को तुरंत आपका <strong>स्पॉन्सर आमंत्रण व मास्क्ड ID कार्ड</strong> दिखेगा और रजिस्ट्रेशन पेज में आपका <strong>Sponsor ID ({effectiveSponsorId})</strong> स्वतः भर जाएगा।
                 </p>
               </div>
 

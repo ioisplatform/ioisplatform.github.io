@@ -75,6 +75,7 @@ import {
   findUserById,
   getSponsorUserAsync,
   validateSponsorIdAsync,
+  extractReferralFromUrl,
   subscribeToSessionValidity,
   isAdminLoggedIn,
   OFFICIAL_ROOT_SPONSOR_ID,
@@ -211,49 +212,84 @@ export default function App() {
   }, [currentUser?.userId]);
 
   // Sponsor Referral Visitor State & Modal
-  const [sponsorReferralId, setSponsorReferralId] = useState<string>('');
+  const [sponsorReferralId, setSponsorReferralId] = useState<string>(() => {
+    try {
+      const { ref } = extractReferralFromUrl();
+      if (ref) {
+        const local = findUserById(ref);
+        return local?.userId || ref.replace(/^@/, '').toUpperCase();
+      }
+      return sessionStorage.getItem('iois_pending_sponsor_id') || '';
+    } catch {
+      return '';
+    }
+  });
   const [sponsorUser, setSponsorUser] = useState<UserProfile | null>(null);
   const [isSponsorModalOpen, setIsSponsorModalOpen] = useState<boolean>(false);
+  const [isResolvingUrlReferral, setIsResolvingUrlReferral] = useState<boolean>(() => {
+    try {
+      return Boolean(extractReferralFromUrl().ref);
+    } catch {
+      return false;
+    }
+  });
 
-  // Detect ?u= / ?profile= OR ?ref= / ?sponsor= on mount
+  // Detect ?u= / ?profile= OR ?s= / ?ref= / ?sponsor= / ?sponsorId= (search + hash) on mount
   useEffect(() => {
     let isMounted = true;
     const checkUrlParams = async () => {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const profileHandle = params.get('u') || params.get('profile');
-        if (profileHandle && profileHandle.trim()) {
+        const { ref, isRegisterRoute, profileHandle } = extractReferralFromUrl();
+
+        if (profileHandle) {
           try {
             await fetchUsersFromServer();
           } catch {}
           if (isMounted) {
-            setPublicProfileTarget(profileHandle.trim().replace(/^@/, ''));
+            setPublicProfileTarget(profileHandle);
             setIsPublicProfileOpen(true);
           }
         }
 
-        const ref = params.get('sponsor') || params.get('ref') || params.get('sponsorId');
-        if (!ref) return;
+        if (!ref) {
+          if (isRegisterRoute && !getCurrentUser() && isMounted) {
+            setIsRegisterModalOpen(true);
+          }
+          return;
+        }
 
-        const cleanRef = ref.trim().toUpperCase();
-        // Strict async lookup against Root Sponsor, local database, and cloud Firestore
-        const realSponsor = await getSponsorUserAsync(cleanRef);
+        // Strict async lookup against Root Sponsor, local database, backend profile, and cloud Firestore
+        const realSponsor = await getSponsorUserAsync(ref);
         if (!isMounted) return;
 
         if (realSponsor) {
-          // Authentic registered sponsor found
+          // Authentic registered sponsor found (works for both IOIS Unique ID and @username)
           setSponsorReferralId(realSponsor.userId);
           setSponsorUser(realSponsor);
-          if (!getCurrentUser()) {
+          try {
+            sessionStorage.setItem('iois_pending_sponsor_id', realSponsor.userId);
+          } catch {}
+
+          if (isRegisterRoute && !getCurrentUser()) {
+            setIsRegisterModalOpen(true);
+          } else {
             setIsSponsorModalOpen(true);
           }
         } else {
           // Strictly reject random/fake IDs: default to official root sponsor without fake cards
           setSponsorReferralId(OFFICIAL_ROOT_SPONSOR_ID);
           setSponsorUser(OFFICIAL_ROOT_SPONSOR_USER);
+          try {
+            sessionStorage.removeItem('iois_pending_sponsor_id');
+          } catch {}
+          if (isRegisterRoute && !getCurrentUser()) {
+            setIsRegisterModalOpen(true);
+          }
         }
       } catch {
         // ignore
+      } finally {
+        if (isMounted) setIsResolvingUrlReferral(false);
       }
     };
 
@@ -403,7 +439,11 @@ export default function App() {
       handleOpenSponsorAddMember(1);
       return;
     }
-    setSponsorReferralId(sponsorId);
+    const cleanSp = (sponsorId || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
+    setSponsorReferralId(cleanSp);
+    try {
+      sessionStorage.setItem('iois_pending_sponsor_id', cleanSp);
+    } catch {}
     setSelectedPlanForRegister(1);
     setIsRegisterModalOpen(true);
   };
@@ -665,6 +705,8 @@ export default function App() {
               onOpenRashifalModal={() => setIsDailyRashifalOpen(true)}
               onOpenPhotoCompressor={() => setIsPhotoCompressorOpen(true)}
               suppressHomePopup={
+                isSponsorModalOpen ||
+                isResolvingUrlReferral ||
                 isDashboardModalOpen ||
                 popupPage !== null ||
                 isAuthModalOpen ||
@@ -1110,30 +1152,18 @@ export default function App() {
         onOpenIdCard={handleOpenIdCard}
         onOpenSponsorCard={() => setIsSponsorModalOpen(true)}
         onOpenReferralModal={() => setIsReferralModalOpen(true)}
-        onSetSponsorId={(newSponsorId) => {
-          setSponsorReferralId(newSponsorId);
-          const matched = findUserById(newSponsorId);
-          if (matched) {
-            setSponsorUser(matched);
+        onSetSponsorId={async (newSponsorId) => {
+          const resolved = await getSponsorUserAsync(newSponsorId);
+          if (resolved) {
+            setSponsorReferralId(resolved.userId);
+            setSponsorUser(resolved);
+            try {
+              sessionStorage.setItem('iois_pending_sponsor_id', resolved.userId);
+            } catch {}
           } else {
-            setSponsorUser({
-              userId: newSponsorId,
-              fullName: 'IOIS Verified Member',
-              mobileNumber: '+91 9876543210',
-              email: 'member@iois.org.in',
-              selectedPlanId: 7,
-              role: 'Official Verified Member',
-              photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-              paymentStatus: 'approved',
-              createdAt: new Date().toISOString(),
-              privacySettings: {
-                showFullName: false,
-                showMobile: false,
-                showEmail: false,
-                showPhoto: false,
-                showLocation: false,
-              },
-            });
+            const cleanUpper = newSponsorId.trim().replace(/^@/, '').toUpperCase();
+            setSponsorReferralId(cleanUpper);
+            setSponsorUser(findUserById(cleanUpper) || OFFICIAL_ROOT_SPONSOR_USER);
           }
         }}
       />
@@ -1501,6 +1531,8 @@ export default function App() {
         onOpenSponsorAddMember={handleOpenSponsorAddMember}
         onOpenIdCard={handleOpenIdCard}
         suppressAutoOpen={
+          isSponsorModalOpen ||
+          isResolvingUrlReferral ||
           currentPage === 'home' ||
           currentPage === 'dashboard' ||
           currentPage === 'admin' ||

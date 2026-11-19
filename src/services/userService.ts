@@ -1173,12 +1173,16 @@ export const ACC_LEGACY_SPONSOR_USER: UserProfile = {
   telegramUsername: 'NEWUSERHELPLINE',
 };
 
+const sponsorProfileCache = new Map<string, UserProfile>();
+
 export const findUserById = (userId?: string | null): UserProfile | undefined => {
   if (!userId) return undefined;
-  const cleanId = userId.trim().toUpperCase();
-  const cleanLower = userId.trim().toLowerCase().replace(/^@/, '');
+  const rawTrimmed = userId.trim().replace(/^@/, '');
+  const cleanId = rawTrimmed.toUpperCase();
+  const cleanLower = rawTrimmed.toLowerCase();
   if (cleanId === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
-    return OFFICIAL_ROOT_SPONSOR_USER;
+    const all = getAllUsers();
+    return all.find((u) => u && u.userId?.trim().toUpperCase() === OFFICIAL_ROOT_SPONSOR_ID) || OFFICIAL_ROOT_SPONSOR_USER;
   }
   if (cleanId === ACC_LEGACY_SPONSOR_ID) {
     return ACC_LEGACY_SPONSOR_USER;
@@ -1194,47 +1198,146 @@ export const findUserById = (userId?: string | null): UserProfile | undefined =>
 
 export const getSponsorUserAsync = async (sponsorId?: string | null): Promise<UserProfile | null> => {
   if (!sponsorId || !sponsorId.trim()) return null;
-  const cleanId = sponsorId.trim().toUpperCase();
-  const cleanLower = sponsorId.trim().toLowerCase().replace(/^@/, '');
-  if (cleanId === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
-    return OFFICIAL_ROOT_SPONSOR_USER;
+  const rawIdentifier = sponsorId.trim().replace(/^@/, '');
+  const cleanId = rawIdentifier.toUpperCase();
+  const cleanLower = rawIdentifier.toLowerCase();
+
+  const localMatch = findUserById(rawIdentifier);
+  if (localMatch && localMatch.photoUrl && localMatch.photoUrl.trim()) {
+    return localMatch;
   }
-  if (cleanId === ACC_LEGACY_SPONSOR_ID) {
-    return ACC_LEGACY_SPONSOR_USER;
+
+  const cached = sponsorProfileCache.get(cleanId) || sponsorProfileCache.get(cleanLower);
+  if (cached && cached.photoUrl && cached.photoUrl.trim()) {
+    return cached;
   }
-  const localMatch = findUserById(cleanId);
+
+  const hydratePhotoAndCache = async (userObj: UserProfile): Promise<UserProfile> => {
+    let hydrated = { ...userObj };
+    if ((!hydrated.photoUrl || !hydrated.photoUrl.trim()) && hydrated.userId) {
+      try {
+        const mediaCtrl = new AbortController();
+        const mtid = setTimeout(() => mediaCtrl.abort(), 3500);
+        const mediaRes = await fetch(`/api/users/${encodeURIComponent(hydrated.userId)}/media`, {
+          signal: mediaCtrl.signal,
+        });
+        clearTimeout(mtid);
+        if (mediaRes.ok) {
+          const mediaData = await mediaRes.json().catch(() => null);
+          if (mediaData?.photoUrl && String(mediaData.photoUrl).trim()) {
+            hydrated = { ...hydrated, photoUrl: String(mediaData.photoUrl).trim() };
+          }
+        }
+      } catch {}
+    }
+    sponsorProfileCache.set(hydrated.userId.toUpperCase(), hydrated);
+    if (hydrated.username) {
+      sponsorProfileCache.set(hydrated.username.toLowerCase().replace(/^@/, ''), hydrated);
+    }
+    if (hydrated.photoUrl && hydrated.photoUrl.trim() && memoryUsers) {
+      const idx = memoryUsers.findIndex(
+        (u) => u && u.userId?.toUpperCase() === hydrated.userId.toUpperCase()
+      );
+      if (idx !== -1 && !memoryUsers[idx].photoUrl) {
+        memoryUsers[idx] = { ...memoryUsers[idx], photoUrl: hydrated.photoUrl };
+      }
+    }
+    return hydrated;
+  };
+
+  // 1. Fast Server Profile API (supports both IOIS Unique ID and Username & returns real uploaded photoUrl)
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`/api/users/profile/${encodeURIComponent(rawIdentifier)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const userObj = (data?.user && data.user.userId ? data.user : data?.userId ? data : null) as UserProfile | null;
+      if (userObj && userObj.userId) {
+        return await hydratePhotoAndCache(userObj);
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to Server Validate-Sponsor API -> Profile fetch / Verified Profile Object
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(rawIdentifier)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.isValid && data.sponsorId) {
+        const localResolved = findUserById(data.sponsorId);
+        if (localResolved && localResolved.photoUrl && localResolved.photoUrl.trim()) {
+          return localResolved;
+        }
+
+        try {
+          const profRes = await fetch(`/api/users/profile/${encodeURIComponent(data.sponsorId)}`);
+          if (profRes.ok) {
+            const profData = await profRes.json();
+            const userObj = (profData?.user && profData.user.userId ? profData.user : profData?.userId ? profData : null) as UserProfile | null;
+            if (userObj && userObj.userId) {
+              return await hydratePhotoAndCache(userObj);
+            }
+          }
+        } catch {}
+
+        const fallbackBase: UserProfile = {
+          ...(localResolved || ({} as UserProfile)),
+          userId: data.sponsorId,
+          username: data.sponsorUsername || localResolved?.username || undefined,
+          fullName: data.sponsorName || localResolved?.fullName || 'सत्यापित स्पॉन्सर',
+          mobileNumber: localResolved?.mobileNumber || '+91 ******0000',
+          email: localResolved?.email || 's***r@iois.in',
+          selectedPlanId: localResolved?.selectedPlanId || 7,
+          role: localResolved?.role || 'आधिकारिक सत्यापित स्पॉन्सर',
+          photoUrl: (data.photoUrl && String(data.photoUrl).trim()) || localResolved?.photoUrl || OFFICIAL_ROOT_SPONSOR_USER.photoUrl,
+          paymentStatus: localResolved?.paymentStatus || 'approved',
+          createdAt: localResolved?.createdAt || new Date().toISOString(),
+        };
+        return await hydratePhotoAndCache(fallbackBase);
+      }
+    }
+  } catch {}
+
   if (localMatch) return localMatch;
 
+  // 3. Firestore Direct Fallback (by User ID or Username)
   if (db && !isFirestoreInQuotaCooldown()) {
     try {
-      const snap = await getDoc(doc(db, 'users', cleanId));
-      if (snap.exists()) {
-        return snap.data() as UserProfile;
+      const snap = await Promise.race([
+        getDoc(doc(db, 'users', cleanId)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      ]);
+      if (snap && snap.exists()) {
+        const userObj = snap.data() as UserProfile;
+        if (userObj && userObj.userId) {
+          return await hydratePhotoAndCache(userObj);
+        }
+      }
+      if (cleanLower) {
+        const qSnap = await Promise.race([
+          getDocs(query(collection(db, 'users'), where('username', '==', cleanLower), limit(1))),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        if (qSnap && !qSnap.empty) {
+          const userObj = qSnap.docs[0].data() as UserProfile;
+          if (userObj && userObj.userId) {
+            return await hydratePhotoAndCache(userObj);
+          }
+        }
       }
     } catch (e) {
       markFirestoreQuotaExhausted(e);
     }
   }
-
-  try {
-    const res = await fetch(`/api/users/profile/${encodeURIComponent(cleanId)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.userId) return data;
-    }
-  } catch {}
-
-  // If searched by username, also query server validate-sponsor
-  try {
-    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(sponsorId.trim())}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.isValid && data.sponsorId) {
-        const resolved = findUserById(data.sponsorId);
-        if (resolved) return resolved;
-      }
-    }
-  } catch {}
 
   return null;
 };
@@ -1512,7 +1615,14 @@ export const validateEmailAddress = (email?: string): { isValid: boolean; cleanE
 export const validateSponsorIdAsync = async (
   sponsorId?: string,
   localUsers?: UserProfile[]
-): Promise<{ isValid: boolean; sponsorName?: string; sponsorId?: string; error?: string }> => {
+): Promise<{
+  isValid: boolean;
+  sponsorName?: string;
+  sponsorId?: string;
+  sponsorUsername?: string;
+  sponsorPhotoUrl?: string;
+  error?: string;
+}> => {
   if (!sponsorId || typeof sponsorId !== 'string' || !sponsorId.trim()) {
     return {
       isValid: false,
@@ -1520,15 +1630,20 @@ export const validateSponsorIdAsync = async (
     };
   }
 
-  const clean = sponsorId.trim().toUpperCase();
-  const cleanLower = sponsorId.trim().toLowerCase().replace(/^@/, '');
+  const rawStripped = sponsorId.trim().replace(/^@/, '');
+  const clean = rawStripped.toUpperCase();
+  const cleanLower = rawStripped.toLowerCase();
 
   // 1. Root Master Sponsor Check
+  const users = localUsers || getAllUsers();
   if (clean === OFFICIAL_ROOT_SPONSOR_ID || cleanLower === 'vikaskumar' || cleanLower === 'vikas01') {
+    const rootLocal = users.find((u) => u && u.userId?.trim().toUpperCase() === OFFICIAL_ROOT_SPONSOR_ID);
     return {
       isValid: true,
       sponsorId: OFFICIAL_ROOT_SPONSOR_ID,
-      sponsorName: OFFICIAL_ROOT_SPONSOR_NAME,
+      sponsorUsername: rootLocal?.username || OFFICIAL_ROOT_SPONSOR_USER.username || 'vikaskumar',
+      sponsorName: rootLocal?.fullName || OFFICIAL_ROOT_SPONSOR_NAME,
+      sponsorPhotoUrl: (rootLocal?.photoUrl && rootLocal.photoUrl.trim()) || OFFICIAL_ROOT_SPONSOR_USER.photoUrl,
     };
   }
   if (clean === ACC_LEGACY_SPONSOR_ID) {
@@ -1539,27 +1654,28 @@ export const validateSponsorIdAsync = async (
     };
   }
 
-  // 2. Local Users Cache Check (By User ID or Username)
-  const users = localUsers || getAllUsers();
+  // 2. Local Users Cache Check (By User ID or Username) — only short-circuit if real photoUrl is present
   const localMatch = users.find((u) => {
     if (!u) return false;
     const uidMatch = u.userId && u.userId.trim().toUpperCase() === clean;
     const unameMatch = u.username && u.username.trim().toLowerCase().replace(/^@/, '') === cleanLower;
     return uidMatch || unameMatch;
   });
-  if (localMatch) {
+  if (localMatch && localMatch.photoUrl && localMatch.photoUrl.trim()) {
     return {
       isValid: true,
       sponsorId: localMatch.userId,
+      sponsorUsername: localMatch.username || undefined,
       sponsorName: localMatch.fullName || 'सत्यापित सदस्य',
+      sponsorPhotoUrl: localMatch.photoUrl.trim(),
     };
   }
 
-  // 3. Fast Server API Check first (avoids burning Firestore reads or waiting on quota)
+  // 3. Fast Server API Check (returns real uploaded photoUrl even when lite cache stripped it)
   try {
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(clean)}`, {
+    const tid = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`/api/users/validate-sponsor?sponsorId=${encodeURIComponent(rawStripped)}`, {
       signal: controller.signal,
     });
     clearTimeout(tid);
@@ -1569,19 +1685,31 @@ export const validateSponsorIdAsync = async (
         return {
           isValid: true,
           sponsorId: data.sponsorId || clean,
+          sponsorUsername: data.sponsorUsername || undefined,
           sponsorName: data.sponsorName || 'सत्यापित सदस्य',
+          sponsorPhotoUrl: (data.photoUrl && String(data.photoUrl).trim()) || localMatch?.photoUrl || '',
         };
       }
       return {
         isValid: false,
-        error: `अमान्य स्पॉन्सर ID "${clean}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
+        error: `अमान्य स्पॉन्सर ID "${rawStripped}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
       };
     }
   } catch (e) {
     console.warn('Server sponsor check note:', e);
   }
 
-  // 4. Firestore Cloud Check fallback (Direct document lookup, quota-guarded)
+  if (localMatch) {
+    return {
+      isValid: true,
+      sponsorId: localMatch.userId,
+      sponsorUsername: localMatch.username || undefined,
+      sponsorName: localMatch.fullName || 'सत्यापित सदस्य',
+      sponsorPhotoUrl: localMatch.photoUrl || '',
+    };
+  }
+
+  // 4. Firestore Cloud Check fallback (Direct document lookup + username query, quota-guarded)
   if (db && !isFirestoreInQuotaCooldown()) {
     try {
       const docRef = doc(db, 'users', clean);
@@ -1594,8 +1722,24 @@ export const validateSponsorIdAsync = async (
         return {
           isValid: true,
           sponsorId: data.userId || clean,
+          sponsorUsername: data.username || undefined,
           sponsorName: data.fullName || 'सत्यापित सदस्य',
         };
+      }
+      if (cleanLower) {
+        const qSnap = await Promise.race([
+          getDocs(query(collection(db, 'users'), where('username', '==', cleanLower), limit(1))),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        if (qSnap && !qSnap.empty) {
+          const data = qSnap.docs[0].data() as UserProfile;
+          return {
+            isValid: true,
+            sponsorId: data.userId || clean,
+            sponsorUsername: data.username || cleanLower,
+            sponsorName: data.fullName || 'सत्यापित सदस्य',
+          };
+        }
       }
     } catch (e) {
       markFirestoreQuotaExhausted(e);
@@ -1606,7 +1750,7 @@ export const validateSponsorIdAsync = async (
   // 5. If not found in any source -> Strictly Invalid Random Sponsor ID!
   return {
     isValid: false,
-    error: `अमान्य स्पॉन्सर ID "${clean}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
+    error: `अमान्य स्पॉन्सर ID "${rawStripped}"! यह स्पॉन्सर सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है। कृपया सही स्पॉन्सर ID दर्ज करें या डिफ़ॉल्ट "${OFFICIAL_ROOT_SPONSOR_ID}" का उपयोग करें।`,
   };
 };
 
@@ -2312,6 +2456,19 @@ export const registerNewUserAsync = async (
     }
   }
 
+  // 3.5 Strict Unique Username Validation (if user chose custom username)
+  const rawCustomUsername = typeof data.username === 'string' ? data.username.trim().toLowerCase().replace(/^@/, '') : '';
+  let cleanCustomUsername: string | undefined = undefined;
+  if (rawCustomUsername) {
+    const unameCheck = await checkUsernameAvailableAsync(rawCustomUsername);
+    if (!unameCheck.available) {
+      const err: any = new Error(unameCheck.error || `❌ यूजरनेम "@${rawCustomUsername}" उपलब्ध नहीं है।`);
+      err.usernameConflict = true;
+      throw err;
+    }
+    cleanCustomUsername = unameCheck.cleanUsername;
+  }
+
   // 4 & 5. Parallel Sponsor ID Verification & Duplicate Check (2x faster)
   const currentUsers = getAllUsers();
   const [sponsorCheck, dupCheck] = await Promise.all([
@@ -2339,6 +2496,7 @@ export const registerNewUserAsync = async (
   
   const newUser: UserProfile = {
     ...data,
+    ...(cleanCustomUsername ? { username: cleanCustomUsername } : { username: undefined }),
     fullName: nameCheck.cleanName,
     mobileNumber: mobileCheck.cleanDigits,
     email: data.email ? data.email.trim().toLowerCase() : `${mobileCheck.cleanDigits}@iois.in`,
@@ -2362,13 +2520,23 @@ export const registerNewUserAsync = async (
     });
     clearTimeout(timeoutId);
 
-    if (serverRes.status === 409) {
-      const serverData = await serverRes.json();
-      const err: any = new Error(serverData.error || 'खाता पहले से मौजूद है।');
-      err.alreadyExists = true;
-      err.matchedBy = serverData.matchedBy || 'mobile';
-      err.maskedMobile = serverData.maskedMobile || dupCheck.maskedMobile;
-      err.maskedEmail = serverData.maskedEmail || dupCheck.maskedEmail;
+    if (serverRes.status === 409 || serverRes.status === 400) {
+      const serverData = await serverRes.json().catch(() => ({}));
+      if (serverData?.usernameConflict) {
+        const err: any = new Error(serverData.error || 'यह @username पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया दूसरा यूजरनेम चुनें।');
+        err.usernameConflict = true;
+        throw err;
+      }
+      if (serverRes.status === 409) {
+        const err: any = new Error(serverData.error || 'खाता पहले से मौजूद है।');
+        err.alreadyExists = true;
+        err.matchedBy = serverData.matchedBy || 'mobile';
+        err.maskedMobile = serverData.maskedMobile || dupCheck.maskedMobile;
+        err.maskedEmail = serverData.maskedEmail || dupCheck.maskedEmail;
+        throw err;
+      }
+      const err: any = new Error(serverData.error || 'अमान्य पंजीकरण विवरण।');
+      err.validationError = true;
       throw err;
     }
     if (serverRes.ok) {
@@ -2385,7 +2553,7 @@ export const registerNewUserAsync = async (
       serverSaved = true;
     }
   } catch (err: any) {
-    if (err.alreadyExists) throw err;
+    if (err.alreadyExists || err.usernameConflict || err.validationError) throw err;
     console.warn('Server registration endpoint note:', err);
   }
 
@@ -2496,13 +2664,23 @@ export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatu
     }
   }
 
-  // 4. Strict Sponsor ID Validation
-  const cleanSponsor = (data.sponsorId || '').trim().toUpperCase();
-  const isMasterSponsor = cleanSponsor === OFFICIAL_ROOT_SPONSOR_ID;
-  const isExistingSponsor = users.some((u) => u.userId && u.userId.trim().toUpperCase() === cleanSponsor);
-  if (!isMasterSponsor && !isExistingSponsor) {
+  // 4. Strict Sponsor ID Validation (supports IOIS Unique ID OR @username)
+  const rawSponsor = (data.sponsorId || '').trim().replace(/^@/, '');
+  const cleanSponsorUpper = rawSponsor.toUpperCase();
+  const cleanSponsorLower = rawSponsor.toLowerCase();
+  const matchedSponsor = users.find(
+    (u) =>
+      u &&
+      ((u.userId && u.userId.trim().toUpperCase() === cleanSponsorUpper) ||
+        (u.username && u.username.trim().toLowerCase().replace(/^@/, '') === cleanSponsorLower))
+  );
+  const resolvedSponsor =
+    matchedSponsor?.userId ||
+    (cleanSponsorLower === 'vikaskumar' || cleanSponsorLower === 'vikas01' ? OFFICIAL_ROOT_SPONSOR_ID : cleanSponsorUpper);
+  const isMasterSponsor = resolvedSponsor === OFFICIAL_ROOT_SPONSOR_ID || resolvedSponsor === ACC_LEGACY_SPONSOR_ID;
+  if (!isMasterSponsor && !matchedSponsor) {
     throw new Error(
-      `अमान्य स्पॉन्सर ID! "${cleanSponsor || 'खाली'}" सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`
+      `अमान्य स्पॉन्सर ID! "${cleanSponsorUpper || 'खाली'}" सिस्टम में मौजूद नहीं है। कोई भी रैंडम स्पॉन्सर ID स्वीकार्य नहीं है।`
     );
   }
 
@@ -2512,7 +2690,7 @@ export const registerNewUser = (data: Omit<UserProfile, 'userId' | 'paymentStatu
     fullName: nameCheck.cleanName,
     mobileNumber: mobileCheck.cleanDigits,
     email: data.email ? data.email.trim().toLowerCase() : `${mobileCheck.cleanDigits}@iois.in`,
-    sponsorId: cleanSponsor || OFFICIAL_ROOT_SPONSOR_ID,
+    sponsorId: resolvedSponsor || OFFICIAL_ROOT_SPONSOR_ID,
     payoutUpi: cleanPayoutUpi,
   };
 
@@ -2579,9 +2757,14 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     throw new Error('यह मोबाइल नंबर या ईमेल किसी अन्य सदस्य के खाते में पहले से पंजीकृत है। कृपया अपना सही विवरण दर्ज करें।');
   }
 
-  // Prevent duplicate username across other users
+  // Validate format & prevent duplicate username across other users
+  let normalizedProfile = updatedProfile;
   if (updatedProfile.username && updatedProfile.username.trim()) {
-    const cleanUname = updatedProfile.username.trim().toLowerCase().replace(/^@/, '');
+    const formatCheck = validateUsernameFormat(updatedProfile.username);
+    if (!formatCheck.isValid) {
+      throw new Error(formatCheck.error || 'अमान्य यूजरनेम प्रारूप।');
+    }
+    const cleanUname = formatCheck.cleanUsername;
     const unameConflict = users.find((u) => {
       if (!u || u.userId.toUpperCase() === updatedProfile.userId.toUpperCase()) return false;
       return (
@@ -2592,10 +2775,11 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     if (unameConflict) {
       throw new Error(`❌ यूजरनेम "@${cleanUname}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया कोई दूसरा यूजरनेम चुनें।`);
     }
+    normalizedProfile = { ...updatedProfile, username: cleanUname };
   }
 
-  const sanitizedUpi = sanitizeUpiId(updatedProfile.payoutUpi);
-  const index = users.findIndex((u) => u.userId.toUpperCase() === updatedProfile.userId.toUpperCase());
+  const sanitizedUpi = sanitizeUpiId(normalizedProfile.payoutUpi);
+  const index = users.findIndex((u) => u.userId.toUpperCase() === normalizedProfile.userId.toUpperCase());
   
   // Track Audit Changes
   const existingUser = index !== -1 ? users[index] : null;
@@ -2603,10 +2787,10 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   const now = new Date().toISOString();
 
   const pendingPasswordUpdate =
-    typeof updatedProfile.password === 'string' && updatedProfile.password.trim()
-      ? updatedProfile.password.trim()
+    typeof normalizedProfile.password === 'string' && normalizedProfile.password.trim()
+      ? normalizedProfile.password.trim()
       : '';
-  const { password: _strippedPassword, ...safeProfileUpdates } = updatedProfile as any;
+  const { password: _strippedPassword, ...safeProfileUpdates } = normalizedProfile as any;
 
   if (existingUser) {
     const fieldMap: Array<{ key: keyof UserProfile; label: string }> = [
@@ -2679,7 +2863,7 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
     finalizedUser = {
       ...safeProfileUpdates,
       payoutUpi: sanitizedUpi,
-      userId: updatedProfile.userId.trim().toUpperCase(),
+      userId: normalizedProfile.userId.trim().toUpperCase(),
       editHistory: combinedLogs,
     };
     users.push(finalizedUser);
@@ -2727,6 +2911,51 @@ export const updateUserProfile = (updatedProfile: UserProfile): UserProfile => {
   })();
 
   return finalizedUser;
+};
+
+export const updateUserProfileAsync = async (updatedProfile: UserProfile): Promise<UserProfile> => {
+  await hydrateUsersFromIdb();
+  let candidateProfile = { ...updatedProfile };
+
+  if (candidateProfile.username && candidateProfile.username.trim()) {
+    const unameRes = await checkUsernameAvailableAsync(candidateProfile.username, candidateProfile.userId);
+    if (!unameRes.available) {
+      throw new Error(unameRes.error || 'यह @username पहले से किसी अन्य सदस्य द्वारा उपयोग में है।');
+    }
+    candidateProfile.username = unameRes.cleanUsername;
+  }
+
+  const pendingPasswordUpdate =
+    typeof candidateProfile.password === 'string' && candidateProfile.password.trim()
+      ? candidateProfile.password.trim()
+      : '';
+  const serverPayload = pendingPasswordUpdate
+    ? { ...candidateProfile, password: pendingPasswordUpdate }
+    : candidateProfile;
+
+  // Authoritative server check first so duplicate username/mobile/email rejects before local write
+  let serverReturnedUser: UserProfile | null = null;
+  try {
+    const res = await fetch(`/api/users/${encodeURIComponent(candidateProfile.userId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(false) },
+      body: JSON.stringify(serverPayload),
+    });
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (res.status === 400 || res.status === 409) {
+      throw new Error((isJson && data?.error) || 'प्रोफाइल अपडेट अमान्य है।');
+    }
+    if (res.ok && isJson && data?.user) {
+      serverReturnedUser = data.user as UserProfile;
+    }
+  } catch (err: any) {
+    if (err?.message && (err.message.includes('पहले से') || err.message.includes('अमान्य') || err.message.includes('यूजरनेम'))) {
+      throw err;
+    }
+  }
+
+  const saved = updateUserProfile(serverReturnedUser ? { ...candidateProfile, ...serverReturnedUser } : candidateProfile);
+  return saved;
 };
 
 /**
@@ -3799,56 +4028,105 @@ export const setAdminSession = (active: boolean): void => {
   }
 };
 
-export const setPaymentStatus = (
-  userId: string, 
-  status: 'approved' | 'rejected', 
+export const setPaymentStatusAsync = async (
+  userId: string,
+  status: 'approved' | 'rejected',
   reason?: string
-): void => {
+): Promise<{ ok: boolean; user?: UserProfile; error?: string }> => {
+  await hydrateUsersFromIdb();
+  const cleanId = userId.trim().toUpperCase();
   const users = getAllUsers();
-  const index = users.findIndex((u) => u.userId.toUpperCase() === userId.toUpperCase());
+  const index = users.findIndex((u) => u.userId.toUpperCase() === cleanId);
+  const nowIso = new Date().toISOString();
+  let targetUser: UserProfile | undefined;
+
   if (index !== -1) {
     users[index].paymentStatus = status;
     if (status === 'approved') {
-      users[index].verifiedAt = new Date().toISOString();
+      users[index].verifiedAt = nowIso;
       users[index].rejectionReason = undefined;
     } else {
-      users[index].rejectionReason = reason || 'Payment screenshot or UTR invalid';
+      users[index].rejectionReason = reason || 'अमान्य पेमेंट स्क्रीनशॉट / UTR';
     }
-    const targetUser = { ...users[index] };
+    targetUser = { ...users[index] };
     saveUsers(users);
 
     const current = getCurrentUser();
-    if (current && current.userId.toUpperCase() === userId.toUpperCase()) {
+    if (current && current.userId.toUpperCase() === cleanId) {
       setCurrentUser(targetUser);
     }
-
-    // Call Firestore and server to persist status change permanently with fallback & retry queue
-    void (async () => {
-      const fsOk = await syncUserToFirestore(targetUser);
-      let srvOk = false;
-      try {
-        const res = await fetch(`/api/users/${encodeURIComponent(userId)}/status`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
-          body: JSON.stringify({ status, reason }),
-        });
-        if (res.ok) srvOk = true;
-      } catch {}
-      if (!srvOk) {
-        try {
-          const syncRes = await fetch('/api/users/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
-            body: JSON.stringify({ users: [targetUser] }),
-          });
-          if (syncRes.ok) srvOk = true;
-        } catch {}
-      }
-      if (!srvOk || !fsOk) {
-        await enqueuePendingUserSync(targetUser, 'status');
-      }
-    })();
   }
+
+  let srvOk = false;
+  let serverError: string | undefined;
+  let serverUser: UserProfile | undefined;
+
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`/api/users/${encodeURIComponent(cleanId)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+      body: JSON.stringify({ status, reason }),
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    const parsed = await parseJsonResponseSafe(res);
+    if (res.ok && parsed.data?.success) {
+      srvOk = true;
+      if (parsed.data.user) {
+        serverUser = parsed.data.user as UserProfile;
+      }
+    } else if (parsed.data?.error) {
+      serverError = String(parsed.data.error);
+    }
+  } catch (err: any) {
+    serverError = err?.message || 'सर्वर से संपर्क नहीं हो पाया।';
+  }
+
+  if (!srvOk && targetUser) {
+    try {
+      const syncRes = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(true) },
+        body: JSON.stringify({ users: [targetUser] }),
+      });
+      if (syncRes.ok) srvOk = true;
+    } catch {}
+  }
+
+  if (targetUser) {
+    void syncUserToFirestore(serverUser || targetUser).then((fsOk) => {
+      if (!srvOk || !fsOk) {
+        void enqueuePendingUserSync(serverUser || targetUser!, 'status');
+      }
+    });
+  }
+
+  if (serverUser) {
+    const latest = getAllUsers();
+    const sIdx = latest.findIndex((u) => u.userId.toUpperCase() === cleanId);
+    if (sIdx !== -1) {
+      latest[sIdx] = {
+        ...latest[sIdx],
+        ...serverUser,
+        photoUrl: serverUser.photoUrl || latest[sIdx].photoUrl || '',
+        paymentScreenshotUrl: serverUser.paymentScreenshotUrl || latest[sIdx].paymentScreenshotUrl || '',
+      };
+      saveUsers(latest);
+      targetUser = latest[sIdx];
+    }
+  }
+
+  return { ok: srvOk || Boolean(targetUser), user: serverUser || targetUser, error: srvOk ? undefined : serverError };
+};
+
+export const setPaymentStatus = (
+  userId: string,
+  status: 'approved' | 'rejected',
+  reason?: string
+): void => {
+  void setPaymentStatusAsync(userId, status, reason);
 };
 
 export const deleteUserAccount = async (userId: string): Promise<boolean> => {
@@ -4120,6 +4398,52 @@ export const getShortSponsorUrl = (user: { userId: string; username?: string }):
   return `${origin}/?s=${encodeURIComponent(handle)}`;
 };
 
+export const getReferralLinks = (userId?: string | null, username?: string | null) => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://iois.in';
+  const cleanId = (userId || OFFICIAL_ROOT_SPONSOR_ID).trim().toUpperCase();
+  const cleanUname = (username || '').trim().replace(/^@/, '').toLowerCase();
+  const userIdLink = `${origin}/?s=${encodeURIComponent(cleanId)}`;
+  const usernameLink = cleanUname ? `${origin}/?s=${encodeURIComponent(cleanUname)}` : '';
+  return {
+    origin,
+    userId: cleanId,
+    username: cleanUname,
+    userIdLink,
+    usernameLink,
+    primaryLink: usernameLink || userIdLink,
+  };
+};
+
+export const extractReferralFromUrl = (): { ref: string; isRegisterRoute: boolean; profileHandle: string } => {
+  if (typeof window === 'undefined') {
+    return { ref: '', isRegisterRoute: false, profileHandle: '' };
+  }
+  const searchParams = new URLSearchParams(window.location.search);
+  const hash = window.location.hash || '';
+  const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
+  const hashParams = new URLSearchParams(hashQuery);
+
+  const getParam = (keys: string[]): string => {
+    for (const k of keys) {
+      const val = searchParams.get(k) || hashParams.get(k);
+      if (val && val.trim()) return val.trim();
+    }
+    return '';
+  };
+
+  const ref = getParam(['s', 'sponsor', 'ref', 'sponsorId', 'sponsor_id', 'refId']);
+  const profileHandle = getParam(['u', 'profile']).replace(/^@/, '');
+  const pageParam = (getParam(['page', 'tab']) || '').toLowerCase();
+  const pathLower = (window.location.pathname || '').toLowerCase();
+  const hashLower = hash.toLowerCase();
+  const isRegisterRoute =
+    pageParam === 'register' ||
+    pathLower.includes('/register') ||
+    hashLower.includes('register');
+
+  return { ref, isRegisterRoute, profileHandle };
+};
+
 // =========================================================================
 // 2. Private Direct Messaging Service (Admin <-> User)
 // =========================================================================
@@ -4320,7 +4644,26 @@ export const adminUpdateUserProfileAsync = async (
     sanitizedUpdates.emailLower = sanitizedUpdates.email.toLowerCase();
   }
   if (typeof sanitizedUpdates.username === 'string') {
-    sanitizedUpdates.username = sanitizedUpdates.username.toLowerCase().replace(/^@/, '');
+    const cleanAdminUname = sanitizedUpdates.username.toLowerCase().replace(/^@/, '');
+    if (cleanAdminUname) {
+      const unameFormat = validateUsernameFormat(cleanAdminUname);
+      if (!unameFormat.isValid) {
+        throw new Error(unameFormat.error || 'अमान्य यूजरनेम प्रारूप।');
+      }
+      const conflictUname = users.find((u) => {
+        if (!u || u.userId?.toUpperCase() === cleanId) return false;
+        return (
+          (u.username && u.username.trim().toLowerCase().replace(/^@/, '') === unameFormat.cleanUsername) ||
+          (u.userId && u.userId.trim().toLowerCase() === unameFormat.cleanUsername)
+        );
+      });
+      if (conflictUname) {
+        throw new Error(`❌ यूजरनेम "@${unameFormat.cleanUsername}" पहले से किसी अन्य सदस्य द्वारा उपयोग में है। कृपया अलग यूजरनेम चुनें।`);
+      }
+      sanitizedUpdates.username = unameFormat.cleanUsername;
+    } else if (existing.username) {
+      sanitizedUpdates.username = existing.username;
+    }
   }
 
   let updatedUser: UserProfile = mergeUserLists([existing], [
@@ -4343,8 +4686,8 @@ export const adminUpdateUserProfileAsync = async (
   ) {
     updatedUser.paymentStatus = sanitizedUpdates.paymentStatus;
   }
-  if (typeof sanitizedUpdates.username === 'string') {
-    updatedUser.username = sanitizedUpdates.username;
+  if (typeof sanitizedUpdates.username === 'string' && sanitizedUpdates.username.trim()) {
+    updatedUser.username = sanitizedUpdates.username.trim();
   }
   if (typeof sanitizedUpdates.payoutUpi === 'string') {
     updatedUser.payoutUpi = sanitizedUpdates.payoutUpi;
@@ -4358,6 +4701,7 @@ export const adminUpdateUserProfileAsync = async (
   let srvOk = false;
   let serverErrorMsg = '';
   let serverUnauthorized = false;
+  let serverRejected = false;
 
   // 1. Await authoritative server PUT /api/admin/users/:userId
   try {
@@ -4374,6 +4718,9 @@ export const adminUpdateUserProfileAsync = async (
     if (res.status === 401 || res.status === 403) {
       serverUnauthorized = true;
       serverErrorMsg = (isJson && data?.error) || 'एडमिन सत्र समाप्त हो गया है। कृपया पुनः लॉगिन करें।';
+    } else if (res.status === 400 || res.status === 409) {
+      serverRejected = true;
+      serverErrorMsg = (isJson && data?.error) || 'यूजर विवरण अमान्य है या किसी अन्य खाते से टकरा रहा है।';
     } else if (isJson && res.ok && data?.success) {
       srvOk = true;
       if (data.user && typeof data.user === 'object') {
@@ -4391,6 +4738,10 @@ export const adminUpdateUserProfileAsync = async (
     serverErrorMsg = err?.message || 'सर्वर से संपर्क नहीं हो सका।';
   }
 
+  if (serverRejected) {
+    throw new Error(serverErrorMsg);
+  }
+
   // If real server session expired (not cross-device cloud-verified mode), fail loudly instead of faking success
   if (serverUnauthorized && !isCloudVerifiedMode) {
     setAdminSession(false);
@@ -4398,7 +4749,7 @@ export const adminUpdateUserProfileAsync = async (
   }
 
   // 2. Fallback server sync if PUT failed with transient error (and authorized)
-  if (!srvOk && !serverUnauthorized) {
+  if (!srvOk && !serverUnauthorized && !serverRejected) {
     try {
       const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
@@ -4414,7 +4765,7 @@ export const adminUpdateUserProfileAsync = async (
 
   // 3. Firestore persistence: server already synced to Firestore on PUT; only block on client Firestore if server failed
   let fsOk = false;
-  if (!srvOk && !isFirestoreInQuotaCooldown()) {
+  if (!srvOk && !serverRejected && !isFirestoreInQuotaCooldown()) {
     fsOk = await Promise.race([
       syncUserToFirestore(updatedUser),
       new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
@@ -4814,3 +5165,58 @@ export const importUsersBackupAsync = async (
 
   return { totalMerged: merged.length, importedCount: validIncoming.length };
 };
+
+export const revealAdminUserPasswordsAsync = async (
+  securityPin: string,
+  userId?: string
+): Promise<{
+  success: boolean;
+  passwords?: Record<string, string>;
+  revealedCount?: number;
+  totalUsers?: number;
+  error?: string;
+}> => {
+  const cleanPin = String(securityPin || '').trim();
+  if (!cleanPin) {
+    return { success: false, error: 'कृपया सिक्योर एडमिन पिन दर्ज करें।' };
+  }
+
+  try {
+    const res = await fetch('/api/admin/reveal-passwords', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(true),
+      },
+      body: JSON.stringify({
+        securityPin: cleanPin,
+        ...(userId ? { userId: userId.trim().toUpperCase() } : {}),
+      }),
+    });
+
+    const { isJson, data } = await parseJsonResponseSafe(res);
+    if (!isJson) {
+      return { success: false, error: 'सर्वर से अमान्य उत्तर प्राप्त हुआ।' };
+    }
+
+    if (res.ok && data?.success) {
+      return {
+        success: true,
+        passwords: (data.passwords && typeof data.passwords === 'object' ? data.passwords : {}) as Record<string, string>,
+        revealedCount: Number(data.revealedCount || 0),
+        totalUsers: Number(data.totalUsers || 0),
+      };
+    }
+
+    return {
+      success: false,
+      error: data?.error || (res.status === 401 ? 'गलत सिक्योर एडमिन पिन या एडमिन सत्र समाप्त।' : 'पासवर्ड अनलॉक विफल।'),
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'नेटवर्क त्रुटि: सर्वर से संपर्क नहीं हो पाया।',
+    };
+  }
+};
+
